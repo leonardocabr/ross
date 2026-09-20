@@ -5,7 +5,12 @@ import json
 
 from flask import Blueprint, jsonify, request
 
-from ross.interface.domain.requests import ROSS_FILE_REQUEST, ROTOR_REQUEST
+from ross.interface.domain.concatenation import concatenated_project
+from ross.interface.domain.requests import (
+    CONCATENATE_REQUEST,
+    ROSS_FILE_REQUEST,
+    ROTOR_REQUEST,
+)
 from ross.interface.domain.rotor_builder import build_rotor_from_ui
 from ross.interface.domain.ross_import import project_from_ross_file
 
@@ -96,3 +101,29 @@ def load_ross_file():
             "projectData": project_from_ross_file(payload["content"]),
         }
     )
+
+
+@rotor_api.route("/api/rotor/concatenate", methods=["POST"])
+def concatenate_rotors():
+    """Join two rotors end to end and answer the project of the result.
+
+    The answer is a **project**, in the same shape `/load_ross_file` returns,
+    and not a chart: what the hub does with it is add a rotor to the library,
+    editable like any other. That is the whole reason the domain reads the new
+    numbering back from ROSS instead of keeping the joined `Rotor` -- a rotor
+    the screen cannot edit would be a dead end with a picture on it.
+
+    Nothing is caught here. A refusal from the domain is a `ValueError`, and
+    `api/errors.py` turns that into a 400 carrying the message: the user reads
+    "these two rotors were analysed under different rotor models" instead of a
+    500 about an internal error. That channel is the one every domain refusal in
+    this project already uses.
+    """
+    payload = CONCATENATE_REQUEST.read(request.get_json(silent=True))
+    merged = concatenated_project(
+        payload["first"],
+        payload["second"],
+        payload["first_conversions"],
+        payload["second_conversions"],
+    )
+    return jsonify({"status": "success", "projectData": merged})
