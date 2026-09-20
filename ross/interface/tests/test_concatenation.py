@@ -54,12 +54,23 @@ def project(shafts=2, disk_at="1", bearing_at="0", material=None, with_link=Fals
     built["materials"] = [copy.deepcopy(material or STEEL)]
     name = built["materials"][0]["name"]
     for _ in range(shafts):
+        # Millimetres. `domain/units.py:12` maps `L`, `idl` and `odl` of a
+        # ShaftElement to `mm`, because that is the unit the form asks for --
+        # this dictionary is what the screen sends, not what ROSS receives.
+        #
+        # The first version of this said `"L": "0.25", "odl": "0.05"`, meaning
+        # a quarter-metre shaft of 50 mm. It built a shaft a quarter of a
+        # *millimetre* long, and a four-element rotor one millimetre end to
+        # end. Every test here passed, because all of them assert node numbers
+        # and node numbers do not depend on length -- so the mistake was
+        # invisible until the `add_nodes` probe, where geometry is the whole
+        # point, and it cost a probe run there.
         built["shafts"].append(
             {
                 "element_type": "BASIC",
-                "L": "0.25",
+                "L": "250",
                 "idl": "0",
-                "odl": "0.05",
+                "odl": "50",
                 "material": name,
             }
         )
@@ -94,6 +105,34 @@ def described(rotor):
         ),
         "pointmasses": sorted(int(e.n) for e in rotor.point_mass_elements),
     }
+
+
+# --- the fixture is a rotor, and that is checkable -----------------------------
+
+
+def test_the_test_rotor_has_the_dimensions_of_a_rotor():
+    """Control on `project()`, and it exists because it would have caught a bug.
+
+    The fixture is written in the screen's units and read by `build_rotor_from_ui`
+    in ROSS's, and the conversion is silent. A quarter-metre shaft written as
+    `0.25` builds a quarter-*millimetre* one; every test in this file still
+    passes, because they all assert node numbers and node numbers do not care
+    how long a shaft is.
+
+    So the guard is not on the number, it is on the physics: a rotor a
+    millimetre long with a shaft fifty microns across is not a rotordynamics
+    problem, whatever the tests say about it. The bounds are wide on purpose --
+    what is being caught is three orders of magnitude, not a taste in rotors."""
+    rotor = build_rotor_from_ui(project(shafts=4))
+
+    assert 0.01 < float(rotor.L) < 100.0, (
+        "the test rotor is %g m long end to end -- check the units of `L`, "
+        "which the form asks for in millimetres" % float(rotor.L)
+    )
+    for shaft in rotor.shaft_elements:
+        assert 0.001 < float(shaft.odl) < 5.0, (
+            "a test shaft is %g m across -- check the units of `odl`" % float(shaft.odl)
+        )
 
 
 # --- the one that decides the design ------------------------------------------

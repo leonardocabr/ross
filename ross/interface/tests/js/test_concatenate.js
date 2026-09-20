@@ -21,7 +21,11 @@ function rotor(name, shafts, analyses) {
         uid: 'uid_' + name,
         savedAnalyses: analyses || [],
         materials: [],
-        shafts: Array.from({ length: shafts }, () => ({ L: '0.25', odl: '0.05' })),
+        // Millimetres, like the form: `domain/units.py` maps a ShaftElement's
+        // `L` and `odl` to mm. Nothing here reads them -- the count of shafts is
+        // what matters -- but a fixture that reads as metres teaches the next
+        // person the wrong unit, which is how the Python fixture got it wrong.
+        shafts: Array.from({ length: shafts }, () => ({ L: '250', odl: '50' })),
         disks: [],
         gears: [],
         couplings: [],
