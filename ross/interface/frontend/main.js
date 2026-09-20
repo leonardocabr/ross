@@ -15,10 +15,12 @@ import { closeCustomAlert, closeCustomConfirm, closeCustomPrompt, confirmCustomP
 import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
+import { onProjectChanged } from './core/state.js';
 import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
 import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, saveItem, saveRotor, selectSubType, splitItem } from './features/modeling.js';
+import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, splitItem, undoModelling } from './features/modeling.js';
+import { startHistoryShortcuts } from './features/shortcuts.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
@@ -33,6 +35,14 @@ import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } f
 // created and forgot to connect, leaving dragging with no effect on the figure.
 onReorder(buildRotorLive);
 
+// The two history buttons have to grey out the moment there is nothing left to
+// undo, and the thing that knows a change happened is `syncBackToLibrary` --
+// which lives in core/state.js and has no business reaching into the page. So
+// it announces, and the feature that owns the buttons subscribes. Same
+// inversion as `onReorder`, one layer up.
+onProjectChanged(refreshHistoryButtons);
+
+
 
 // The schema is loaded once at startup; openForm waits for it.
 document.addEventListener('DOMContentLoaded', () => {
@@ -46,6 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // it. Here and not at module level because it takes hold of elements of the
     // page; `features/progress.js` exports a function and runs nothing on load.
     startWorkBar();
+    // Ctrl+Z / Ctrl+Y. Here with the other `start*` calls because it takes hold
+    // of the document; `features/shortcuts.js` exports functions and runs
+    // nothing on load.
+    startHistoryShortcuts();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));
@@ -92,6 +106,7 @@ Object.assign(window, {
     returnToHub,
     runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
     saveRotor,
+    redoModelling, undoModelling,
     saveRotorFromHub, selectSubType, splitItem, switchMultiRotorTarget, switchScreen,
     swapConcatenationOrder, toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar,
     toggleDashAdv,

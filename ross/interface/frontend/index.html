@@ -88,9 +88,11 @@
                 <button class="btn-back" onclick="returnToHub()" title="Back to Hub" data-i18n-title="backToHub"><i class="fas fa-arrow-left"></i></button>
                 <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar" data-i18n-title="toggleSidebar"><i class="fas fa-bars"></i></button>
                 <button class="btn-help-general" onclick="openGeneralHelp()" title="How to use" data-i18n-title="howToUse"><i class="fas fa-question-circle"></i></button>
+                <button class="btn-history" id="btn-undo" onclick="undoModelling()" title="Undo" data-i18n-title="undo" disabled><i class="fas fa-rotate-left"></i></button>
+                <button class="btn-history" id="btn-redo" onclick="redoModelling()" title="Redo" data-i18n-title="redo" disabled><i class="fas fa-rotate-right"></i></button>
             </div>
             <div class="topbar-center">
-                <img src="assets/ross-logo.svg" alt="Logo" class="logo-img-topbar invert-on-dark" onerror="this.style.display='none'"> <span data-i18n="modelingTitle">ROSS - Modeling</span>
+                <img src="assets/ross-logo.svg" alt="Logo" class="logo-img-topbar invert-on-dark" onerror="this.style.display='none'"> <span data-i18n="modelingTitle">ROSS - Modeling</span><span id="modeling-rotor-name"></span>
             </div>
             <div class="topbar-actions">
                 <button class="btn-py" onclick="generatePythonFile()" title="Generate Python" data-i18n-title="generatePython"><i class="fab fa-python"></i> <span class="btn-text" data-i18n="generatePython">Generate Python</span></button>

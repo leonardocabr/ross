@@ -5,6 +5,7 @@ import { analysesToSave, forgetAllAnalyses } from '../core/analysis_store.js';
 import { escapeHtml } from '../core/dom.js';
 import { ensureUIDs, state, syncMultiRotors } from '../core/state.js';
 import { saveState } from '../core/persistence.js';
+import { resetHistory, structuralSnapshot } from '../core/history.js';
 import { emptyListNotice, restoreAnalysesFromMemory } from './analysis.js';
 import { generatePythonFile } from './export.js';
 import { buildRotorLive } from './modeling.js';
@@ -134,6 +135,12 @@ export function openRotorWorkspace(index, targetScreen) {
 
     state.activeRotorIndex = index;
     state.projectData = state.rotorLibrary[index]; 
+
+    // A fresh history, and it starts holding this rotor rather than nothing:
+    // the first change records *this* model as the step to come back to.
+    // Undoing across this boundary would restore one rotor over another.
+    resetHistory(structuralSnapshot(state.projectData));
+    showOpenRotorName();
     
     state.editingIndex = -1;    
     document.getElementById('element-list').innerHTML = '';
@@ -206,4 +213,17 @@ export function generatePythonFromHub(index) {
         .filter(a => a && a.type && Object.keys(a.params || {}).length > 0)
         .map(a => ({ type: a.type, params: a.params, conversion: a.conversion || '' }));
     return generatePythonFile(rotor, saved);
+}
+
+
+// Which rotor is on the modelling screen, in its topbar.
+//
+// It was not shown anywhere before, which is a gap you only notice once there
+// is an undo button: "undo" is a question about a particular model, and the
+// screen was not saying which one.
+export function showOpenRotorName() {
+    const label = document.getElementById('modeling-rotor-name');
+    if (!label) return;
+    const name = (state.projectData && state.projectData.name) || '';
+    label.textContent = name ? ' \u2014 ' + name : '';
 }

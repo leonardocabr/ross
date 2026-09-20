@@ -209,6 +209,7 @@ button {
 .topbar .btn-back,
 .topbar .btn-toggle-sidebar,
 .topbar .btn-help-general,
+.topbar .btn-history,
 .btn-about,
 .btn-theme {
     background: transparent;
@@ -219,10 +220,24 @@ button {
 .topbar .btn-back:hover,
 .topbar .btn-toggle-sidebar:hover,
 .topbar .btn-help-general:hover,
+.topbar .btn-history:hover:not(:disabled),
 .btn-about:hover,
 .btn-theme:hover {
     color: var(--text-body);
     background: var(--surface-hover);
+}
+/* Nothing left to undo. Greyed and inert rather than hidden: a button that
+   disappears makes the person look for where it went; one that is greyed says
+   the history is empty, which is the actual answer. */
+.topbar .btn-history:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: transparent;
+}
+/* Which rotor is open, beside the screen's title. */
+#modeling-rotor-name {
+    color: var(--text-muted);
+    font-weight: 400;
 }
 .btn-save,
 .btn-py {

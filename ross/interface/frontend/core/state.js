@@ -1,3 +1,5 @@
+import { recordChange, structuralSnapshot } from './history.js';
+
 // The six values that cross module boundaries, in one named object.
 //
 // This is not a state framework and does not want to be: it is the minimum set
@@ -28,8 +30,40 @@ export function getActiveData() {
     return state.projectData;
 }
 
-// Synchronizes any changes made to the MultiRotor back to the Hub's parent (original) rotors
+// Called by whoever changes the open project. It has one subscriber -- the two
+// history buttons, which have to grey out the moment there is nothing left to
+// undo -- and it is a hook rather than a direct call because this module has no
+// business touching the DOM. Same shape as `onReorder` in components/list.js.
+//
+// The default is a no-op and not a throw, unlike `onReorder`: this fires on
+// every mutation, including inside the node batteries, where nobody has any
+// reason to subscribe.
+let changeHandler = () => {};
+
+export function onProjectChanged(fn) {
+    changeHandler = fn;
+}
+
+// Writes the open project back to the library, records the step for undo, and
+// tells whoever is listening.
+//
+// The write-back only does something for a MultiRotor: for a plain rotor
+// `state.projectData` **is** the library entry (`openRotorWorkspace` assigns
+// the object itself, not a copy), so there is nothing to copy across.
+//
+// The history is recorded here because this is the one call every mutation of
+// the modelling screen already makes -- see the comment at the top of
+// core/history.js for why that matters more than it looks.
 export function syncBackToLibrary() {
+    writeBackToLibrary();
+    recordChange(structuralSnapshot(state.projectData));
+    changeHandler();
+}
+
+// The same write-back with no history and no notification, for undo and redo:
+// they put a snapshot on screen, and a restore that recorded itself would push
+// what it just undid back onto the stack.
+export function writeBackToLibrary() {
     if (state.projectData.isMultiRotor) {
         let drvLib = state.rotorLibrary.find(r => r.uid === state.projectData.driving_uid);
         if (drvLib) Object.assign(drvLib, JSON.parse(JSON.stringify(state.projectData.driving_rotor)));

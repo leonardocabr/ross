@@ -6,7 +6,8 @@ import { reapplyHelp } from '../components/help.js';
 import { openCustomAlert } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
 import { busySpinner, escapeHtml } from '../core/dom.js';
-import { state, getActiveData, syncBackToLibrary } from '../core/state.js';
+import { state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
+import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
@@ -332,6 +333,49 @@ export async function splitItem(index) {
     syncBackToLibrary();
     renderList();
     buildRotorLive();
+}
+
+// Undo and redo, for the modelling screen only
+//
+// Here, beside `copyItem`, `deleteItem` and `splitItem`, because restoring a
+// snapshot owes the screen exactly what they owe it: the form closed if it was
+// open on something that may no longer be there, the list redrawn, the figure
+// rebuilt. The bookkeeping -- which snapshot, and whether there is one -- is in
+// core/history.js, which knows nothing about any of this.
+function restore(snapshot) {
+    if (snapshot === null) return;
+
+    applySnapshot(state.projectData, snapshot);
+
+    // The form was open on an element of a model that no longer exists. Saving
+    // it would write a row from one version of the rotor into another, at an
+    // index that means something different now.
+    closeForm();
+
+    // `writeBackToLibrary` and not `syncBackToLibrary`: a restore that recorded
+    // itself would push onto the stack the very step it just took off.
+    writeBackToLibrary();
+    refreshHistoryButtons();
+    renderList();
+    buildRotorLive();
+}
+
+export function undoModelling() {
+    restore(undo());
+}
+
+export function redoModelling() {
+    restore(redo());
+}
+
+// Greys the two buttons out when there is nowhere to go. Subscribed to
+// `onProjectChanged` in main.js, so it runs after every mutation without any
+// mutation having to remember it.
+export function refreshHistoryButtons() {
+    const back = document.getElementById('btn-undo');
+    const forward = document.getElementById('btn-redo');
+    if (back) back.disabled = !canUndo();
+    if (forward) forward.disabled = !canRedo();
 }
 
 // Function to save the element

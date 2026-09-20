@@ -75,6 +75,10 @@ const CALLS = {
     // asks anything -- what is being smoke-tested is that the name is wired,
     // not that the dialog works (tests/js/test_split.js does that).
     splitItem: [99],
+    // undo and redo on an empty history: both answer null and do nothing, which
+    // is what makes them safe to call here. The bookkeeping is in
+    // tests/js/test_history.js.
+    undoModelling: [], redoModelling: [],
 };
 
 // Not called, and why. The list is deliberately short.
