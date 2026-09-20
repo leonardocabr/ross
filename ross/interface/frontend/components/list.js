@@ -3,7 +3,7 @@
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
 import { listContext, state, getActiveData, syncBackToLibrary } from '../core/state.js';
-import { allPicked, isPicked, pickedCount } from '../core/selection.js';
+import { allPicked, isPicked, nowShowing, pickedCount } from '../core/selection.js';
 // The list does not know the rotor. Whoever builds the rotor subscribes here;
 // before, `renderList` called `buildRotorLive` directly, and measuring the
 // boundaries showed that as the only path from a component to a feature.
@@ -135,6 +135,12 @@ export function renderList() {
     const activeData = getActiveData();
     const currentArray = activeData[state.currentTab];
     
+    // Before anything is read: if this is not the list the ticks were made on,
+    // they are gone. Drawing is the moment the list on screen changes, and it
+    // is the only moment, which is why this lives here and not in the three
+    // places that cause it.
+    nowShowing(listContext());
+
     renderSelectionBar(currentArray.length);
 
     const effNodes = getEffectiveNodes(currentArray);

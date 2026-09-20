@@ -17,11 +17,24 @@
 // another list gives nothing rather than gives the wrong thing. Forgetting is
 // no longer possible; it is not merely discouraged.
 //
+// WHY LEAVING THE LIST THROWS THE SELECTION AWAY. The stamp alone makes the
+// ticks invisible elsewhere but keeps them waiting, so coming back to the tab
+// finds them again. That was a consequence of the design rather than a decision
+// about it, and it was decided the other way: a selection belongs to what is on
+// screen. `nowShowing` is what enforces it, and it is called by `renderList` --
+// the one function that always runs when the list being shown changes.
+//
+// The reads stay pure. A read with a side effect would mean that merely drawing
+// the screen could empty a selection depending on the order things happened in;
+// here exactly one function drops it, and it is the one whose whole job is to
+// say which list is up.
+//
 // That handles *which* list. Positions shifting **inside** one list -- an
 // element deleted, copied, split, dragged -- is the other half, and it is
-// handled by subscribing `clearSelection` to `onProjectChanged` in main.js:
-// every change to the project drops the selection, because after one the
-// numbers no longer point at what was ticked.
+// handled inside `projectChanged` in core/state.js, which every change goes
+// through: after one, the numbers no longer point at what was ticked. It is a
+// call there rather than a subscriber on the hook because a set of positions is
+// state and not something on the page -- the reasoning is written beside it.
 
 let stamp = null;
 let picks = new Set();
@@ -31,6 +44,12 @@ function align(context) {
         stamp = context;
         picks = new Set();
     }
+}
+
+// The list on screen is this one now. If it is not the one the ticks were made
+// on, they go.
+export function nowShowing(context) {
+    align(context);
 }
 
 export function pick(context, index) {

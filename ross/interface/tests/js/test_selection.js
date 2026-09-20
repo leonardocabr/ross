@@ -12,7 +12,7 @@
 // shortened on purpose. That is what is checked here.
 import { check, node, shutDown } from './fake_dom.js';
 
-const { allPicked, clearSelection, isPicked, pick, pickAll, picked, pickedCount } =
+const { allPicked, clearSelection, isPicked, nowShowing, pick, pickAll, picked, pickedCount } =
     await import('../../frontend/core/selection.js');
 const { listContext, onProjectChanged, state, syncBackToLibrary } =
     await import('../../frontend/core/state.js');
@@ -53,10 +53,21 @@ check('the same positions read from another tab give nothing',
 check('and nothing is ticked there', isPicked('disks/', 0) === false);
 // Reading another list does **not** throw the first one away -- only writing
 // does. A read with a side effect would mean that drawing the screen could
-// silently empty a selection, which is a worse thing to own than a set that
-// lingers where nobody can see it.
+// empty a selection depending on the order things happened in; exactly one
+// function drops it, and it is the one below.
 check('but merely looking at another tab does not throw the first one away',
     JSON.stringify(picked('shafts/')) === '[0,2]');
+
+// Which is `nowShowing`, called by `renderList`. A selection belongs to what is
+// on screen: leaving the list ends it. Before this, the ticks merely went
+// invisible and came back when the tab did -- safe, because any real change to
+// the model drops them anyway, but a resurrection nobody chose.
+nowShowing('disks/');
+check('putting another list on screen ends the selection',
+    picked('disks/').length === 0);
+nowShowing('shafts/');
+check('and coming back does not bring it out again',
+    picked('shafts/').length === 0);
 
 // The two halves of a MultiRotor are two lists with the same tab name.
 clearSelection();
@@ -186,6 +197,26 @@ check('and the bar says how many', /1 selected/.test(bar()));
 toggleSelectAll();
 check('ticking all says three', /3 selected/.test(bar()));
 check('and the header box is ticked', /checked/.test(bar()));
+
+// --- leaving the list, through the screen ------------------------------------------
+//
+// The same rule as above, but driven the way the application drives it: nobody
+// calls `nowShowing` by hand, `renderList` does. This is the check that would
+// fail if the call were taken out of the list and left only in the module.
+
+openRotor(['A', 'B', 'C']);
+toggleSelected(1);
+check('setting the scene: one tick on the shafts', pickedCount(listContext()) === 1);
+
+state.currentTab = 'disks';
+renderList();
+state.currentTab = 'shafts';
+renderList();
+
+check('a round trip through another tab ends the selection',
+    pickedCount(listContext()) === 0);
+check('and the box on the row is not ticked either',
+    !/checked/.test(node('element-list').innerHTML));
 
 // --- the change that is not a change of list ---------------------------------------
 //
