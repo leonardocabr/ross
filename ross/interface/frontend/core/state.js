@@ -1,4 +1,4 @@
-import { recordChange, structuralSnapshot } from './history.js';
+import { recordChange, resetHistory, structuralSnapshot } from './history.js';
 
 // The six values that cross module boundaries, in one named object.
 //
@@ -57,6 +57,23 @@ export function onProjectChanged(fn) {
 export function syncBackToLibrary() {
     writeBackToLibrary();
     recordChange(structuralSnapshot(state.projectData));
+    changeHandler();
+}
+
+// A rotor was opened: its history starts empty, holding this model as the state
+// the first change will come back to.
+//
+// It lives here, beside `syncBackToLibrary`, and not in the Hub calling
+// `resetHistory` directly -- which is what it did, and it was a bug the node
+// battery could not see. Emptying the stacks is a change to the history exactly
+// like recording a step is, and the buttons have to hear about both; the Hub
+// emptied them and told nobody, so the buttons kept the state they had under
+// the *previous* rotor and undo arrived alive in a model with no history.
+//
+// Putting both behind this module is what makes that impossible rather than
+// merely fixed: there is no way to change the history without announcing it.
+export function openProjectHistory(project) {
+    resetHistory(structuralSnapshot(project));
     changeHandler();
 }
 

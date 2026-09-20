@@ -3,9 +3,8 @@
 import { openCustomConfirm, openCustomPrompt } from '../components/modals.js';
 import { analysesToSave, forgetAllAnalyses } from '../core/analysis_store.js';
 import { escapeHtml } from '../core/dom.js';
-import { ensureUIDs, state, syncMultiRotors } from '../core/state.js';
+import { ensureUIDs, openProjectHistory, state, syncMultiRotors } from '../core/state.js';
 import { saveState } from '../core/persistence.js';
-import { resetHistory, structuralSnapshot } from '../core/history.js';
 import { emptyListNotice, restoreAnalysesFromMemory } from './analysis.js';
 import { generatePythonFile } from './export.js';
 import { buildRotorLive } from './modeling.js';
@@ -139,7 +138,10 @@ export function openRotorWorkspace(index, targetScreen) {
     // A fresh history, and it starts holding this rotor rather than nothing:
     // the first change records *this* model as the step to come back to.
     // Undoing across this boundary would restore one rotor over another.
-    resetHistory(structuralSnapshot(state.projectData));
+    //
+    // `openProjectHistory` and not `resetHistory`: it announces, and the
+    // buttons have to hear it. See the comment beside it in core/state.js.
+    openProjectHistory(state.projectData);
     showOpenRotorName();
     
     state.editingIndex = -1;    

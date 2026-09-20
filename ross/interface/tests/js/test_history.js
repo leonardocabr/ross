@@ -213,6 +213,38 @@ check('and redo is possible, which is what says the restore did not record itsel
     canRedo() === true);
 check('and there is nothing further back', canUndo() === false);
 
+// --- opening a rotor ---------------------------------------------------------------
+//
+// The bug this exists for, found by hand and not by this battery: entering
+// another rotor emptied the stacks and told nobody, so the buttons kept the
+// state they had under the previous model -- undo arrived alive in a rotor with
+// no history to walk.
+//
+// The check is deliberately *not* calling `refreshHistoryButtons` itself. That
+// is what the first version did everywhere above, and it is exactly why the
+// defect was invisible: a battery that refreshes the buttons by hand cannot
+// notice that nobody else does.
+const { openProjectHistory } = await import('../../frontend/core/state.js');
+
+// What main.js does at boot. The section above replaced the subscriber with a
+// counter, and the first run of this test failed for that reason rather than
+// for the defect -- which is the right way round: the battery has to be wired
+// like the application before it can say anything about the application.
+onProjectChanged(refreshHistoryButtons);
+
+resetHistory(structuralSnapshot(rotor([1])));
+recordChange(structuralSnapshot(rotor([1, 2])));
+refreshHistoryButtons();
+check('setting the scene: undo is alive in the rotor being left',
+    node('btn-undo').disabled === false);
+
+openProjectHistory(rotor([500]));
+
+check('entering another rotor puts the back button to sleep, with nobody asking',
+    node('btn-undo').disabled === true);
+check('and the forward one too', node('btn-redo').disabled === true);
+check('and the history really is empty, not just the buttons', canUndo() === false);
+
 // --- the shortcut ----------------------------------------------------------------
 //
 // Read as a pure function of the event, so the three guards around it -- a
