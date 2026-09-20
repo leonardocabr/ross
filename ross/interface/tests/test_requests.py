@@ -87,7 +87,7 @@ def _auth():
 
 def _example(field):
     return {"analysis_type": "campbell", "content": "[]"}.get(
-        field.name, {dict: {}, list: [], str: ""}[field.kind]
+        field.name, {dict: {}, list: [], str: "", int: 0}[field.kind]
     )
 
 
@@ -104,6 +104,7 @@ def test_the_sweep_finds_every_envelope_there_is():
         "/api/campbell/mode_shape",
         "/api/export/python",
         "/api/rotor/concatenate",
+        "/api/rotor/split_shaft",
         "/build_rotor",
         "/load_ross_file",
         "/run_analysis",

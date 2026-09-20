@@ -18,7 +18,7 @@ import { schemaReady } from './core/schema.js';
 import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
 import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, saveItem, saveRotor, selectSubType } from './features/modeling.js';
+import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, saveItem, saveRotor, selectSubType, splitItem } from './features/modeling.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
@@ -92,7 +92,7 @@ Object.assign(window, {
     returnToHub,
     runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
     saveRotor,
-    saveRotorFromHub, selectSubType, switchMultiRotorTarget, switchScreen,
+    saveRotorFromHub, selectSubType, splitItem, switchMultiRotorTarget, switchScreen,
     swapConcatenationOrder, toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar,
     toggleDashAdv,
     toggleSidebar, toggleTheme,

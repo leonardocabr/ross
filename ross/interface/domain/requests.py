@@ -163,3 +163,17 @@ CONCATENATE_REQUEST = Envelope(
     Field("first_conversions", list, default=[]),
     Field("second_conversions", list, default=[]),
 )
+
+
+# Splitting one shaft in two. `index` is the position of the element in the
+# project's own shaft list -- not a node -- because that is what the button in
+# the modelling list has in its hand, and `offset` travels as a string because
+# it is what someone typed: the refusal for '4 0 0' belongs in the domain, with
+# the other refusals, and not in a JSON parser that would have turned it into
+# nothing on the way here.
+SPLIT_REQUEST = Envelope(
+    "/api/rotor/split_shaft",
+    Field("project", dict, required=True),
+    Field("index", int, required=True),
+    Field("offset", str, required=True),
+)

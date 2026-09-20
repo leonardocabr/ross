@@ -12,6 +12,7 @@ import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
+import { splitProject } from './split.js';
 
 // How the rotor figure settles into the panel. This used to be done in the
 // backend (BE-12): margin, background, size and legend position assembled on top
@@ -298,6 +299,36 @@ export function deleteItem(index) {
     else if (state.editingIndex > index) {
         state.editingIndex--;
     }    
+    syncBackToLibrary();
+    renderList();
+    buildRotorLive();
+}
+
+// Split function for a shaft element
+//
+// Here and not in features/split.js because this is the third thing that
+// mutates the element list, and the other two -- `copyItem` and `deleteItem` --
+// already live side by side with the two calls that put the screen back in
+// agreement with the data. The question, the trip to the server and the answer
+// are in `splitProject`; what is added here is only what the screen owes.
+export async function splitItem(index) {
+    const activeData = getActiveData();
+    if (!(await splitProject(activeData, index))) return;
+
+    // The form is open on the element that just stopped existing as one thing:
+    // saving it would write the whole original back over its left half. Below
+    // the split nothing moved; above it, everything did, and an open form kept
+    // pointing at the element before it.
+    //
+    // `copyItem` has this same spot and does not handle it -- noted rather than
+    // fixed here, because fixing it silently in a slice about `add_nodes` is how
+    // a change nobody reviewed gets into a release.
+    if (state.editingIndex === index) {
+        closeForm();
+    } else if (state.editingIndex > index) {
+        state.editingIndex++;
+    }
+
     syncBackToLibrary();
     renderList();
     buildRotorLive();

@@ -15,18 +15,23 @@ NODE_ATTRIBUTES = ("n_l", "n_r", "n", "n_link")
 _MAX_LISTED_MISSING = 10
 
 
-# The syntax accepted in a node field. The regex is explicit on purpose:
+# The syntax accepted in a numeric field. The regex is explicit on purpose:
 # Python's float() accepts '1_0', 'inf' and 'nan', and JavaScript's Number()
 # accepts '0x10' -- each side turned different garbage into a node, and the two
 # have to agree (the frontend labels the list by the same rule, in
 # getEffectiveNodes).
-_NODE_SYNTAX = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
+#
+# Public, and named for numbers rather than for nodes, because it is not a rule
+# about nodes: it is the rule for what a number typed into this interface may
+# look like. `domain/splitting.py` reads lengths and diameters with it, and a
+# second copy there would be a second answer to 'is `1_0` a distance'.
+NUMBER_SYNTAX = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 
 def _explicit_node(element):
     """Return the node the user pinned on this element, or None."""
     raw = str(element.get("n", "")).strip()
-    if not _NODE_SYNTAX.match(raw):
+    if not NUMBER_SYNTAX.match(raw):
         return None
     parsed = float(raw)
     if parsed != parsed or parsed in (float("inf"), float("-inf")):

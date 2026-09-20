@@ -71,6 +71,10 @@ const CALLS = {
     openConcatenateModal: [], closeConcatenateModal: [], saveConcatenation: [],
     swapConcatenationOrder: [], describeJoint: [],
     addElementFromNodeHub: ['shafts'], closeNodeHub: [],
+    // splitting a shaft: index 99 does not exist, so the call returns before it
+    // asks anything -- what is being smoke-tested is that the name is wired,
+    // not that the dialog works (tests/js/test_split.js does that).
+    splitItem: [99],
 };
 
 // Not called, and why. The list is deliberately short.

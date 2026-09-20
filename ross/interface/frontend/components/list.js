@@ -79,6 +79,21 @@ export function positionFormBox(index) {
     else document.getElementById('list-area').appendChild(formBox);
 }
 
+// The split button, and only on shafts.
+//
+// It is an element action rather than a screen-level field because what
+// `add_nodes` needs -- a position along the whole shaft line, in metres -- is
+// something the user would have to work out by adding up lengths. The row
+// already knows which element it is, so the question shrinks to "how far along
+// *this* one", in the millimetres the form already speaks.
+//
+// Every other category is on a node, not between two: a disk has nothing to
+// split. So the button appears for `shafts` and for nothing else.
+function splitButton(index) {
+    if (state.currentTab !== 'shafts') return '';
+    return `<button class="btn-action split" onclick="splitItem(${index})" title="${escapeHtml(t('splitTitle'))}"><i class="fas fa-scissors"></i></button>`;
+}
+
 let sortableInstance = null;
 
 export function renderList() {
@@ -112,6 +127,7 @@ export function renderList() {
                 <span class="item-text">${escapeHtml(titleStr)}</span>
             </div>
             <div class="item-actions">
+                ${splitButton(index)}
                 <button class="btn-action edit" onclick="editItem(${index})" title="${escapeHtml(t('edit'))}"><i class="fas fa-pen"></i></button>
                 <button class="btn-action copy" onclick="copyItem(${index})" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>
                 <button class="btn-action delete" onclick="deleteItem(${index})" title="${escapeHtml(t('delete'))}"><i class="fas fa-trash"></i></button>

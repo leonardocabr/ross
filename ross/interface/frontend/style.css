@@ -401,6 +401,13 @@ button {
     color: var(--success-700);
     background: var(--success-100);
 }
+/* Splitting a shaft. Warning and not danger: it changes the model and it
+   renumbers every node above it, but nothing is lost -- the two halves add back
+   up to the element that was there. Deleting is the red one. */
+.btn-action.split:hover {
+    color: var(--warning-700);
+    background: var(--warning-100);
+}
 .btn-action.delete:hover {
     color: var(--danger-700);
     background: var(--danger-100);
