@@ -65,9 +65,11 @@ const CALLS = {
     openAbout: [], closeAbout: [],
     closeCustomAlert: [], closeCustomConfirm: [false], closeCustomPrompt: [null],
     confirmCustomPrompt: [],
-    // multirotor and node
+    // multirotor, concatenation and node
     openMultiRotorModal: [], closeMultiRotorModal: [], saveMultiRotor: [],
     switchMultiRotorTarget: ['driving'],
+    openConcatenateModal: [], closeConcatenateModal: [], saveConcatenation: [],
+    swapConcatenationOrder: [], describeJoint: [],
     addElementFromNodeHub: ['shafts'], closeNodeHub: [],
 };
 

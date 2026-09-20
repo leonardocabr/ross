@@ -20,6 +20,7 @@ import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
 import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, saveItem, saveRotor, selectSubType } from './features/modeling.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
+import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
 import { startTheme, toggleTheme } from './core/theme.js';
 import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } from './features/screens.js';
@@ -80,15 +81,19 @@ Object.assign(window, {
     addAnalysis, addAngleProbeRow, addElementFromNodeHub, addForceRow,
     addProbeRow, addUnbalanceRow, changeLanguage, checkDeps, closeAbout, closeCustomAlert,
     closeCustomConfirm, closeCustomPrompt, closeForm, closeHelpModal,
-    closeMultiRotorModal, closeNodeHub, confirmCustomPrompt, copyItem,
+    closeConcatenateModal, closeMultiRotorModal, closeNodeHub, confirmCustomPrompt,
+    copyItem, describeJoint,
     copyRotorInHub, createNewRotorInHub, deleteAnalysis, deleteItem,
     deleteRotorInHub, editItem, editRotorName, exitApplication, fillDefault,
     generatePythonFile, generatePythonFromHub, handleUnitChange,
     loadAnalysis, loadAnalysisDirect, loadRotor, openAbout, openAnalysisCardHelp,
     openAnalysisHelp, openForm, openGeneralHelp, openMultiRotorModal,
-    openRotorHub, openRotorWorkspace, openSectionHelp, openTab, returnToHub,
-    runCardAnalysis, saveAnalysis, saveItem, saveMultiRotor, saveRotor,
+    openConcatenateModal, openRotorHub, openRotorWorkspace, openSectionHelp, openTab,
+    returnToHub,
+    runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
+    saveRotor,
     saveRotorFromHub, selectSubType, switchMultiRotorTarget, switchScreen,
-    toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar, toggleDashAdv,
+    swapConcatenationOrder, toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar,
+    toggleDashAdv,
     toggleSidebar, toggleTheme,
 });
