@@ -79,6 +79,10 @@ const CALLS = {
     // is what makes them safe to call here. The bookkeeping is in
     // tests/js/test_history.js.
     undoModelling: [], redoModelling: [],
+    // ticking and the two bulk actions: with nothing ticked both return at
+    // once, which is what makes them safe to call here. The behaviour is in
+    // tests/js/test_selection.js.
+    toggleSelected: [0], toggleSelectAll: [], copySelected: [], deleteSelected: [],
 };
 
 // Not called, and why. The list is deliberately short.

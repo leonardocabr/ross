@@ -428,6 +428,42 @@ button {
     background: var(--danger-100);
 }
 
+/* The bar above the element list: tick everything, the count, and the two bulk
+   actions. It sits where the list starts so the ticks and the actions read as
+   one thing. */
+#selection-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px 6px 6px;
+    border-bottom: 1px solid var(--border-default);
+    margin-bottom: 6px;
+}
+#selection-bar .pick-all {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+#selection-bar .pick-count {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+#selection-bar .btn-action:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: transparent;
+}
+/* The tick box on each row, left of the drag handle. */
+.item-pick {
+    margin-right: 8px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
 /* Insertion Form and Advanced Menu */
 .btn-add {
     background: var(--surface-card);

@@ -6,7 +6,8 @@ import { reapplyHelp } from '../components/help.js';
 import { openCustomAlert } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
 import { busySpinner, escapeHtml } from '../core/dom.js';
-import { state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
+import { listContext, projectChanged, state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
+import { pick, pickAll, picked } from '../core/selection.js';
 import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
@@ -266,23 +267,30 @@ export function editItem(index) { state.editingIndex = index; openForm(false); }
 
 // Copy function for element
 
-export function copyItem(index) { 
-    const activeData = getActiveData();
-    const original = activeData[state.currentTab][index];
-    const copiedItem = JSON.parse(JSON.stringify(original));    
-    
+// One copy of an element, with a name nobody else is using. Pulled out of
+// `copyItem` so that copying several uses the same rule as copying one -- two
+// naming rules for the same act is how a list ends up with `Stage_1` twice.
+export function freshCopy(original, siblings) {
+    const copiedItem = JSON.parse(JSON.stringify(original));
     if (copiedItem.tag) {
         let baseTag = copiedItem.tag.replace(/_\d+$/, '');
         let counter = 1;
         let newTag = `${baseTag}_${counter}`;
-        const tagInUse = (cTag) => activeData[state.currentTab].some(item => item.tag === cTag);
+        const tagInUse = (cTag) => siblings.some(item => item.tag === cTag);
         while (tagInUse(newTag)) {
             counter++;
             newTag = `${baseTag}_${counter}`;
         }
         copiedItem.tag = newTag;
     }
-    
+    return copiedItem;
+}
+
+export function copyItem(index) { 
+    const activeData = getActiveData();
+    const original = activeData[state.currentTab][index];
+    const copiedItem = freshCopy(original, activeData[state.currentTab]);
+
     activeData[state.currentTab].splice(index + 1, 0, copiedItem); 
     syncBackToLibrary();
     renderList(); 
@@ -355,7 +363,11 @@ function restore(snapshot) {
     // `writeBackToLibrary` and not `syncBackToLibrary`: a restore that recorded
     // itself would push onto the stack the very step it just took off.
     writeBackToLibrary();
-    refreshHistoryButtons();
+    // Through `projectChanged`, not by calling `refreshHistoryButtons` here.
+    // This line used to name that one subscriber directly, which worked only
+    // while there was one -- and it would have skipped the selection, whose
+    // ticked positions point at a model that is no longer on screen.
+    projectChanged();
     renderList();
     buildRotorLive();
 }
@@ -376,6 +388,61 @@ export function refreshHistoryButtons() {
     const forward = document.getElementById('btn-redo');
     if (back) back.disabled = !canUndo();
     if (forward) forward.disabled = !canRedo();
+}
+
+// Ticking, and the two things worth doing to several elements at once
+//
+// All four end in the same three lines as `copyItem` and `deleteItem`, and the
+// two that change the model call `syncBackToLibrary` **once**. That is not an
+// economy: it is what makes deleting eight elements one step of the undo
+// instead of eight, which is what a person means by "undo that".
+export function toggleSelected(index) {
+    pick(listContext(), index);
+    renderList();
+}
+
+export function toggleSelectAll() {
+    pickAll(listContext(), (getActiveData()[state.currentTab] || []).length);
+    renderList();
+}
+
+export function deleteSelected() {
+    const chosen = picked(listContext());
+    if (!chosen.length) return;
+    const activeData = getActiveData();
+
+    // Backwards, because deleting position 2 makes every later position mean
+    // something else. Going forwards would delete the wrong elements and give
+    // no sign of it -- the list would simply be shorter.
+    chosen.slice().reverse().forEach(index => {
+        activeData[state.currentTab].splice(index, 1);
+    });
+
+    // A bulk change is a bigger change than an open form can survive: the
+    // element it was editing may be gone, and the ones after it have moved.
+    closeForm();
+    syncBackToLibrary();
+    renderList();
+    buildRotorLive();
+}
+
+export function copySelected() {
+    const chosen = picked(listContext());
+    if (!chosen.length) return;
+    const activeData = getActiveData();
+    const list = activeData[state.currentTab];
+
+    // Backwards again, and for the same reason: each copy goes in right after
+    // its own original, and inserting at position 2 moves everything after it.
+    // Walking from the end leaves the positions still to be handled untouched.
+    chosen.slice().reverse().forEach(index => {
+        list.splice(index + 1, 0, freshCopy(list[index], list));
+    });
+
+    closeForm();
+    syncBackToLibrary();
+    renderList();
+    buildRotorLive();
 }
 
 // Function to save the element

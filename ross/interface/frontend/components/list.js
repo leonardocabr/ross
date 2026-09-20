@@ -2,7 +2,8 @@
 // anchored to the item, and reordering by dragging.
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { state, getActiveData, syncBackToLibrary } from '../core/state.js';
+import { listContext, state, getActiveData, syncBackToLibrary } from '../core/state.js';
+import { allPicked, isPicked, pickedCount } from '../core/selection.js';
 // The list does not know the rotor. Whoever builds the rotor subscribes here;
 // before, `renderList` called `buildRotorLive` directly, and measuring the
 // boundaries showed that as the only path from a component to a feature.
@@ -79,6 +80,36 @@ export function positionFormBox(index) {
     else document.getElementById('list-area').appendChild(formBox);
 }
 
+// The bar above the list: tick everything, how many are ticked, and the two
+// things worth doing to several at once.
+//
+// It is shown whenever the list has anything in it, and not only once something
+// is ticked. A bar that appears with the first tick would hide the *only* way of
+// ticking everything, which is the one case where selecting several by hand is
+// most tedious. The two action buttons are dead until something is ticked, which
+// says the same thing without hiding it.
+function renderSelectionBar(count) {
+    const bar = document.getElementById('selection-bar');
+    if (!bar) return;
+    if (!count) {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+    }
+    const chosen = pickedCount(listContext());
+    const dead = chosen ? '' : 'disabled';
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+        <label class="pick-all">
+            <input type="checkbox" onchange="toggleSelectAll()" ${allPicked(listContext(), count) ? 'checked' : ''}>
+            <span>${escapeHtml(t('selectAll'))}</span>
+        </label>
+        <span class="pick-count">${chosen ? escapeHtml(t('selectedCount')).replace('%1', chosen) : ''}</span>
+        <button class="btn-action copy" onclick="copySelected()" ${dead} title="${escapeHtml(t('copySelected'))}"><i class="fas fa-copy"></i></button>
+        <button class="btn-action delete" onclick="deleteSelected()" ${dead} title="${escapeHtml(t('deleteSelected'))}"><i class="fas fa-trash"></i></button>
+    `;
+}
+
 // The split button, and only on shafts.
 //
 // It is an element action rather than a screen-level field because what
@@ -104,6 +135,8 @@ export function renderList() {
     const activeData = getActiveData();
     const currentArray = activeData[state.currentTab];
     
+    renderSelectionBar(currentArray.length);
+
     const effNodes = getEffectiveNodes(currentArray);
     currentArray.forEach((item, index) => {
         let titleStr = "";        
@@ -123,6 +156,7 @@ export function renderList() {
         div.className = 'list-item';
         div.innerHTML = `
             <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
+                <input type="checkbox" class="item-pick" onchange="toggleSelected(${index})" ${isPicked(listContext(), index) ? 'checked' : ''} title="${escapeHtml(t('select'))}">
                 <i class="fas fa-grip-vertical item-drag"></i>
                 <span class="item-text">${escapeHtml(titleStr)}</span>
             </div>

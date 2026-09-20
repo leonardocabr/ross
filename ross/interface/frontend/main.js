@@ -19,7 +19,7 @@ import { onProjectChanged } from './core/state.js';
 import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
 import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, deleteItem, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, splitItem, undoModelling } from './features/modeling.js';
+import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, splitItem, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
@@ -35,11 +35,8 @@ import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } f
 // created and forgot to connect, leaving dragging with no effect on the figure.
 onReorder(buildRotorLive);
 
-// The two history buttons have to grey out the moment there is nothing left to
-// undo, and the thing that knows a change happened is `syncBackToLibrary` --
-// which lives in core/state.js and has no business reaching into the page. So
-// it announces, and the feature that owns the buttons subscribes. Same
-// inversion as `onReorder`, one layer up.
+// The buttons grey out when there is nothing left to undo. The reason this is a
+// hook and not a call from core/state.js is written there.
 onProjectChanged(refreshHistoryButtons);
 
 
@@ -56,9 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // it. Here and not at module level because it takes hold of elements of the
     // page; `features/progress.js` exports a function and runs nothing on load.
     startWorkBar();
-    // Ctrl+Z / Ctrl+Y. Here with the other `start*` calls because it takes hold
-    // of the document; `features/shortcuts.js` exports functions and runs
-    // nothing on load.
+    // Ctrl+Z / Ctrl+Y: takes hold of the document, like the other `start*`.
     startHistoryShortcuts();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
@@ -96,7 +91,8 @@ Object.assign(window, {
     addProbeRow, addUnbalanceRow, changeLanguage, checkDeps, closeAbout, closeCustomAlert,
     closeCustomConfirm, closeCustomPrompt, closeForm, closeHelpModal,
     closeConcatenateModal, closeMultiRotorModal, closeNodeHub, confirmCustomPrompt,
-    copyItem, describeJoint,
+    copyItem, copySelected, deleteSelected, describeJoint,
+    toggleSelectAll, toggleSelected,
     copyRotorInHub, createNewRotorInHub, deleteAnalysis, deleteItem,
     deleteRotorInHub, editItem, editRotorName, exitApplication, fillDefault,
     generatePythonFile, generatePythonFromHub, handleUnitChange,
