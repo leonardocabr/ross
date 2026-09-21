@@ -8,7 +8,7 @@ import { saveState } from '../core/persistence.js';
 import { CATEGORIES } from '../core/project_file.js';
 import { emptyListNotice, restoreAnalysesFromMemory } from './analysis.js';
 import { generatePythonFile } from './export.js';
-import { buildRotorLive } from './modeling.js';
+import { buildRotorLive, closeForm } from './modeling.js';
 import { switchScreen } from './screens.js';
 import { t } from '../core/i18n.js';
 // Function to open the Hub screen and render the list
@@ -142,7 +142,14 @@ export function openRotorWorkspace(index, targetScreen) {
     openProjectHistory(state.projectData);
     showOpenRotorName();
     
-    state.editingIndex = -1;    
+    // The form first, then the list. The form lives *inside* the list while an
+    // element is being edited, and emptying the list with it there deleted it
+    // from the page for good: every later `closeForm` threw, `openTab` stopped
+    // before drawing anything, and the element lists stayed empty until the
+    // page was reloaded. Leaving the modeling screen with a form open was
+    // enough -- which is very likely the "lists vanished" of the week's report.
+    // `closeForm` puts it back in `#list-area` and sets `editingIndex` to -1.
+    closeForm();
     document.getElementById('element-list').innerHTML = '';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     

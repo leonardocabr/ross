@@ -179,7 +179,9 @@ check('the list became draggable', !!list && typeof list.options.onEnd === 'func
 
 requests = [];
 let errorOnDrag = null;
-try { list.options.onEnd({ oldIndex: 0, newIndex: 2 }); }
+// Sortable's `...DraggableIndex` pair, which counts rows only; see list.js for
+// what `oldIndex` counted when a form was open.
+try { list.options.onEnd({ oldDraggableIndex: 0, newDraggableIndex: 2 }); }
 catch (e) { errorOnDrag = e; }
 withoutError('dragging does not throw', errorOnDrag);
 check('the order changed in the project',

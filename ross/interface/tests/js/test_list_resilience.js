@@ -20,6 +20,7 @@ globalThis.addEventListener = (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
 };
 const fire = (type, event) => (windowListeners[type] || []).forEach(handler => handler(event));
+globalThis.dispatchEvent = event => fire(event.type, event);
 
 globalThis.fetch = async () => ({
     ok: true, status: 200,
@@ -137,12 +138,43 @@ check('deleting above the edited element keeps the form on it',
 openRotor(['A', 'B', 'C', 'D']);
 renderList();
 state.editingIndex = 1;                                  // B
-draggable().options.onEnd({ oldIndex: 3, newIndex: 0 }); // D to the top
+draggable().options.onEnd({ oldDraggableIndex: 3, newDraggableIndex: 0 }); // D to the top
 check('dragging another element above keeps the form on its own',
     state.projectData.shafts[state.editingIndex].tag === 'B');
-draggable().options.onEnd({ oldIndex: state.editingIndex, newIndex: 3 });
+draggable().options.onEnd({ oldDraggableIndex: state.editingIndex, newDraggableIndex: 3 });
 check('dragging the edited element takes the form with it',
     state.projectData.shafts[state.editingIndex].tag === 'B');
+
+// What Leonardo hit, in the browser: with the form open, Sortable counted it as
+// a row, so the indices it reported were one too high. Dragging the last of
+// four shafts to the top asked for element 4 of a four-element list, and
+// `splice` answered by inserting `undefined` -- saved as `null`, and no render
+// of that list succeeded afterwards.
+check('only rows can be dragged, so the form is never counted as one',
+    draggable().options.draggable === '.list-item');
+openRotor(['A', 'B', 'C', 'D']);
+renderList();
+let refused = null;
+try { draggable().options.onEnd({ oldDraggableIndex: 4, newDraggableIndex: 0 }); } catch (error) { refused = error; }
+check('a position outside the list is refused, loudly', refused !== null);
+check('and nothing was inserted or lost',
+    state.projectData.shafts.map(s => s && s.tag).join(',') === 'A,B,C,D');
+
+// --- leaving with the form open ------------------------------------------------------------
+//
+// The other half of what Leonardo saw, and very likely the original "lists
+// vanished": `openRotorWorkspace` emptied the list with the form still inside
+// it, which deletes the form from the page. Every later `closeForm` threw, and
+// `openTab` stopped before drawing the list.
+const { openRotorWorkspace } = await import('../../frontend/features/hub.js');
+openRotor(['A', 'B']);
+renderList();
+list.appendChild(form);
+state.editingIndex = 1;
+openRotorWorkspace(0, 'screen-analysis');
+check('opening a rotor takes the form out of the list before emptying it',
+    form.parentElement === node('list-area'));
+check('and closes it', state.editingIndex === -1);
 
 // --- the notice -------------------------------------------------------------------------
 

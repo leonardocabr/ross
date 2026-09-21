@@ -202,13 +202,34 @@ export function renderList() {
     if (sortableInstance) sortableInstance.destroy();
     sortableInstance = new Sortable(container, {
         handle: '.item-drag',
+        // Only the rows move, and only rows are counted.
+        //
+        // The open form is a child of this same container, sitting under the
+        // element it edits. With Sortable's defaults it counted as an item:
+        // `oldIndex` and `newIndex` are positions among **all** the children,
+        // so with the form above the dragged row every index was one too high.
+        // Dragging the last of four shafts to the top with a form open asked
+        // for element 4 of a four-element list: nothing was removed, and
+        // `undefined` was inserted at the top -- saved as `null`, and every
+        // later render of that list failed. Measured in a browser, not guessed.
+        //
+        // `draggable` keeps the form from being picked up, and the
+        // `...DraggableIndex` pair counts rows only.
+        draggable: '.list-item',
         animation: 150,
         onEnd: function (evt) {
-            const oldIdx = evt.oldIndex;
-            const newIdx = evt.newIndex;
+            const oldIdx = evt.oldDraggableIndex;
+            const newIdx = evt.newDraggableIndex;
             if(oldIdx === newIdx) return;
             
             const actData = getActiveData();
+            const length = actData[state.currentTab].length;
+            // A position that is not a row of this list is refused rather than
+            // spliced: `splice` does not complain, it inserts `undefined`.
+            if (!(oldIdx >= 0 && oldIdx < length && newIdx >= 0 && newIdx < length)) {
+                renderList();
+                throw new Error('drag: position ' + oldIdx + ' -> ' + newIdx + ' is not in a list of ' + length);
+            }
             const item = actData[state.currentTab][oldIdx];
             
             actData[state.currentTab].splice(oldIdx, 1);
