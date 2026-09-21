@@ -945,3 +945,89 @@ def test_the_two_whirl_choices_are_refused_together_by_name():
             dict(PARAMS["modes"], frequency="50", matched_whirl="True"), ROTOR_REQUEST
         )
     assert str(error.value) == ONE_WHIRL_CHOICE
+
+
+# --- the orbit of a mode ------------------------------------------------------
+#
+# The field `Nodes [list]` is declared optional in the catalogue and is, in
+# practice, required: ROSS answers an empty one with a chart that has no curve
+# in it (tests/test_ross_premises.py pins that behaviour). These say what the
+# runner does about it.
+
+
+@needs_ross
+def test_an_orbit_with_the_field_left_empty_draws_every_node():
+    """The case a person actually meets: open Modal, pick Orbit, press Update.
+
+    Two traces per node is what ROSS draws, so the count is the check that
+    something was really drawn rather than that the call did not raise."""
+    rotor = _test_rotor()
+    runner = REGISTRY["modes"]
+    params = dict(_lean_params("modes"), plot_type="Orbit", nodes="")
+
+    result = runner.compute(rotor, runner.spec(dict(params), rotor))
+    figure = runner.plot(result, dict(params), rotor)
+
+    assert len(figure.data) == 2 * len(rotor.nodes)
+
+
+@needs_ross
+def test_an_orbit_still_draws_only_the_nodes_it_is_given():
+    """Control on the one above: filling the field has to change the answer, or
+    "every node" would be indistinguishable from "the field is ignored"."""
+    rotor = _test_rotor()
+    runner = REGISTRY["modes"]
+    result = runner.compute(rotor, runner.spec(dict(_lean_params("modes")), rotor))
+
+    one = dict(_lean_params("modes"), plot_type="Orbit", nodes="[1]")
+    assert len(runner.plot(result, one, rotor).data) == 2
+
+    # A bare number is a node too: `literal_eval('1')` is an int, and ROSS would
+    # have wrapped it, so the runner has to wrap it the same way.
+    bare = dict(_lean_params("modes"), plot_type="Orbit", nodes="1")
+    assert len(runner.plot(result, bare, rotor).data) == 2
+
+
+@needs_ross
+def test_an_orbit_on_a_node_the_rotor_does_not_have_is_refused_by_name():
+    """ROSS draws an empty chart for this, which reads as "no orbit here"."""
+    rotor = _test_rotor()
+    runner = REGISTRY["modes"]
+    result = runner.compute(rotor, runner.spec(dict(_lean_params("modes")), rotor))
+    params = dict(_lean_params("modes"), plot_type="Orbit", nodes="[99]")
+
+    with pytest.raises(ValueError) as raised:
+        runner.plot(result, params, rotor)
+
+    assert "99" in str(raised.value)
+    # And it says which nodes there are, because the next thing the person does
+    # is type another number.
+    assert "0, 1, 2, 3" in str(raised.value)
+
+
+@needs_ross
+@pytest.mark.parametrize("junk", ["abc", "[1,", "3 4"])
+def test_an_orbit_with_junk_in_the_field_is_refused_rather_than_read_as_empty(junk):
+    """The trap inside the fix. `literal` answers None for an empty field *and*
+    for text it cannot read -- so a typo would quietly become "every node", and
+    the person would get a chart that is not the one they asked for."""
+    rotor = _test_rotor()
+    runner = REGISTRY["modes"]
+    result = runner.compute(rotor, runner.spec(dict(_lean_params("modes")), rotor))
+    params = dict(_lean_params("modes"), plot_type="Orbit", nodes=junk)
+
+    with pytest.raises(ValueError) as raised:
+        runner.plot(result, params, rotor)
+    assert junk in str(raised.value)
+
+
+@needs_ross
+def test_the_other_plot_types_do_not_read_the_nodes_field():
+    """Control on the blast radius: 2D and 3D share the runner and must not
+    start refusing because of a field that is not theirs."""
+    rotor = _test_rotor()
+    runner = REGISTRY["modes"]
+    result = runner.compute(rotor, runner.spec(dict(_lean_params("modes")), rotor))
+    for kind in ("2D", "3D"):
+        params = dict(_lean_params("modes"), plot_type=kind, nodes="[99]")
+        assert runner.plot(result, params, rotor).to_json()

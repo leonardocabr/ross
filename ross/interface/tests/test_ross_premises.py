@@ -218,3 +218,54 @@ def test_number_dof_matches_ross_with_point_masses():
     # global index (g_inp, g_out, g_dof) would point at the wrong degree of freedom.
     assert rotor.ndof // len(rotor.nodes) == 8
     assert rotor.number_dof == 6
+
+
+@needs_ross
+def test_plot_orbit_of_a_modal_answers_an_empty_chart_instead_of_refusing():
+    """The premise behind `ModalRunner.orbit_nodes`, and it is a ROSS defect.
+
+    `ModalResults.plot_orbit` (results.py:2289) does:
+
+        if not isinstance(nodes, Iterable):
+            nodes = [nodes]                 # None -> [None]
+        ...
+        selected = [o for o in self.orbits if o.node in nodes]   # (:729)
+
+    So `nodes=None` -- which is what an empty field sends -- matches no orbit at
+    all, and so does a node the rotor does not have. Both give a figure with
+    axes, a title and **no curve**, with no error and no warning.
+
+    That is indistinguishable from the one case where an empty orbit is the
+    right answer: a torsional or axial mode, which genuinely has none and which
+    ROSS does annotate. Our runner refuses the two silent cases by name instead.
+
+    **If this test starts failing, ROSS has fixed it** and `orbit_nodes` can
+    stop guarding -- which is the whole reason it lives in this file."""
+    steel = rs.Material("Steel", rho=7810, E=211e9, G_s=81.2e9)
+    shafts = [
+        rs.ShaftElement(L=0.25, idl=0, odl=0.05, material=steel, n=i) for i in range(6)
+    ]
+    rotor = rs.Rotor(
+        shaft_elements=shafts,
+        disk_elements=[rs.DiskElement(n=3, m=32.59, Id=0.178, Ip=0.329)],
+        bearing_elements=[
+            rs.BearingElement(n=0, kxx=1e6, cxx=0),
+            rs.BearingElement(n=6, kxx=1e6, cxx=0),
+        ],
+    )
+    modal = rotor.run_modal(speed=0, num_modes=12)
+
+    assert len(modal.plot_orbit(0).data) == 0, (
+        "ROSS now draws something for nodes=None -- check whether "
+        "ModalRunner.orbit_nodes still needs to fill the field in"
+    )
+    assert len(modal.plot_orbit(0, nodes=[99]).data) == 0, (
+        "ROSS now refuses or draws for a node that does not exist -- check "
+        "whether ModalRunner.orbit_nodes still needs to refuse it"
+    )
+
+    # The control, and it is what makes the two above mean something: asking for
+    # nodes that DO exist draws curves, so an empty answer is about the argument
+    # and not about this rotor having no orbits.
+    assert len(modal.plot_orbit(0, nodes=[3]).data) == 2
+    assert len(modal.plot_orbit(0, nodes=list(rotor.nodes)).data) == 14
