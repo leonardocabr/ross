@@ -464,6 +464,18 @@ button {
     cursor: pointer;
 }
 
+/* The vertical exaggeration picker, in the bar that already carries the mass
+   and the polar inertia. */
+.rotor-scale {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.rotor-scale select {
+    padding: 2px 4px;
+    font-size: 12px;
+}
+
 /* Insertion Form and Advanced Menu */
 .btn-add {
     background: var(--surface-card);

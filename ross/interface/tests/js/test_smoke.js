@@ -83,6 +83,9 @@ const CALLS = {
     // once, which is what makes them safe to call here. The behaviour is in
     // tests/js/test_selection.js.
     toggleSelected: [0], toggleSelectAll: [], copySelected: [], deleteSelected: [],
+    // the vertical exaggeration of the rotor figure: with no figure drawn yet
+    // it only redraws the picker, which is what makes it safe to call here.
+    setVerticalScale: [2],
 };
 
 // Not called, and why. The list is deliberately short.

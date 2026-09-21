@@ -19,7 +19,7 @@ import { onProjectChanged } from './core/state.js';
 import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
 import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, splitItem, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
+import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
@@ -103,7 +103,7 @@ Object.assign(window, {
     runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
     saveRotor,
     redoModelling, undoModelling,
-    saveRotorFromHub, selectSubType, splitItem, switchMultiRotorTarget, switchScreen,
+    saveRotorFromHub, selectSubType, setVerticalScale, splitItem, switchMultiRotorTarget, switchScreen,
     swapConcatenationOrder, toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar,
     toggleDashAdv,
     toggleSidebar, toggleTheme,

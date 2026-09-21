@@ -13,6 +13,7 @@ import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
 import { projectFromFile } from '../core/project_file.js';
+import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
 import { splitProject } from './split.js';
@@ -51,6 +52,45 @@ const ROTOR_APPEARANCE = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
 };
+
+// How many times the drawing is stretched vertically, and the last figure the
+// server sent.
+//
+// The figure is kept so that changing the scale redraws from it instead of
+// asking again: the stretch is presentation, the server would answer the same
+// rotor, and a round trip for it would cost 600 ms of debounce to show
+// something that is already in the browser.
+let verticalScale = 1;
+
+let lastRotorFigure = null;
+
+export function setVerticalScale(value) {
+    verticalScale = Number(value) || 1;
+    if (lastRotorFigure) drawRotorFigure(lastRotorFigure);
+    renderVerticalScalePicker();
+}
+
+function renderVerticalScalePicker() {
+    const holder = document.getElementById('rotor-scale');
+    if (!holder) return;
+    const options = VERTICAL_SCALES.map(times =>
+        `<option value="${times}" ${times === verticalScale ? 'selected' : ''}>${times}×</option>`
+    ).join('');
+    holder.innerHTML =
+        `<span>${escapeHtml(t('verticalScale'))}</span>` +
+        `<select onchange="setVerticalScale(this.value)">${options}</select>`;
+}
+
+// One place draws the rotor, whether the figure just arrived or the scale just
+// changed. Two would be two chances to forget the stretch.
+function drawRotorFigure(fig) {
+    lastRotorFigure = fig;
+    const layout = Object.assign(JSON.parse(JSON.stringify(fig.layout)), ROTOR_APPEARANCE);
+    (layout.updatemenus || []).forEach(menu => Object.assign(menu, ROTOR_MENU));
+    withVerticalScale(layout, verticalScale, t('verticalScaleNote').replace('%1', verticalScale));
+    Plotly.newPlot('plot-rotor', fig.data, themedLayout(layout), { responsive: true });
+    setupPlotHoverEvents();
+}
 
 const ROTOR_MENU = { y: -0.15, yanchor: 'top', x: 1.0, xanchor: 'right' };
 
@@ -591,13 +631,8 @@ async function _fetchRotorLive() {
         plotContainer.style.pointerEvents = 'auto';        
         if(data.status === "success") {
             plotContainer.innerHTML = ""; 
-            const fig = JSON.parse(data.plot_json);
-            const layout = Object.assign(fig.layout, ROTOR_APPEARANCE);
-            // Before drawing: positioning the menu after `newPlot` would not touch the
-            // figure already rendered.
-            (layout.updatemenus || []).forEach(menu => Object.assign(menu, ROTOR_MENU));
-            Plotly.newPlot('plot-rotor', fig.data, themedLayout(layout), { responsive: true });
-            setupPlotHoverEvents();
+            drawRotorFigure(JSON.parse(data.plot_json));
+            renderVerticalScalePicker();
             if(infoContainer) {
                 document.getElementById('info-mass').innerText = data.mass.toFixed(4);
                 document.getElementById('info-ip').innerText = data.ip.toFixed(4);
