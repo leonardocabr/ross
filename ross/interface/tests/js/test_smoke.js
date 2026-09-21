@@ -40,14 +40,9 @@ const CALLS = {
     copyRotorInHub: [0], deleteRotorInHub: [0],
     editRotorName: [0], saveRotorFromHub: [0], generatePythonFromHub: [0],
     openRotorWorkspace: [0, 'screen-modeling'],
-    // screens and panels
-    pickTab: ['shafts'], toggleAdvanced: [button],
-    // element form
-    openForm: [true], selectSubType: ['BASIC'], closeForm: [], fillDefault: [],
-    editItem: [0], copyItem: [0], deleteItem: [0], saveItem: [],
+    // the unit selectors of the analysis cards (the modelling form's own went
+    // to the `change-unit` action in slice 13)
     handleUnitChange: [() => { const s = node('unit'); s.value = 'meter'; s.id = 'inp-L_unit'; return s; }],
-    // rotor
-    saveRotor: [event],
     // analyses
     addAnalysis: [event], runCardAnalysis: ['x1', 'modes'], toggleAnalysis: ['x1'],
     deleteAnalysis: [event, 'card-x1'], toggleDashAdv: [button], checkDeps: ['x1'],
@@ -55,28 +50,14 @@ const CALLS = {
     addUnbalanceRow: ['x1', 'unbalances', 'unbalance'],
     addAngleProbeRow: ['x1', 'probes', 'unbalance'],
     // help and modals
-    openSectionHelp: ['shafts'],
     openAnalysisCardHelp: [event, 'modes'], closeHelpModal: [],
     closeAbout: [],
     closeCustomAlert: [], closeCustomConfirm: [false], closeCustomPrompt: [null],
     confirmCustomPrompt: [],
-    // multirotor, concatenation and node
+    // multirotor and concatenation
     closeMultiRotorModal: [], saveMultiRotor: [], describeCoupling: [],
-    switchMultiRotorTarget: ['driving'],
     closeConcatenateModal: [], saveConcatenation: [],
     swapConcatenationOrder: [], describeJoint: [],
-    addElementFromNodeHub: ['shafts'], closeNodeHub: [],
-    // splitting a shaft: index 99 does not exist, so the call returns before it
-    // asks anything -- what is being smoke-tested is that the name is wired,
-    // not that the dialog works (tests/js/test_split.js does that).
-    splitItem: [99],
-    // ticking and the two bulk actions: with nothing ticked both return at
-    // once, which is what makes them safe to call here. The behaviour is in
-    // tests/js/test_selection.js.
-    toggleSelected: [0], toggleSelectAll: [], copySelected: [], deleteSelected: [],
-    // the vertical exaggeration of the rotor figure: with no figure drawn yet
-    // it only redraws the picker, which is what makes it safe to call here.
-    setVerticalScale: [2],
 };
 
 // Not called, and why. The list is deliberately short.

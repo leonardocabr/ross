@@ -35,7 +35,12 @@ const SOURCES = [
     ...files(path.join(FRONTEND, 'core')),
     ...files(path.join(FRONTEND, 'components')),
     ...files(path.join(FRONTEND, 'features')),
-].map(file => fs.readFileSync(file, 'utf8'));
+].map(file => fs.readFileSync(file, 'utf8'))
+    // Comment lines out. A comment that quoted an old handler (an `onclick`
+    // calling `saveRotor(event)`, in core/actions.js) counted here as a live
+    // call and kept `saveRotor` on the bridge for a slice after its last
+    // button had moved to a named action.
+    .map(text => text.split('\n').filter(line => !line.trim().startsWith('//')).join('\n'));
 
 // Names called from inside an event attribute. A method (`e.stopPropagation`)
 // does not count: what needs the bridge is the function called by bare name.
@@ -97,7 +102,9 @@ check('the bridge is the size the HTML asks for',
 
 // Control: if `calledInHandlers` stopped finding anything, both sides above
 // would pass empty.
-check('control: the sweep really found handlers', called.size > 40);
+// The floor comes down as the page moves to named actions (core/actions.js):
+// 55 names before slice 12, 30 after slice 13.
+check('control: the sweep really found handlers', called.size > 20);
 
 console.log('\n' + ok + ' checks ok, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

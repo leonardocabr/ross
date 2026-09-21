@@ -102,12 +102,12 @@ function renderSelectionBar(count) {
     bar.style.display = 'flex';
     bar.innerHTML = `
         <label class="pick-all">
-            <input type="checkbox" onchange="toggleSelectAll()" ${allPicked(listContext(), count) ? 'checked' : ''}>
+            <input type="checkbox" data-action="pick-all" ${allPicked(listContext(), count) ? 'checked' : ''}>
             <span>${escapeHtml(t('selectAll'))}</span>
         </label>
         <span class="pick-count">${chosen ? escapeHtml(t('selectedCount')).replace('%1', chosen) : ''}</span>
-        <button class="btn-action copy" onclick="copySelected()" ${dead} title="${escapeHtml(t('copySelected'))}"><i class="fas fa-copy"></i></button>
-        <button class="btn-action delete" onclick="deleteSelected()" ${dead} title="${escapeHtml(t('deleteSelected'))}"><i class="fas fa-trash"></i></button>
+        <button class="btn-action copy" data-action="copy-picked" ${dead} title="${escapeHtml(t('copySelected'))}"><i class="fas fa-copy"></i></button>
+        <button class="btn-action delete" data-action="delete-picked" ${dead} title="${escapeHtml(t('deleteSelected'))}"><i class="fas fa-trash"></i></button>
     `;
 }
 
@@ -123,7 +123,7 @@ function renderSelectionBar(count) {
 // split. So the button appears for `shafts` and for nothing else.
 function splitButton(index) {
     if (state.currentTab !== 'shafts') return '';
-    return `<button class="btn-action split" onclick="splitItem(${index})" title="${escapeHtml(t('splitTitle'))}"><i class="fas fa-scissors"></i></button>`;
+    return `<button class="btn-action split" data-action="split-element" data-index="${index}" title="${escapeHtml(t('splitTitle'))}"><i class="fas fa-scissors"></i></button>`;
 }
 
 let sortableInstance = null;
@@ -146,15 +146,15 @@ function buildRows(currentArray) {
         div.className = 'list-item';
         div.innerHTML = `
             <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
-                <input type="checkbox" class="item-pick" onchange="toggleSelected(${index})" ${isPicked(listContext(), index) ? 'checked' : ''} title="${escapeHtml(t('select'))}">
+                <input type="checkbox" class="item-pick" data-action="pick-element" data-index="${index}" ${isPicked(listContext(), index) ? 'checked' : ''} title="${escapeHtml(t('select'))}">
                 <i class="fas fa-grip-vertical item-drag"></i>
                 <span class="item-text">${escapeHtml(rowTitle(item, index, effNodes[index]))}</span>
             </div>
             <div class="item-actions">
                 ${splitButton(index)}
-                <button class="btn-action edit" onclick="editItem(${index})" title="${escapeHtml(t('edit'))}"><i class="fas fa-pen"></i></button>
-                <button class="btn-action copy" onclick="copyItem(${index})" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>
-                <button class="btn-action delete" onclick="deleteItem(${index})" title="${escapeHtml(t('delete'))}"><i class="fas fa-trash"></i></button>
+                <button class="btn-action edit" data-action="edit-element" data-index="${index}" title="${escapeHtml(t('edit'))}"><i class="fas fa-pen"></i></button>
+                <button class="btn-action copy" data-action="copy-element" data-index="${index}" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>
+                <button class="btn-action delete" data-action="delete-element" data-index="${index}" title="${escapeHtml(t('delete'))}"><i class="fas fa-trash"></i></button>
             </div>
         `;
         return div;

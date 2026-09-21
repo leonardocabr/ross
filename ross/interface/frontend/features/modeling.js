@@ -78,7 +78,7 @@ function renderVerticalScalePicker() {
     ).join('');
     holder.innerHTML =
         `<span>${escapeHtml(t('verticalScale'))}</span>` +
-        `<select onchange="setVerticalScale(this.value)">${options}</select>`;
+        `<select data-action="set-vertical-scale">${options}</select>`;
 }
 
 // One place draws the rotor, whether the figure just arrived or the scale just
@@ -230,7 +230,7 @@ function tabTitle(category, button) {
     const name = categoryName(category, button);
     return `<div style="display:flex; align-items:center;">
         <span>${escapeHtml(name)}</span> 
-        <button class="btn-help-section" onclick="openSectionHelp('${category}')" title="${escapeHtml(t('helpAbout'))} ${escapeHtml(name)}"><i class="fas fa-question-circle"></i></button>
+        <button class="btn-help-section" data-action="section-help" data-category="${category}" title="${escapeHtml(t('helpAbout'))} ${escapeHtml(name)}"><i class="fas fa-question-circle"></i></button>
     </div>`;
 }
 
@@ -302,7 +302,7 @@ export function openTab(category) {
         let drvSel = (state.multiRotorEditTarget === 'driving') ? 'selected' : '';
         let drvnSel = (state.multiRotorEditTarget === 'driven') ? 'selected' : '';
         titleHTML += `
-            <select id="mr-edit-target" onchange="switchMultiRotorTarget(this.value)" class="target-select">
+            <select id="mr-edit-target" data-action="switch-half" class="target-select">
                 <option value="driving" ${drvSel}>${escapeHtml(t('multiDriving'))}: ${escapeHtml(state.projectData.driving_rotor.name)}</option>
                 <option value="driven" ${drvnSel}>${escapeHtml(t('multiDriven'))}: ${escapeHtml(state.projectData.driven_rotor.name)}</option>
             </select>
@@ -332,8 +332,8 @@ export async function openForm(isNew = true) {
     if (isNew && subTypes.length > 1) {
         let html = `<h4 class="subtype-header">${escapeHtml(t('selectModel'))}</h4>`
                  + '<div class="subtype-grid">';
-        subTypes.forEach(type => { html += `<button class="btn-subtype" onclick="selectSubType('${type}')">${type}</button>`; });
-        html += '</div><button class="btn-cancel" style="width:100%; margin-top:15px;" onclick="closeForm()">' + escapeHtml(t('cancel')) + '</button>';
+        subTypes.forEach(type => { html += `<button class="btn-subtype" data-action="pick-subtype" data-subtype="${type}">${type}</button>`; });
+        html += '</div><button class="btn-cancel" style="width:100%; margin-top:15px;" data-action="close-form">' + escapeHtml(t('cancel')) + '</button>';
         document.getElementById('form-fields').innerHTML = html;
         document.querySelector('.form-actions').style.display = 'none';
     } else {
@@ -347,7 +347,7 @@ export async function openForm(isNew = true) {
     
     positionFormBox(isNew ? -1 : state.editingIndex);
     if(!document.getElementById('btn-default-form')) {
-        document.querySelector('.form-actions').insertAdjacentHTML('afterbegin', `<button type="button" id="btn-default-form" class="btn-default" onclick="fillDefault()"><i class="fas fa-magic"></i> ${escapeHtml(t('defaultButton'))}</button>`);
+        document.querySelector('.form-actions').insertAdjacentHTML('afterbegin', `<button type="button" id="btn-default-form" class="btn-default" data-action="fill-default"><i class="fas fa-magic"></i> ${escapeHtml(t('defaultButton'))}</button>`);
     }
 
     addingFromNodeHub = false; 

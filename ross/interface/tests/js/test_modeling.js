@@ -36,7 +36,7 @@ import '../../frontend/main.js';
 
 // `openTab` is no longer on the bridge: the buttons call `pickTab`, which can
 // also hide the list. It is still what every other path uses to show a tab.
-const { openForm, editItem, selectSubType } = window;
+const { openForm, editItem, selectSubType } = await import('../../frontend/features/modeling.js');
 
 let ok = 0, failed = 0;
 // `check(d, error === null || !console.log(error.message))` was the earlier
@@ -98,7 +98,9 @@ const text = node('element-list').innerHTML;
 check('the shaft shows up with a node number', /SHAFT #1 \(Node 0\)/.test(text));
 check('and the second with the next node', /SHAFT #2 \(Node 1\)/.test(text));
 check('with the edit, copy and delete buttons',
-          /editItem\(0\)/.test(text) && /copyItem\(1\)/.test(text) && /deleteItem\(1\)/.test(text));
+          /data-action="edit-element" data-index="0"/.test(text)
+          && /data-action="copy-element" data-index="1"/.test(text)
+          && /data-action="delete-element" data-index="1"/.test(text));
 
 prepare();
 openTab('materials');
@@ -118,7 +120,7 @@ check('and starts with no item being edited', state.editingIndex === -1);
 // With BASIC in the schema the form offers BASIC or LIST before the fields.
 check('the model choice comes first',
           node('form-fields').innerHTML.includes('Select Model')
-          && node('form-fields').innerHTML.includes("selectSubType('LIST')"));
+          && node('form-fields').innerHTML.includes('data-action="pick-subtype" data-subtype="LIST"'));
 
 selectSubType('BASIC');
 check('with the model chosen, the schema fields come',

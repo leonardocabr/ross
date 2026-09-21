@@ -107,14 +107,14 @@
 
         <div class="modeling-layout">
             <div class="sidebar">
-                <button class="tab-btn" onclick="pickTab('materials')" data-tab="materials" data-i18n="catMaterial">Material</button>
-                <button class="tab-btn" onclick="pickTab('shafts')" data-tab="shafts" data-i18n="catShaft">Shaft</button>
-                <button class="tab-btn" onclick="pickTab('disks')" data-tab="disks" data-i18n="catDisk">Disk</button>
-                <button class="tab-btn" onclick="pickTab('gears')" data-tab="gears" data-i18n="catGear">Gear</button>
-                <button class="tab-btn" onclick="pickTab('couplings')" data-tab="couplings" data-i18n="catCoupling">Coupling</button>
-                <button class="tab-btn" onclick="pickTab('seals')" data-tab="seals" data-i18n="catSeal">Seal</button>
-                <button class="tab-btn" onclick="pickTab('bearings')" data-tab="bearings" data-i18n="catBearing">Bearing</button>
-                <button class="tab-btn" onclick="pickTab('pointmasses')" data-tab="pointmasses" data-i18n="catPointmass">Pointmass</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="materials" data-i18n="catMaterial">Material</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="shafts" data-i18n="catShaft">Shaft</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="disks" data-i18n="catDisk">Disk</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="gears" data-i18n="catGear">Gear</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="couplings" data-i18n="catCoupling">Coupling</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="seals" data-i18n="catSeal">Seal</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="bearings" data-i18n="catBearing">Bearing</button>
+                <button class="tab-btn" data-action="pick-tab" data-tab="pointmasses" data-i18n="catPointmass">Pointmass</button>
             </div>
 
             <div class="dynamic-panel" id="list-panel">
@@ -127,13 +127,13 @@
                     <h3 id="tab-title"></h3>
                     <div id="selection-bar" style="display:none;"></div>
                 <div id="element-list" class="dynamic-list"></div>
-                    <button class="btn-add" id="btn-add-item" onclick="openForm(true)"><i class="fas fa-plus"></i></button>
+                    <button class="btn-add" id="btn-add-item" data-action="add-element"><i class="fas fa-plus"></i></button>
                     
                     <div id="insertion-form" class="form-box" style="display: none;">
                         <div id="form-fields"></div>
                         <div class="form-actions">
-                            <button class="btn-confirm" onclick="saveItem()"><i class="fas fa-check"></i></button>
-                            <button class="btn-cancel" onclick="closeForm()"><i class="fas fa-times"></i></button>
+                            <button class="btn-confirm" data-action="save-element"><i class="fas fa-check"></i></button>
+                            <button class="btn-cancel" data-action="close-form"><i class="fas fa-times"></i></button>
                         </div>
                     </div>
                 </div>
@@ -239,18 +239,18 @@
         <div class="modal-box" style="max-width: 480px;">
             <div class="modal-header">
                 <h3><i class="fas fa-plus-circle"></i> <span data-i18n="nodeHubTitle">Add Element at Node</span> <span id="node-hub-target" style="color:var(--accent-primary);">0</span></h3>
-                <button class="btn-close-modal" onclick="closeNodeHub()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="close-node-hub"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body" style="padding-top: 15px;">
                 <p style="color: var(--text-muted); margin-bottom: 15px; font-size: 13px; margin-top: 0;" data-i18n="nodeHubPick">Select the type of element you want to append to this node:</p>
                 <div class="element-hub-grid">
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('shafts')"><i class="fas fa-grip-lines"></i> Shaft</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('disks')"><i class="fas fa-compact-disc"></i> Disk</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('gears')"><i class="fas fa-cog"></i> Gear</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('couplings')"><i class="fas fa-link"></i> Coupling</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('bearings')"><i class="fas fa-circle-notch"></i> Bearing</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('seals')"><i class="fas fa-ring"></i> Seal</button>
-                    <button class="element-hub-btn" onclick="addElementFromNodeHub('pointmasses')"><i class="fas fa-dot-circle"></i> <span data-i18n="catPointMassLong">Point Mass</span></button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="shafts"><i class="fas fa-grip-lines"></i> Shaft</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="disks"><i class="fas fa-compact-disc"></i> Disk</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="gears"><i class="fas fa-cog"></i> Gear</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="couplings"><i class="fas fa-link"></i> Coupling</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="bearings"><i class="fas fa-circle-notch"></i> Bearing</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="seals"><i class="fas fa-ring"></i> Seal</button>
+                    <button class="element-hub-btn" data-action="add-from-node-hub" data-category="pointmasses"><i class="fas fa-dot-circle"></i> <span data-i18n="catPointMassLong">Point Mass</span></button>
                 </div>
             </div>
         </div>
@@ -278,7 +278,7 @@
                     <input type="text" id="mr-coupled-nodes" value="0, 0" placeholder="driving_node, driven_node" data-i18n-placeholder="phCoupledNodes">
                 </div>
                 
-                <button type="button" class="btn-advanced" onclick="toggleAdvanced(this)"><span data-i18n="advanced">Advanced</span> <i class="fas fa-chevron-down"></i></button>
+                <button type="button" class="btn-advanced" data-action="toggle-advanced"><span data-i18n="advanced">Advanced</span> <i class="fas fa-chevron-down"></i></button>
                 <div class="advanced-fields" style="display: none;">
                     <div class="input-group">
                         <label data-i18n="multiMeshStiffness">Gear Mesh Stiffness [N/m]</label>

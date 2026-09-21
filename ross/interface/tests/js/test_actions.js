@@ -7,12 +7,15 @@
 // introduce is the same one under a new name: a `data-action` nobody defined.
 // So the table is read against the HTML in both directions, every action is
 // pressed once, and the listener's rules are checked on plain objects.
-import { check, node, shutDown } from './fake_dom.js';
+import { check, node, schemaResponse, shutDown } from './fake_dom.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-globalThis.fetch = async () => ({ ok: true, json: async () => ({ status: 'success' }) });
+globalThis.fetch = async path => {
+    const schema = schemaResponse(path);
+    return { ok: true, status: 200, json: async () => schema || { status: 'success' } };
+};
 // Screens and side panels announce a resize; Node's global is not an EventTarget.
 globalThis.dispatchEvent = () => true;
 
@@ -49,6 +52,17 @@ check('every file button names its input', inputs.length === 4);
 check('and each of those inputs is on the page', inputs.every(id => ids.has(id)));
 const screens = [...PAGE.matchAll(/data-action="show-screen" data-screen="([\w-]+)"/g)].map(m => m[1]);
 check('every screen button names a screen that exists', screens.length > 0 && screens.every(id => ids.has(id)));
+
+// Every tab and every node-hub button carries the category it acts on.
+const CATEGORIES = ['materials', 'shafts', 'disks', 'gears', 'couplings', 'seals', 'bearings', 'pointmasses'];
+const tabButtons = (PAGE.match(/data-action="pick-tab"/g) || []).length;
+const tabsNamed = [...PAGE.matchAll(/data-action="pick-tab" data-tab="(\w+)"/g)].map(m => m[1]);
+check('every category tab names its category', tabButtons === 8
+    && tabsNamed.length === 8 && tabsNamed.every(c => CATEGORIES.includes(c)));
+const hubButtons = (PAGE.match(/data-action="add-from-node-hub"/g) || []).length;
+const hubNamed = [...PAGE.matchAll(/data-action="add-from-node-hub" data-category="(\w+)"/g)].map(m => m[1]);
+check('and so does every node-hub button', hubButtons === 7
+    && hubNamed.length === 7 && hubNamed.every(c => CATEGORIES.includes(c)));
 
 // --- the listener's rules ------------------------------------------------------------
 
@@ -119,11 +133,39 @@ check('a file button opens the input it names', opened === 'upload-rotor-hub');
 // shuts the server down and closes the window.
 const LEFT_OUT = ['exit', 'battery-probe'];
 const event = { preventDefault() {}, stopPropagation() {}, target: { files: [], value: '' } };
-const attributes = { input: 'upload-rotor-hub', screen: 'screen-modeling' };
+// Whatever an action reads from its element: a file input, a screen, a row, a
+// category, a subtype. One set serves them all.
+const attributes = { input: 'upload-rotor-hub', screen: 'screen-modeling', index: '0',
+                     tab: 'shafts', category: 'shafts', subtype: 'BASIC' };
 const failures = [];
+// Some actions start work they do not return (`editItem` opens the form and
+// hands back nothing); a failure there would end the battery with no name on
+// it. Collected instead.
+process.on('unhandledrejection', error => failures.push('(not returned) ' + (error && error.message)));
+
+// A rotor open on the shafts tab, afresh before every action, so the modelling
+// actions have a row to act on -- and `delete-element` cannot take away the row
+// `edit-element` is about to open.
+const { openProjectHistory, state } = await import('../../frontend/core/state.js');
+function openRotor() {
+    state.rotorLibrary = [{
+        name: 'R', uid: 'uid_r', savedAnalyses: [], materials: [],
+        shafts: [{ element_type: 'BASIC', n: '0', L: '250', odl: '50' },
+                 { element_type: 'BASIC', n: '1', L: '250', odl: '50' }],
+        disks: [], gears: [], couplings: [], seals: [], bearings: [], pointmasses: [],
+    }];
+    state.activeRotorIndex = 0;
+    state.projectData = state.rotorLibrary[0];
+    state.currentTab = 'shafts';
+    state.editingIndex = -1;
+    openProjectHistory(state.projectData);
+}
 for (const name of actionNames().filter(n => !LEFT_OUT.includes(n))) {
     const el = element(name === 'change-language' ? 'SELECT' : 'BUTTON', name,
-        { dataset: Object.assign({ action: name }, attributes), value: 'en' });
+        // `toggle-advanced` opens the block right after its button.
+        { dataset: Object.assign({ action: name }, attributes), value: 'en',
+          nextElementSibling: { style: { display: 'none' } } });
+    openRotor();
     try {
         const answer = runAction(el, event);
         // Not awaited: several of them open a dialog and wait for an answer
@@ -132,9 +174,32 @@ for (const name of actionNames().filter(n => !LEFT_OUT.includes(n))) {
     } catch (error) {
         failures.push(name + ': ' + error.message);
     }
+    // Let the ones that open the form finish before the rotor is replaced.
+    await new Promise(done => setTimeout(done, 20));
 }
 await new Promise(done => setTimeout(done, 200));
 check('every action runs without throwing: ' + failures.join(' | '), failures.length === 0);
+
+// --- a row's position is a number -------------------------------------------------------
+//
+// A dataset value is always a string, and `copyItem` inserts at `index + 1`:
+// with "0" that is "01", which `splice` reads as 1 by luck -- but with "1" it
+// is "11", and the copy lands at the end of the list instead of under its
+// original. So the position is pressed through the real table, on a row that
+// is not the first.
+openRotor();
+state.projectData.shafts.forEach((shaft, i) => { shaft.tag = 'AB'[i]; });
+state.projectData.shafts.push({ element_type: 'BASIC', n: '2', L: '250', odl: '50', tag: 'C' });
+runAction(element('BUTTON', 'copy-element', { dataset: { action: 'copy-element', index: '1' } }), event);
+check('a row\'s button acts on that row, read as a number',
+    state.projectData.shafts.map(s => s.tag).join(',') === 'A,B,B_1,C');
+runAction(element('BUTTON', 'delete-element', { dataset: { action: 'delete-element', index: '0' } }), event);
+check('and each row button on its own row', state.projectData.shafts.map(s => s.tag).join(',') === 'B,B_1,C');
+
+// A tab button opens the tab it names, and nothing else it carries.
+openRotor();
+runAction(element('BUTTON', 'pick-tab', { dataset: { action: 'pick-tab', tab: 'disks' } }), event);
+check('a tab button opens its own tab', state.currentTab === 'disks');
 
 // --- the ratchet -------------------------------------------------------------------------
 //
@@ -143,6 +208,15 @@ check('every action runs without throwing: ' + failures.join(' | '), failures.le
 // The five `onerror` on the logo images are not calls to anything on the
 // bridge (they hide a missing picture) and are counted apart.
 const inline = (PAGE.match(/\son(?!error)[a-z]+="/g) || []).length;
-check('inline handlers left in index.html: ' + inline + ' (at most 42)', inline <= 42);
+check('inline handlers left in index.html: ' + inline + ' (at most 22)', inline <= 22);
+
+// The same count for the HTML the JavaScript writes (the hub's rotor cards and
+// the analysis cards, today). Comment lines are left out: a comment that
+// quotes an old handler is not a handler -- and the bridge sweep once counted
+// one as a live call, which kept `saveRotor` on the bridge for a whole slice.
+const generated = sources(FRONTEND)
+    .map(text => text.split('\n').filter(line => !line.trim().startsWith('//')).join('\n'))
+    .reduce((total, text) => total + (text.match(/\bon[a-z]+=\\?["']/g) || []).length, 0);
+check('inline handlers written by the JavaScript: ' + generated + ' (at most 33)', generated <= 33);
 
 shutDown();

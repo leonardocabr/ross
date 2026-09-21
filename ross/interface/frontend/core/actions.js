@@ -1,7 +1,7 @@
 // What a button means, by name -- the replacement for the `window` bridge.
 //
-// WHY. The HTML used to call functions by name, `onclick="saveRotor(event)"`,
-// and for that to work every such function had to be hung on `window` by
+// WHY. The HTML used to call functions by name, in `onclick` attributes, and
+// for that to work every such function had to be hung on `window` by
 // main.js: 73 of them. A name that fell off the bridge left its button dead
 // with nothing on screen and nothing in the console until somebody clicked.
 //
