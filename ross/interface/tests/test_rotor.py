@@ -1,5 +1,6 @@
 import io
 import os
+import re
 import sys
 
 import pytest
@@ -279,9 +280,16 @@ ROSSES_BUSINESS = ("height", "margin", "legend")
 
 
 def _appearance_block():
+    """The object literal of `ROTOR_APPEARANCE`, and nothing after it.
+
+    It used to be cut at `const ROTOR_MENU`, the next declaration. That override
+    is gone -- it was a fourth piece of ROSS's geometry, moving the toggle
+    buttons onto the axis labels once ROSS's own height came back -- so the
+    block is found by its own braces instead of by a neighbour that may leave."""
     js = source()
-    assert "ROTOR_APPEARANCE" in js
-    return js[js.index("const ROTOR_APPEARANCE") : js.index("const ROTOR_MENU")]
+    found = re.search(r"const ROTOR_APPEARANCE = \{(.*?)\};", js, re.S)
+    assert found, "ROTOR_APPEARANCE is gone from features/modeling.js, or changed shape"
+    return found.group(1)
 
 
 @pytest.mark.parametrize("key", SCREENS_BUSINESS)

@@ -83,16 +83,29 @@ function renderVerticalScalePicker() {
 
 // One place draws the rotor, whether the figure just arrived or the scale just
 // changed. Two would be two chances to forget the stretch.
+//
+// The toggle buttons under the axis are ROSS's to place, like the rest of the
+// geometry. There used to be a `ROTOR_MENU = { y: -0.15 }` applied here, and
+// it was the fourth member of the set this file's comment above says cannot be
+// split: `-0.15` is a fraction of the plot area's height, chosen when the area
+// was whatever the panel gave (~500 px, so 75 px below the axis). With ROSS's
+// own 130 px area it came to 20 px -- on top of the tick labels. ROSS puts them
+// at `-0.4615` of its area, which is 60 px down, inside the 102 px band it
+// reserves for them. Measured in a browser, not reasoned about.
+//
+// And `withVerticalScale` **returns** the stretched layout; it does not change
+// the one it is given. The first version of this function called it for a side
+// effect it no longer had, so 2× and 5× computed a stretch and threw it away --
+// the contract of the helper changed and this call site was not revisited.
 function drawRotorFigure(fig) {
     lastRotorFigure = fig;
-    const layout = Object.assign(JSON.parse(JSON.stringify(fig.layout)), ROTOR_APPEARANCE);
-    (layout.updatemenus || []).forEach(menu => Object.assign(menu, ROTOR_MENU));
-    withVerticalScale(layout, verticalScale, t('verticalScaleNote').replace('%1', verticalScale));
+    const dressed = Object.assign(JSON.parse(JSON.stringify(fig.layout)), ROTOR_APPEARANCE);
+    const layout = withVerticalScale(
+        dressed, verticalScale, t('verticalScaleNote').replace('%1', verticalScale),
+    );
     Plotly.newPlot('plot-rotor', fig.data, themedLayout(layout), { responsive: true });
     setupPlotHoverEvents();
 }
-
-const ROTOR_MENU = { y: -0.15, yanchor: 'top', x: 1.0, xanchor: 'right' };
 
 // --- State of the screen itself ----------------------------------------------
 //

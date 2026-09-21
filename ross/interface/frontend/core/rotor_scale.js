@@ -24,6 +24,46 @@
 // it sees the true proportions.
 export const VERTICAL_SCALES = [1, 2, 5];
 
+// Where something placed outside the plot area has to go for it to stay the
+// same number of pixels away after the area grows `times` times.
+//
+// ROSS places the toggle buttons and the legend in **paper** coordinates, which
+// are fractions of the plot area's height: the buttons at `-0.4615` of a 130 px
+// area are 60 px under the axis, inside the band its bottom margin reserves for
+// them, and the legend at `1.4615` is 60 px above it.
+//
+// Leave those fractions alone while the area grows and the offsets grow with
+// it -- past the margins ROSS reserved. What happens then was first *guessed*
+// here ("the buttons fall off the figure") and then measured in a browser, and
+// the guess was wrong: Plotly's `margin.autoexpand` keeps them on the figure by
+// **shrinking the plot area** to make room. At 5× on a 1.5 m rotor that took
+// the x axis from 646 px to 614 -- the rotor came out narrower, the one thing
+// a vertical stretch must never do -- and pushed the legend up over the title.
+//
+// So the fraction is divided by the factor below the area and above it, and
+// nothing inside [0, 1] is touched: those are positions *on* the drawing, which
+// should move with it.
+function keepPixelOffset(y, times) {
+    if (typeof y !== 'number') return y;
+    if (y < 0) return y / times;
+    if (y > 1) return 1 + (y - 1) / times;
+    return y;
+}
+
+function keepOffsetsOutsideTheArea(layout, times) {
+    (layout.updatemenus || []).forEach(menu => {
+        menu.y = keepPixelOffset(menu.y, times);
+    });
+    if (layout.legend) layout.legend.y = keepPixelOffset(layout.legend.y, times);
+    // Only what is anchored to the paper. An annotation in data coordinates --
+    // the node scale label, at a negative *radius* -- is part of the drawing and
+    // stretches with it. The axes indicator is anchored at the edge (y = 0) with
+    // pixel shifts, which this leaves exactly where it was.
+    (layout.annotations || []).forEach(note => {
+        if (note.yref === 'paper') note.y = keepPixelOffset(note.y, times);
+    });
+}
+
 function stretchTitle(axis, note) {
     const current = axis.title;
     const base = (current && typeof current === 'object' ? current.text : current) || '';
@@ -69,6 +109,7 @@ export function withVerticalScale(layout, factor, note) {
     const area = (stretched.height || 0) - top - bottom;
     if (area > 0) stretched.height = area * times + top + bottom;
 
+    keepOffsetsOutsideTheArea(stretched, times);
     stretchTitle(axis, note);
     return stretched;
 }

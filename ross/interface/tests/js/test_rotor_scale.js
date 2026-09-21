@@ -104,11 +104,100 @@ check('an axis with no title still gets the note', titleOf(bare) === 'note');
 check('and a layout with no yaxis does not throw',
     withVerticalScale({ height: 300, margin: {} }, 2, 'note').yaxis.scaleratio === 2);
 
+// --- what sits outside the plot area keeps its distance ----------------------------
+//
+// ROSS places the buttons and the legend in fractions of the plot area's height.
+// Leave the fractions alone while the area grows and Plotly's `autoexpand`
+// keeps them on the figure by **shrinking the drawing**: measured in a browser
+// at 5×, the x axis went from 646 px to 614 and the legend rode up over the
+// title. So below the area the fraction is divided by the factor, above it the
+// excess over 1 is, and inside [0, 1] nothing moves.
+function withOutsiders() {
+    const layout = rossLayout();
+    layout.updatemenus = [{ y: -0.4615 }, { y: -0.4615 }];
+    layout.legend = { y: 1.4615 };
+    layout.annotations = [
+        { yref: 'paper', y: 0 },          // the axes indicator: on the edge, pixel shifts
+        { yref: 'paper', y: -0.3 },       // something ROSS might hang below the area
+        { y: -0.107 },                     // the node scale: data coordinates, part of the drawing
+    ];
+    return layout;
+}
+
+const five = withVerticalScale(withOutsiders(), 5, 'n');
+const close = (a, b) => Math.abs(a - b) < 1e-9;
+check('the buttons below the area keep their pixel distance',
+    five.updatemenus.every(menu => close(menu.y, -0.4615 / 5)));
+check('the legend above it keeps its own', close(five.legend.y, 1 + 0.4615 / 5));
+check('a paper note below the area is moved the same way', close(five.annotations[1].y, -0.3 / 5));
+check('something anchored on the edge stays on the edge', five.annotations[0].y === 0);
+check('and a note in data coordinates is left to stretch with the drawing',
+    five.annotations[2].y === -0.107);
+
+// Control: at one times nothing outside the area moves either.
+const one = withVerticalScale(withOutsiders(), 1, 'n');
+check('at one times the buttons are where ROSS put them', one.updatemenus[0].y === -0.4615);
+
 // --- what the control offers --------------------------------------------------------
 
 check('the first choice is the true proportion', VERTICAL_SCALES[0] === 1);
 check('and there is more than one choice', VERTICAL_SCALES.length > 1);
 check('every choice is a stretch, never a squeeze',
     VERTICAL_SCALES.every(times => times >= 1));
+
+// --- the call site ------------------------------------------------------------------
+//
+// Everything above tests `withVerticalScale` on its own, and all of it passed
+// while the feature did nothing on screen. `drawRotorFigure` called the helper
+// for a side effect it no longer had -- its contract had changed from "alters
+// what it is given" to "returns a copy", and the caller was not revisited -- so
+// 2× and 5× computed a stretch and threw it away. And a `ROTOR_MENU` override
+// kept moving ROSS's buttons onto the axis labels.
+//
+// So here the real screen draws, through the real server path, and what is
+// checked is the layout that reaches `Plotly.newPlot`: the only place where the
+// answer is what the person sees.
+const drawn = [];
+globalThis.Plotly = {
+    newPlot: async (id, data, layout) => { drawn.push(layout); },
+    Plots: { resize() {} },
+};
+globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+        status: 'success',
+        plot_json: JSON.stringify({ data: [], layout: withOutsiders() }),
+        mass: 1,
+        ip: 1,
+    }),
+});
+
+const { buildRotorLive, setVerticalScale } = await import('../../frontend/features/modeling.js');
+const { state } = await import('../../frontend/core/state.js');
+state.projectData = {
+    materials: [], shafts: [{ L: '250', odl: '50' }], disks: [], gears: [],
+    couplings: [], seals: [], bearings: [], pointmasses: [],
+};
+
+buildRotorLive();
+await new Promise(ready => setTimeout(ready, 700));
+const onScreen = () => drawn[drawn.length - 1];
+
+check('the figure reached the screen', drawn.length === 1);
+check('at one times the buttons stay where ROSS put them',
+    onScreen().updatemenus.every(menu => menu.y === -0.4615));
+
+setVerticalScale(5);
+check('choosing 5× redraws', drawn.length === 2);
+check('and the stretch reaches the drawing', onScreen().yaxis.scaleratio === 5);
+check('with the warning on the axis', /5×/.test(titleOf(onScreen())));
+check('and the buttons keep their distance on screen too',
+    onScreen().updatemenus.every(menu => close(menu.y, -0.4615 / 5)));
+
+setVerticalScale(1);
+check('going back to one times is ROSS\'s figure again',
+    onScreen().yaxis.scaleratio === 1 && onScreen().height === 332);
+check('with nothing added to the axis', titleOf(onScreen()) === 'Shaft radius (m)');
 
 shutDown();
