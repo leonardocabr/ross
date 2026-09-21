@@ -550,3 +550,39 @@ def test_every_start_function_is_started():
             if not re.search(r"^\s*%s\(\);" % start, main, re.M):
                 missing.append(start)
     assert missing == [], "main.js never calls %s" % missing
+
+
+def _css_without_comments():
+    with io.open(os.path.join(FRONTEND, "style.css"), encoding="utf-8") as handle:
+        return re.sub(r"/\*.*?\*/", "", handle.read(), flags=re.S)
+
+
+def test_the_layout_does_not_reflow_with_the_window():
+    """Below the minimum width the page scrolls; it does not change shape.
+
+    Zooming in *is* a narrower viewport. With rules keyed to the window width,
+    the page rearranged itself exactly when someone asked for a bigger version
+    of it, and between the breakpoints buttons slid over text. Leonardo's
+    decision: keep the proportions and scroll. So no rule may depend on the
+    window's width -- in the CSS (`@media (max-width ...)`) or in the JS
+    (`window.innerWidth`) -- and the page carries a minimum width instead.
+
+    The value is measured, not chosen: the measurement is written up in the
+    project notes for Phase 5, slice 9."""
+    css = _css_without_comments()
+    assert not re.search(r"@media[^{]*\b(?:max|min)-width", css), (
+        "a width breakpoint came back to style.css"
+    )
+    assert re.search(r"--app-min-width:\s*\d+px", css), "--app-min-width is gone"
+    body_rules = re.findall(r"(?:^|\})\s*body\s*\{([^}]*)\}", css)
+    assert any("min-width: var(--app-min-width)" in rule for rule in body_rules), (
+        "the body no longer holds the minimum width"
+    )
+    reading_the_window = [
+        "%s:%d" % (module, number)
+        for module, number, line in code_lines()
+        if "innerWidth" in line
+    ]
+    assert reading_the_window == [], (
+        "code that changes with the window width: %s" % reading_the_window
+    )

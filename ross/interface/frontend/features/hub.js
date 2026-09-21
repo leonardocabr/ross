@@ -228,4 +228,7 @@ export function showOpenRotorName() {
     if (!label) return;
     const name = (state.projectData && state.projectData.name) || '';
     label.textContent = name ? ' \u2014 ' + name : '';
+    // A long name is cut with an ellipsis in the header; the whole of it is
+    // one hover away.
+    label.title = name;
 }

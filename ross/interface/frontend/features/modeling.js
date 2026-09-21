@@ -311,14 +311,7 @@ export function openTab(category) {
     document.getElementById('tab-title').innerHTML = titleHTML;
     
     closeForm();
-    renderList();    
-    if (window.innerWidth <= 768) {
-        const sidebar = document.querySelector('.sidebar');
-        if (!sidebar.classList.contains('collapsed')) {
-            sidebar.classList.add('collapsed');
-            setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
-        }
-    }
+    renderList();
 }
 
 // Function to open the form
