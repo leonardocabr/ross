@@ -12,6 +12,7 @@ import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js'
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
+import { projectFromFile } from '../core/project_file.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
 import { splitProject } from './split.js';
@@ -618,23 +619,13 @@ export async function loadRotor(event) {
         
         try {
             const loaded = JSON.parse(content);
-            if (loaded.shafts !== undefined || loaded.eixos !== undefined) {
+            // The whole rule -- is this ours, and what project is it -- lives in
+            // core/project_file.js, with no DOM around it, so it can be checked
+            // case by case. Here what is left is pushing it and saying so.
+            const project = projectFromFile(loaded, file.name.replace('.json', ''));
+            if (project) {
                 isInterfaceJSON = true;
-                
-                let newLoadedRotor = {
-                    name: file.name.replace('.json', ''),
-                    savedAnalyses: loaded.savedAnalyses || [],
-                    materials: loaded.materials || loaded.materiais || [],
-                    shafts: loaded.shafts || loaded.eixos || [],
-                    disks: loaded.disks || loaded.discos || [],
-                    gears: loaded.gears || loaded.engrenagens || [],
-                    couplings: loaded.couplings || loaded.acoplamentos || [],
-                    seals: loaded.seals || loaded.badges || [],
-                    bearings: loaded.bearings || loaded.mancais || [],
-                    pointmasses: loaded.pointmasses || []
-                };
-
-                state.rotorLibrary.push(newLoadedRotor);
+                state.rotorLibrary.push(project);
                 openRotorHub();
                 await openCustomAlert(t('rotorLoaded'));
             }

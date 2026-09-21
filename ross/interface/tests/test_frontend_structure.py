@@ -504,3 +504,29 @@ def test_the_badge_classes_exist_in_the_stylesheet():
         css = handle.read()
     for klass in (".badge-6dof", ".badge-4dof", ".badge-torsional"):
         assert klass + " {" in css, "%s has no rule" % klass
+
+
+def test_the_loader_knows_the_same_categories_as_the_registry():
+    """`CATEGORIES` in core/project_file.js against `element_registry`.
+
+    The loader needs the categories by name for one reason: a file may not have
+    one, and `renderList` empties the element list *before* it reads the
+    category -- so a project without `gears` leaves the screen blank with
+    nothing in the console. Filling the gaps is cheaper than making every
+    reader defensive, and the price is this copy of the list.
+
+    A copy maintained by hand is exactly what this project keeps paying for, so
+    it is compared here rather than trusted. The order is the sidebar's
+    business and is not compared; membership is."""
+    from ross.interface.domain.element_registry import categories
+
+    text = _text("core/project_file.js")
+    block = re.search(r"export const CATEGORIES = \[(.*?)\];", text, re.S)
+    assert block, "CATEGORIES is gone from core/project_file.js, or changed shape"
+
+    listed = set(re.findall(r"'([a-z_]+)'", block.group(1)))
+    assert listed == set(categories()), (
+        "the loader and the element registry disagree about the categories: "
+        "only in the loader %s, only in the registry %s"
+        % (sorted(listed - set(categories())), sorted(set(categories()) - listed))
+    )
