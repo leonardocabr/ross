@@ -21,14 +21,35 @@ import { splitProject } from './split.js';
 // backend (BE-12): margin, background, size and legend position assembled on top
 // of the Plotly JSON before sending. What knows the size of the panel is the
 // screen.
+// What the screen says about the rotor figure, and it is now only the theme.
+//
+// This used to carry `height: null`, a `margin` of its own and a `legend`
+// position, from BE-12 in Phase 3: the backend was assembling them and "what
+// knows the size of the panel is the screen". That was right at the time.
+//
+// ROSS 3 changed the ground under it. `plot_rotor` now computes height, margin
+// and legend position **together**, and the source says why they belong
+// together: the height comes from a nominal width and the `scaleanchor`
+// constraint, the bottom margin reserves fixed bands so showing the axes
+// indicator does not resize the figure, and the legend hangs from a line below
+// the title so a narrow container wraps it downward instead of over the title.
+// Measured on a six-element rotor, it asks for `height: 332`,
+// `margin {l:70, r:25, t:100, b:102}` and `legend.y = 1.4615`.
+//
+// We were replacing all three with values that knew nothing about each other --
+// a bottom margin of 80 where ROSS reserves 102, and a legend at 1.05 where it
+// puts 1.46. Taking one of a set of three and leaving the other two is how a
+// figure ends up with its buttons clipped.
+//
+// So the line is drawn differently now: **ROSS owns the geometry, the screen
+// owns the theme**. The two colours stay because ROSS sets neither (measured:
+// `paper_bgcolor` and `plot_bgcolor` both come back as None), so making the
+// figure transparent over a themed panel is genuinely ours. Width needs nothing
+// from us either: ROSS leaves it unset on purpose and `newPlot` is already
+// called with `responsive: true`.
 const ROTOR_APPEARANCE = {
-    autosize: true,
-    width: null,
-    height: null,
-    margin: { l: 40, r: 40, t: 80, b: 80 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'center', x: 0.5 },
 };
 
 const ROTOR_MENU = { y: -0.15, yanchor: 'top', x: 1.0, xanchor: 'right' };
