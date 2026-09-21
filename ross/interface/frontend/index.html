@@ -268,9 +268,11 @@
                     <input type="text" id="mr-name" value="My MultiRotor">
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <div class="input-group"><label data-i18n="multiDriving">Driving Rotor</label><select id="mr-driving"></select></div>
-                    <div class="input-group"><label data-i18n="multiDriven">Driven Rotor</label><select id="mr-driven"></select></div>
+                    <div class="input-group"><label data-i18n="multiDriving">Driving Rotor</label><select id="mr-driving" onchange="describeCoupling()"></select></div>
+                    <div class="input-group"><label data-i18n="multiDriven">Driven Rotor</label><select id="mr-driven" onchange="describeCoupling()"></select></div>
                 </div>
+                <!-- Where each rotor's gears are; written by `describeCoupling`. -->
+                <p id="mr-hint" style="color: var(--text-muted); margin-bottom: 15px; font-size: 13px; margin-top: 0;"></p>
                 <div class="input-group">
                     <label data-i18n="multiCoupledNodes">Coupled Nodes (ex: 4, 0)</label>
                     <input type="text" id="mr-coupled-nodes" value="0, 0" placeholder="driving_node, driven_node" data-i18n-placeholder="phCoupledNodes">

@@ -21,7 +21,7 @@ import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
 import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, pickTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, startRotorFigureFollowsWidth, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
-import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
+import { closeMultiRotorModal, describeCoupling, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
 import { startTheme, toggleTheme } from './core/theme.js';
@@ -102,7 +102,7 @@ Object.assign(window, {
     deleteRotorInHub, editItem, editRotorName, exitApplication, fillDefault,
     generatePythonFile, generatePythonFromHub, handleUnitChange,
     loadAnalysis, loadAnalysisDirect, loadRotor, openAbout, openAnalysisCardHelp,
-    openAnalysisHelp, openForm, openGeneralHelp, openMultiRotorModal,
+    describeCoupling, openAnalysisHelp, openForm, openGeneralHelp, openMultiRotorModal,
     openConcatenateModal, openRotorHub, openRotorWorkspace, openSectionHelp, pickTab,
     returnToHub,
     runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
