@@ -272,6 +272,9 @@ button {
     /* Given up long before the screen's own name: which screen this is matters
        more than the tail of a rotor's name, which the tooltip still has. */
     flex-shrink: 100;
+    /* The leading space of " — name" is dropped at the start of a flex item,
+       which glued the dash to the screen's name. */
+    margin-left: 0.3em;
 }
 .btn-save,
 .btn-py {
@@ -1618,6 +1621,57 @@ button {
     font-size: var(--fs-xs);
     font-weight: var(--fw-regular);
     opacity: 0.7;
+}
+
+/* --- What broke (phase 5, slice 10) ------------------------------------
+   Fixed to the bottom-left corner, opposite the line of work, for the same
+   reason: an error does not belong to the screen that happened to be open. */
+.error-notice {
+    position: fixed;
+    bottom: var(--space-4);
+    left: var(--space-4);
+    z-index: 950;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    max-width: 480px;
+    padding: 12px 14px;
+    font-size: var(--fs-sm);
+    color: var(--text-body);
+    background: var(--surface-card);
+    border: 1px solid var(--danger-500);
+    border-left-width: 4px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+.error-notice > i {
+    color: var(--danger-500);
+    margin-top: 2px;
+}
+.error-notice-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.error-notice-text {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-strong);
+    overflow-wrap: anywhere;
+}
+.error-notice-hint {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+.error-notice-close {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 2px 6px;
+}
+.error-notice-close:hover {
+    color: var(--text-strong);
+    background: var(--surface-hover);
 }
 
 /* ---------- The layout does not reflow ---------- */

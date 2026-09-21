@@ -9,6 +9,7 @@ import { busySpinner, escapeHtml } from '../core/dom.js';
 import { listContext, projectChanged, state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
 import { pick, pickAll, picked } from '../core/selection.js';
 import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
+import { afterInsertion, afterRemoval } from '../core/editing.js';
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
@@ -456,6 +457,7 @@ export function copyItem(index) {
     const copiedItem = freshCopy(original, activeData[state.currentTab]);
 
     activeData[state.currentTab].splice(index + 1, 0, copiedItem); 
+    state.editingIndex = afterInsertion(state.editingIndex, index + 1);
     syncBackToLibrary();
     renderList(); 
     buildRotorLive(); 
@@ -466,12 +468,9 @@ export function copyItem(index) {
 export function deleteItem(index) {
     const activeData = getActiveData();
     activeData[state.currentTab].splice(index, 1);    
-    if (state.editingIndex === index) {
-        closeForm();
-    } 
-    else if (state.editingIndex > index) {
-        state.editingIndex--;
-    }    
+    const editing = afterRemoval(state.editingIndex, index);
+    if (editing === null) closeForm();
+    else state.editingIndex = editing;
     syncBackToLibrary();
     renderList();
     buildRotorLive();
@@ -490,17 +489,9 @@ export async function splitItem(index) {
 
     // The form is open on the element that just stopped existing as one thing:
     // saving it would write the whole original back over its left half. Below
-    // the split nothing moved; above it, everything did, and an open form kept
-    // pointing at the element before it.
-    //
-    // `copyItem` has this same spot and does not handle it -- noted rather than
-    // fixed here, because fixing it silently in a slice about `add_nodes` is how
-    // a change nobody reviewed gets into a release.
-    if (state.editingIndex === index) {
-        closeForm();
-    } else if (state.editingIndex > index) {
-        state.editingIndex++;
-    }
+    // the split nothing moved; above it, the right half was inserted.
+    if (state.editingIndex === index) closeForm();
+    else state.editingIndex = afterInsertion(state.editingIndex, index + 1);
 
     syncBackToLibrary();
     renderList();
@@ -741,7 +732,10 @@ async function _fetchRotorLive() {
                 infoContainer.style.opacity = '1';
             }
         } else {
-            showInsteadOfFigure(plotContainer, `<div class="analysis-error"><i class="fas fa-exclamation-triangle fa-2x"></i><br><b>${escapeHtml(t('modelingError'))}</b><br>${data.message}</div>`);
+            // `data.message` is escaped like everything else: it quotes what the
+            // user typed back ("could not read 'abc'"), and a tag typed into a
+            // field would otherwise be drawn as a tag.
+            showInsteadOfFigure(plotContainer, `<div class="analysis-error"><i class="fas fa-exclamation-triangle fa-2x"></i><br><b>${escapeHtml(t('modelingError'))}</b><br>${escapeHtml(data.message)}</div>`);
             if(infoContainer) infoContainer.style.opacity = '0';
         }
     } catch (e) { 

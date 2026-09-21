@@ -5,6 +5,7 @@ import { analysesToSave, forgetAllAnalyses } from '../core/analysis_store.js';
 import { escapeHtml } from '../core/dom.js';
 import { ensureUIDs, openProjectHistory, state, syncMultiRotors } from '../core/state.js';
 import { saveState } from '../core/persistence.js';
+import { CATEGORIES } from '../core/project_file.js';
 import { emptyListNotice, restoreAnalysesFromMemory } from './analysis.js';
 import { generatePythonFile } from './export.js';
 import { buildRotorLive } from './modeling.js';
@@ -43,10 +44,7 @@ export function renderRotorHub() {
         if (rotor.isMultiRotor) {
             badge = `<span class="badge-conversion badge-multirotor"><i class="fas fa-link"></i> MultiRotor</span>`;
         } else {
-            let s_len = rotor.shafts ? rotor.shafts.length : 0;
-            let d_len = rotor.disks ? rotor.disks.length : 0;
-            let b_len = rotor.bearings ? rotor.bearings.length : 0;
-            badge = `<span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:8px;">(${s_len + d_len + b_len} elements)</span>`;
+            badge = `<span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:8px;">(${escapeHtml(t('elementsCount').replace('%1', elementCount(rotor)))})</span>`;
         }
 
         container.innerHTML += `
@@ -223,6 +221,16 @@ export function generatePythonFromHub(index) {
 // It was not shown anywhere before, which is a gap you only notice once there
 // is an undo button: "undo" is a question about a particular model, and the
 // screen was not saying which one.
+// Every element of a rotor, whatever its kind. It used to add up shafts, disks
+// and bearings only, so a rotor with gears, couplings, seals or point masses
+// was announced with fewer elements than it had. Materials are not elements of
+// the rotor -- they are what the shafts are made of -- and stay out.
+function elementCount(rotor) {
+    return CATEGORIES
+        .filter(category => category !== 'materials')
+        .reduce((total, category) => total + (Array.isArray(rotor[category]) ? rotor[category].length : 0), 0);
+}
+
 export function showOpenRotorName() {
     const label = document.getElementById('modeling-rotor-name');
     if (!label) return;

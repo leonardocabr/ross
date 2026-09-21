@@ -26,6 +26,7 @@ import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcate
 import { startWorkBar } from './features/progress.js';
 import { startTheme, toggleTheme } from './core/theme.js';
 import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } from './features/screens.js';
+import { startErrorNotice } from './features/error_notice.js';
 
 // --- Wiring between layers -------------------------------------------------
 //
@@ -43,6 +44,8 @@ onProjectChanged(refreshHistoryButtons);
 
 // The schema is loaded once at startup; openForm waits for it.
 document.addEventListener('DOMContentLoaded', () => {
+    // First, so that a failure in anything below is seen on screen.
+    startErrorNotice();
     // The theme first: the head script already set the attribute before the first
     // paint, and this wires the buttons and the system's preference to it.
     startTheme();

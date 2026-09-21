@@ -69,7 +69,7 @@
             <div class="hub-header">
                 <h2 data-i18n="hubMyRotors">My Rotors</h2>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-secondary" onclick="document.getElementById('upload-rotor-hub').click()"><i class="fas fa-upload"></i> Load Rotor</button>
+                    <button class="btn-secondary" onclick="document.getElementById('upload-rotor-hub').click()"><i class="fas fa-upload"></i> <span data-i18n="homeLoadRotor">Load Rotor</span></button>
                     <button class="btn-primary" onclick="createNewRotorInHub()"><i class="fas fa-plus"></i> <span data-i18n="hubAddRotor">Add New Rotor</span></button>
                     <button class="btn-primary btn-multirotor" onclick="openMultiRotorModal()"><i class="fas fa-link"></i> <span data-i18n="hubLinkMultiRotor">Link MultiRotor</span></button>
                     <button class="btn-primary btn-multirotor" onclick="openConcatenateModal()"><i class="fas fa-compress-arrows-alt"></i> <span data-i18n="hubConcatenate">Concatenate</span></button>
@@ -402,6 +402,19 @@
          and when it appears is in features/progress.js. It sits outside the
          three screens on purpose: the work does not belong to whichever screen
          the user happens to be looking at. -->
+    <!-- What broke, when something does. Hidden until an error reaches the
+         window; what it says is in features/error_notice.js. Bottom left, so
+         it never covers the line of work in the other corner. -->
+    <div id="error-notice" class="error-notice" role="alert" style="display: none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div class="error-notice-body">
+            <strong data-i18n="errorNoticeTitle">Something went wrong</strong>
+            <span id="error-notice-text" class="error-notice-text"></span>
+            <span class="error-notice-hint" data-i18n="errorNoticeHint">The screen may be out of date: reopen it if something looks wrong. The details are in the console (F12).</span>
+        </div>
+        <button type="button" id="error-notice-close" class="error-notice-close" data-i18n-title="errorNoticeClose" title="Dismiss"><i class="fas fa-times"></i></button>
+    </div>
+
     <div id="work-bar" class="work-bar" style="display: none;">
         <span class="work-bar-state"><span id="work-bar-icon"></span> <span id="work-bar-text"></span></span>
         <button type="button" id="work-bar-stop" class="work-bar-stop" data-i18n-title="workStopTitle" title="Stop every analysis in progress">
