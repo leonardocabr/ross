@@ -530,3 +530,23 @@ def test_the_loader_knows_the_same_categories_as_the_registry():
         "only in the loader %s, only in the registry %s"
         % (sorted(listed - set(categories())), sorted(set(categories()) - listed))
     )
+
+
+def test_every_start_function_is_started():
+    """A `start*` export takes hold of the page, and only `main.js` calls it.
+
+    The convention is that a module runs nothing on load: it exports `startX`
+    and the bootstrap in `main.js` calls it once the page exists. The node
+    batteries call these functions themselves -- the fake DOM never fires
+    `DOMContentLoaded` -- so a `start*` that `main.js` forgets passes every
+    battery and does nothing on screen. `startRotorFigureFollowsWidth` was the
+    fifth one; without its call, the figure went back to ignoring the width."""
+    main = _text("main.js")
+    missing = []
+    for module in MODULES:
+        for start in re.findall(
+            r"^export\s+(?:async\s+)?function\s+(start[A-Z]\w*)", _text(module), re.M
+        ):
+            if not re.search(r"^\s*%s\(\);" % start, main, re.M):
+                missing.append(start)
+    assert missing == [], "main.js never calls %s" % missing

@@ -339,6 +339,17 @@ button {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    transition: width var(--dur-slow) var(--ease-standard), padding var(--dur-slow) var(--ease-standard);
+}
+/* Hidden by clicking the open tab again (`pickTab`). `overflow: hidden` and not
+   the inherited `auto`: at zero width the form and the list would still ask for
+   a horizontal scrollbar. */
+.dynamic-panel.collapsed {
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-right: none;
+    overflow: hidden;
 }
 .empty-message {
     text-align: center;
@@ -1588,7 +1599,8 @@ button {
     .dynamic-panel, .analysis-controls-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border-default); max-height: 45vh; flex: none; }
     .plot-panel, .analysis-plot-panel { padding: 10px; flex: 1; min-height: 300px; }
 
-    .analysis-controls-panel.collapsed { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: none; }
+    .analysis-controls-panel.collapsed,
+    .dynamic-panel.collapsed { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: none; }
 
     .btn-text { display: none; }
     .topbar { padding: 0 10px; gap: 5px; }

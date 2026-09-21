@@ -31,10 +31,12 @@ globalThis.fetch = async path => {
 import { state } from '../../frontend/core/state.js';
 import { schemaReady } from '../../frontend/core/schema.js';
 import { renderList } from '../../frontend/components/list.js';
-import { changeLanguage } from '../../frontend/features/modeling.js';
+import { changeLanguage, openTab } from '../../frontend/features/modeling.js';
 import '../../frontend/main.js';
 
-const { openTab, openForm, editItem, selectSubType } = window;
+// `openTab` is no longer on the bridge: the buttons call `pickTab`, which can
+// also hide the list. It is still what every other path uses to show a tab.
+const { openForm, editItem, selectSubType } = window;
 
 let ok = 0, failed = 0;
 // `check(d, error === null || !console.log(error.message))` was the earlier

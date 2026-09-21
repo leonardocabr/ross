@@ -107,17 +107,17 @@
 
         <div class="modeling-layout">
             <div class="sidebar">
-                <button class="tab-btn" onclick="openTab('materials')" data-i18n="catMaterial">Material</button>
-                <button class="tab-btn" onclick="openTab('shafts')" data-i18n="catShaft">Shaft</button>
-                <button class="tab-btn" onclick="openTab('disks')" data-i18n="catDisk">Disk</button>
-                <button class="tab-btn" onclick="openTab('gears')" data-i18n="catGear">Gear</button>
-                <button class="tab-btn" onclick="openTab('couplings')" data-i18n="catCoupling">Coupling</button>
-                <button class="tab-btn" onclick="openTab('seals')" data-i18n="catSeal">Seal</button>
-                <button class="tab-btn" onclick="openTab('bearings')" data-i18n="catBearing">Bearing</button>
-                <button class="tab-btn" onclick="openTab('pointmasses')" data-i18n="catPointmass">Pointmass</button>
+                <button class="tab-btn" onclick="pickTab('materials')" data-tab="materials" data-i18n="catMaterial">Material</button>
+                <button class="tab-btn" onclick="pickTab('shafts')" data-tab="shafts" data-i18n="catShaft">Shaft</button>
+                <button class="tab-btn" onclick="pickTab('disks')" data-tab="disks" data-i18n="catDisk">Disk</button>
+                <button class="tab-btn" onclick="pickTab('gears')" data-tab="gears" data-i18n="catGear">Gear</button>
+                <button class="tab-btn" onclick="pickTab('couplings')" data-tab="couplings" data-i18n="catCoupling">Coupling</button>
+                <button class="tab-btn" onclick="pickTab('seals')" data-tab="seals" data-i18n="catSeal">Seal</button>
+                <button class="tab-btn" onclick="pickTab('bearings')" data-tab="bearings" data-i18n="catBearing">Bearing</button>
+                <button class="tab-btn" onclick="pickTab('pointmasses')" data-tab="pointmasses" data-i18n="catPointmass">Pointmass</button>
             </div>
 
-            <div class="dynamic-panel">
+            <div class="dynamic-panel" id="list-panel">
                 <div id="empty-message" class="empty-message" data-i18n="pickCategory">Select a category on the left to start modeling.</div>
                 
                 <div id="list-area" style="display: none;">

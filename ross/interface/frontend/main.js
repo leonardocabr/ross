@@ -19,7 +19,7 @@ import { onProjectChanged } from './core/state.js';
 import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
 import { generatePythonFile } from './features/export.js';
 import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, openTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
+import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, pickTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, startRotorFigureFollowsWidth, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { closeMultiRotorModal, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
 import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startWorkBar();
     // Ctrl+Z / Ctrl+Y: takes hold of the document, like the other `start*`.
     startHistoryShortcuts();
+    // The rotor figure follows the width without losing ROSS's height.
+    startRotorFigureFollowsWidth();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));
@@ -98,7 +100,7 @@ Object.assign(window, {
     generatePythonFile, generatePythonFromHub, handleUnitChange,
     loadAnalysis, loadAnalysisDirect, loadRotor, openAbout, openAnalysisCardHelp,
     openAnalysisHelp, openForm, openGeneralHelp, openMultiRotorModal,
-    openConcatenateModal, openRotorHub, openRotorWorkspace, openSectionHelp, openTab,
+    openConcatenateModal, openRotorHub, openRotorWorkspace, openSectionHelp, pickTab,
     returnToHub,
     runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
     saveRotor,

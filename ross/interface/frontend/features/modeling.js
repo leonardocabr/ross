@@ -45,9 +45,8 @@ import { splitProject } from './split.js';
 // So the line is drawn differently now: **ROSS owns the geometry, the screen
 // owns the theme**. The two colours stay because ROSS sets neither (measured:
 // `paper_bgcolor` and `plot_bgcolor` both come back as None), so making the
-// figure transparent over a themed panel is genuinely ours. Width needs nothing
-// from us either: ROSS leaves it unset on purpose and `newPlot` is already
-// called with `responsive: true`.
+// figure transparent over a themed panel is genuinely ours. Width is ours too,
+// but not through `responsive: true` -- see `startRotorFigureFollowsWidth`.
 const ROTOR_APPEARANCE = {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
@@ -103,8 +102,53 @@ function drawRotorFigure(fig) {
     const layout = withVerticalScale(
         dressed, verticalScale, t('verticalScaleNote').replace('%1', verticalScale),
     );
-    Plotly.newPlot('plot-rotor', fig.data, themedLayout(layout), { responsive: true });
+    Plotly.newPlot('plot-rotor', fig.data, themedLayout(layout), { responsive: false });
     setupPlotHoverEvents();
+}
+
+// Whatever takes the figure's place -- the "add a shaft" note, the spinner, an
+// error -- goes through here, so that nothing can draw the old rotor back over
+// it. `setVerticalScale` and the width redraw both draw from `lastRotorFigure`;
+// with every shaft deleted, a resize would otherwise bring back a rotor that no
+// longer exists.
+function showInsteadOfFigure(container, html) {
+    lastRotorFigure = null;
+    container.innerHTML = html;
+}
+
+// --- following the width -----------------------------------------------------
+//
+// The figure used to follow the window through Plotly's `responsive: true`, and
+// measuring it in a browser showed what that costs: Plotly answers a resize with
+// `relayout({autosize: true})`, which **throws away the layout's height**.
+// ROSS's 332 px -- and the height the vertical scale computes -- became the
+// container's (676 px on a 1080p screen) at the first resize. And a resize is
+// any of: resizing the window, zooming the page, hiding the sidebar or the
+// list. So the figure a person saw depended on what they had clicked before,
+// and the offsets ROSS computed for its buttons and legend were fractions of an
+// area that was no longer there.
+//
+// So the rotor figure is drawn once with `responsive: false` and redrawn here,
+// from the figure the server sent, with the geometry ROSS and the scale decided.
+// Only the width changes, which is the one thing ROSS left to the screen.
+let widthTimer = null;
+
+export function startRotorFigureFollowsWidth() {
+    window.addEventListener('resize', () => {
+        // A window being dragged fires dozens of these; the figure is redrawn
+        // once it settles.
+        clearTimeout(widthTimer);
+        widthTimer = setTimeout(redrawAtNewWidth, 120);
+    });
+}
+
+function redrawAtNewWidth() {
+    const div = document.getElementById('plot-rotor');
+    // On another screen the div has no width, and Plotly would draw at its
+    // default 700 px. `switchScreen` fires a resize when the modeling screen
+    // comes back, and that one lands here with the real width.
+    if (!lastRotorFigure || !div || div.offsetWidth === 0) return;
+    drawRotorFigure(lastRotorFigure);
 }
 
 // --- State of the screen itself ----------------------------------------------
@@ -167,10 +211,18 @@ export async function changeLanguage(language) {
 // that button is the one carrying the `data-i18n`. A second `category -> key`
 // table here could only diverge from the one already in `index.html`.
 export function categoryName(category, button) {
-    const target = button || Array.from(document.querySelectorAll('.tab-btn')).find(
-        b => (b.getAttribute('onclick') || '').includes(`openTab('${category}')`));
+    const target = button || tabButton(category);
     const key = target && target.dataset && target.dataset.i18n;
     return key ? t(key) : category;
+}
+
+// The sidebar button of a category, found by what it *is* (`data-tab`) rather
+// than by what it happens to call. It used to be found by reading `openTab('x')`
+// out of the `onclick` text -- which is how this slice would have broken the
+// title and the highlight the moment the buttons started calling `pickTab`.
+function tabButton(category) {
+    return Array.from(document.querySelectorAll('.tab-btn'))
+        .find(b => b.dataset && b.dataset.tab === category);
 }
 
 function tabTitle(category, button) {
@@ -190,14 +242,55 @@ export function refreshTabTitle() {
     if (heading) heading.innerHTML = tabTitle(state.currentTab, null);
 }
 
+// --- hiding the list -----------------------------------------------------------
+//
+// The list panel takes 360 px from the figure, and the figure is decided by its
+// width: `plot_rotor` locks 1:1, so on a laptop a slender rotor at 1× is ~87 px
+// tall with the list open and ~130 px with it hidden. Clicking the tab that is
+// already open hides the list, the same gesture the sidebar already answers to.
+//
+// Only the **button** toggles. `openTab` is also called by `switchScreen` (on
+// the way back from the analyses, with the same tab) and by the node hub; if it
+// toggled, coming back to the modeling screen would hide the list every other
+// time. So `openTab` keeps meaning "show this tab's list" and leaves the panel
+// as it is, and `pickTab` is what the person's click means.
+function listPanel() {
+    return document.getElementById('list-panel');
+}
+
+function listPanelOpen() {
+    return !listPanel().classList.contains('collapsed');
+}
+
+function showListPanel(open) {
+    if (open === listPanelOpen()) return;
+    if (open) listPanel().classList.remove('collapsed');
+    else listPanel().classList.add('collapsed');
+    // `responsive: true` makes Plotly follow the **window**, and the window did
+    // not change -- only the panel beside the figure did. Same answer, and same
+    // delay (the CSS transition), as `toggleSidebar`.
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 300);
+}
+
+export function pickTab(category) {
+    if (category === state.currentTab && listPanelOpen()) {
+        showListPanel(false);
+        return;
+    }
+    showListPanel(true);
+    // Reopening the tab that was hidden only shows it again. `openTab` would
+    // close the form, and a form half filled in before hiding the list would be
+    // lost for having been out of sight.
+    if (category !== state.currentTab) openTab(category);
+}
+
 export function openTab(category) {
     state.currentTab = category;
     document.getElementById('empty-message').style.display = 'none';
     document.getElementById('list-area').style.display = 'block';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     
-    const activeBtn = Array.from(document.querySelectorAll('.tab-btn'))
-        .find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(`openTab('${category}')`));
+    const activeBtn = tabButton(category);
     if (activeBtn) {
         activeBtn.classList.add('active');
     }
@@ -231,6 +324,9 @@ export function openTab(category) {
 // Function to open the form
 
 export async function openForm(isNew = true) {
+    // A form opened from the figure (the node hub) or from anywhere else has to
+    // be seen: it lives in the list panel.
+    showListPanel(true);
     await schemaReady();          // the forms come from /api/schema/elements
     if (isNew) { state.editingIndex = -1; state.currentSubType = 'BASIC'; }
     let subTypes = formSubtypes(state.currentTab);
@@ -612,9 +708,9 @@ async function _fetchRotorLive() {
     const plotContainer = document.getElementById('plot-rotor');
     const infoContainer = document.getElementById('rotor-info');    
     if (!state.projectData.isMultiRotor && (!state.projectData.shafts || state.projectData.shafts.length === 0)) {
-        plotContainer.innerHTML =
+        showInsteadOfFigure(plotContainer,
             `<div style="display: flex; height: 100%; min-height: 400px; align-items: center; justify-content: center;">`
-            + `<p class="placeholder-text">${escapeHtml(t('addOneShaft'))}</p></div>`;
+            + `<p class="placeholder-text">${escapeHtml(t('addOneShaft'))}</p></div>`);
         if(infoContainer) infoContainer.style.opacity = '0';
         return;
     }    
@@ -624,12 +720,12 @@ async function _fetchRotorLive() {
     let loadingTimer = setTimeout(() => {
         if(rotorUpdateActive) {
             plotContainer.style.opacity = '1';
-            plotContainer.innerHTML = `
+            showInsteadOfFigure(plotContainer, `
                 <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; min-height:400px; color: var(--text-main);">
                     <span style="margin-bottom:15px; color: var(--accent-primary);">${busySpinner(3)}</span>
                     <h3 style="margin:0;">${escapeHtml(t('computingElement'))}</h3>
                     <p style="color: var(--text-muted); text-align:center; padding:0 20px;">${escapeHtml(t('usingCache'))}</p>
-                </div>`;
+                </div>`);
         }
     }, 500);
     try {
@@ -652,7 +748,7 @@ async function _fetchRotorLive() {
                 infoContainer.style.opacity = '1';
             }
         } else {
-            plotContainer.innerHTML = `<div class="analysis-error"><i class="fas fa-exclamation-triangle fa-2x"></i><br><b>${escapeHtml(t('modelingError'))}</b><br>${data.message}</div>`;
+            showInsteadOfFigure(plotContainer, `<div class="analysis-error"><i class="fas fa-exclamation-triangle fa-2x"></i><br><b>${escapeHtml(t('modelingError'))}</b><br>${data.message}</div>`);
             if(infoContainer) infoContainer.style.opacity = '0';
         }
     } catch (e) { 
@@ -660,8 +756,8 @@ async function _fetchRotorLive() {
         rotorUpdateActive = false; 
         clearTimeout(loadingTimer); 
         plotContainer.style.opacity = '1';
-        plotContainer.innerHTML = `<p class="analysis-error analysis-error-tall">`
-            + `${escapeHtml(t('serverConnectionError'))}</p>`; 
+        showInsteadOfFigure(plotContainer, `<p class="analysis-error analysis-error-tall">`
+            + `${escapeHtml(t('serverConnectionError'))}</p>`);
         if(infoContainer) infoContainer.style.opacity = '0';
     }
 }

@@ -44,7 +44,7 @@ const CALLS = {
     // screens and panels
     switchScreen: ['screen-modeling'], toggleSidebar: [], toggleAnalysisSidebar: [],
     toggleTheme: [],
-    openTab: ['shafts'], toggleAdvanced: [button], changeLanguage: ['pt'],
+    pickTab: ['shafts'], toggleAdvanced: [button], changeLanguage: ['pt'],
     // element form
     openForm: [true], selectSubType: ['BASIC'], closeForm: [], fillDefault: [],
     editItem: [0], copyItem: [0], deleteItem: [0], saveItem: [],
