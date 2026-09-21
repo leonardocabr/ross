@@ -189,12 +189,6 @@ export function openRotorWorkspace(index, targetScreen) {
     }
 }
 
-// Saves the analyses to memory before returning to the Hub
-
-export function returnToHub() {
-    openRotorHub();
-}
-
 // Saves the JSON directly from the Hub
 
 export function saveRotorFromHub(index) {

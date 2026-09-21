@@ -208,6 +208,7 @@ def test_no_module_shadows_a_name_it_imported(module):
 ACCEPTED_ORPHANS = {
     "changeLanguage": "it exists and works; the selector is missing from index.html (FE-11)",
     "persistenceIsOff": "a read accessor, today consumed only by the tests",
+    "actionNames": "the vocabulary of the page, read by tests/js/test_actions.js against the HTML",
 }
 
 

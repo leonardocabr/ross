@@ -24,7 +24,10 @@ import {
 import { state } from '../../frontend/core/state.js';
 import '../../frontend/main.js';
 
-const { generatePythonFile, generatePythonFromHub, closeCustomAlert } = window;
+// `generatePythonFile` left the bridge in slice 12: the buttons reach it through
+// the `export-python` action now. The function is the same.
+const { generatePythonFromHub, closeCustomAlert } = window;
+const { generatePythonFile } = await import('../../frontend/features/export.js');
 
 let ok = 0, failed = 0;
 function check(description, condition) {

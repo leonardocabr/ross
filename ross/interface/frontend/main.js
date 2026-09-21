@@ -7,8 +7,8 @@
 // The bridge is temporary by construction: the next slice replaces the inline
 // handlers with event delegation, and each converted handler erases a name from
 // it.
-import { closeAbout, openAbout } from './components/about.js';
-import { closeHelpModal, openAnalysisCardHelp, openAnalysisHelp, openGeneralHelp, openSectionHelp } from './components/help.js';
+import { closeAbout } from './components/about.js';
+import { closeHelpModal, openAnalysisCardHelp, openSectionHelp } from './components/help.js';
 import { fillDefault, handleUnitChange, toggleAdvanced } from './components/form.js';
 import { onReorder } from './components/list.js';
 import { closeCustomAlert, closeCustomConfirm, closeCustomPrompt, confirmCustomPrompt } from './components/modals.js';
@@ -16,17 +16,17 @@ import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
 import { onProjectChanged } from './core/state.js';
-import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, loadAnalysis, loadAnalysisDirect, fillAnalysisTypes, runCardAnalysis, saveAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
-import { generatePythonFile } from './features/export.js';
-import { copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorHub, openRotorWorkspace, renderRotorHub, returnToHub, saveRotorFromHub } from './features/hub.js';
-import { addElementFromNodeHub, buildRotorLive, changeLanguage, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, loadRotor, openForm, pickTab, redoModelling, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, startRotorFigureFollowsWidth, toggleSelectAll, toggleSelected, undoModelling } from './features/modeling.js';
+import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, fillAnalysisTypes, runCardAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
+import { copyRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorWorkspace, renderRotorHub, saveRotorFromHub } from './features/hub.js';
+import { addElementFromNodeHub, buildRotorLive, closeForm, closeNodeHub, copyItem, copySelected, deleteItem, deleteSelected, editItem, openForm, pickTab, refreshHistoryButtons, saveItem, saveRotor, selectSubType, setVerticalScale, splitItem, startRotorFigureFollowsWidth, toggleSelectAll, toggleSelected } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
-import { closeMultiRotorModal, describeCoupling, openMultiRotorModal, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
-import { closeConcatenateModal, describeJoint, openConcatenateModal, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
+import { closeMultiRotorModal, describeCoupling, saveMultiRotor, switchMultiRotorTarget } from './features/multirotor.js';
+import { closeConcatenateModal, describeJoint, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
-import { startTheme, toggleTheme } from './core/theme.js';
-import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } from './features/screens.js';
+import { startTheme } from './core/theme.js';
 import { startErrorNotice } from './features/error_notice.js';
+import { defineActions, startActions } from './core/actions.js';
+import { SHELL_ACTIONS } from './features/shell_actions.js';
 
 // --- Wiring between layers -------------------------------------------------
 //
@@ -40,12 +40,17 @@ onReorder(buildRotorLive);
 // hook and not a call from core/state.js is written there.
 onProjectChanged(refreshHistoryButtons);
 
+// What the buttons mean, by name (core/actions.js). One table per area of the
+// page; the bridge below shrinks as the areas move over.
+defineActions(SHELL_ACTIONS);
+
 
 
 // The schema is loaded once at startup; openForm waits for it.
 document.addEventListener('DOMContentLoaded', () => {
     // First, so that a failure in anything below is seen on screen.
     startErrorNotice();
+    startActions();
     // The theme first: the head script already set the attribute before the first
     // paint, and this wires the buttons and the system's preference to it.
     startTheme();
@@ -93,23 +98,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // handler is here, and that nothing here has stopped being called.
 Object.assign(window, {
     addAnalysis, addAngleProbeRow, addElementFromNodeHub, addForceRow,
-    addProbeRow, addUnbalanceRow, changeLanguage, checkDeps, closeAbout, closeCustomAlert,
+    addProbeRow, addUnbalanceRow, checkDeps, closeAbout, closeCustomAlert,
     closeCustomConfirm, closeCustomPrompt, closeForm, closeHelpModal,
-    closeConcatenateModal, closeMultiRotorModal, closeNodeHub, confirmCustomPrompt,
-    copyItem, copySelected, deleteSelected, describeJoint,
-    toggleSelectAll, toggleSelected,
-    copyRotorInHub, createNewRotorInHub, deleteAnalysis, deleteItem,
-    deleteRotorInHub, editItem, editRotorName, exitApplication, fillDefault,
-    generatePythonFile, generatePythonFromHub, handleUnitChange,
-    loadAnalysis, loadAnalysisDirect, loadRotor, openAbout, openAnalysisCardHelp,
-    describeCoupling, openAnalysisHelp, openForm, openGeneralHelp, openMultiRotorModal,
-    openConcatenateModal, openRotorHub, openRotorWorkspace, openSectionHelp, pickTab,
-    returnToHub,
-    runCardAnalysis, saveAnalysis, saveConcatenation, saveItem, saveMultiRotor,
-    saveRotor,
-    redoModelling, undoModelling,
-    saveRotorFromHub, selectSubType, setVerticalScale, splitItem, switchMultiRotorTarget, switchScreen,
-    swapConcatenationOrder, toggleAdvanced, toggleAnalysis, toggleAnalysisSidebar,
-    toggleDashAdv,
-    toggleSidebar, toggleTheme,
+    closeConcatenateModal, closeMultiRotorModal, closeNodeHub,
+    confirmCustomPrompt, copyItem, copySelected, deleteSelected, describeJoint,
+    toggleSelectAll, toggleSelected, copyRotorInHub, deleteAnalysis, deleteItem,
+    deleteRotorInHub, editItem, editRotorName, fillDefault,
+    generatePythonFromHub, handleUnitChange, openAnalysisCardHelp,
+    describeCoupling, openForm, openRotorWorkspace, openSectionHelp, pickTab,
+    runCardAnalysis, saveConcatenation, saveItem, saveMultiRotor, saveRotor,
+    saveRotorFromHub, selectSubType, setVerticalScale, splitItem,
+    switchMultiRotorTarget, swapConcatenationOrder, toggleAdvanced,
+    toggleAnalysis, toggleDashAdv,
 });

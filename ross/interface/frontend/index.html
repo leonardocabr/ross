@@ -32,19 +32,19 @@
 <body>
 
     <div id="screen-home" class="screen active">
-        <div class="home-tools"><button class="btn-about" onclick="openAbout()" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button><button class="btn-theme" onclick="toggleTheme()" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button></div>
+        <div class="home-tools"><button class="btn-about" data-action="about" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button><button class="btn-theme" data-action="toggle-theme" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button></div>
         <div class="home-container">
             <img src="assets/ross-logo.svg" alt="ROSS Logo" class="logo-img-home invert-on-dark" onerror="this.style.display='none'">
             <h1 class="logo-text" data-i18n="appName">ROSS</h1>
             <p class="subtitle" data-i18n="appTagline">Rotordynamic Open-Source Software</p>
             <div class="home-buttons">
-                <button onclick="openRotorHub()" class="btn-primary"><i class="fas fa-layer-group"></i> <span data-i18n="homeRotorHub">Rotor Hub</span></button>
-                <button onclick="document.getElementById('upload-rotor-home').click()" class="btn-secondary" data-i18n="homeLoadRotor">Load Rotor</button>
-                <button onclick="document.getElementById('upload-analysis-home').click()" class="btn-secondary" data-i18n="homeLoadAnalysis">Load Analysis</button>
-                <button onclick="exitApplication()" class="btn-exit" style="margin-top: 15px;"><i class="fas fa-power-off"></i> <span data-i18n="homeExit">Exit Program</span></button>
+                <button data-action="open-hub" class="btn-primary"><i class="fas fa-layer-group"></i> <span data-i18n="homeRotorHub">Rotor Hub</span></button>
+                <button data-action="choose-file" data-input="upload-rotor-home" class="btn-secondary" data-i18n="homeLoadRotor">Load Rotor</button>
+                <button data-action="choose-file" data-input="upload-analysis-home" class="btn-secondary" data-i18n="homeLoadAnalysis">Load Analysis</button>
+                <button data-action="exit" class="btn-exit" style="margin-top: 15px;"><i class="fas fa-power-off"></i> <span data-i18n="homeExit">Exit Program</span></button>
                 
-                <input type="file" id="upload-rotor-home" accept=".json, .toml" style="display: none;" onchange="loadRotor(event)">
-                <input type="file" id="upload-analysis-home" accept=".json" style="display: none;" onchange="loadAnalysisDirect(event)">
+                <input type="file" id="upload-rotor-home" accept=".json, .toml" style="display: none;" data-action="load-rotor">
+                <input type="file" id="upload-analysis-home" accept=".json" style="display: none;" data-action="load-analysis-direct">
             </div>
         </div>
     </div>
@@ -52,16 +52,16 @@
     <div id="screen-rotor-hub" class="screen">
         <div class="topbar">
             <div class="topbar-left">
-                <button class="btn-back" onclick="switchScreen('screen-home')" title="Back to Home" data-i18n-title="backToHome"><i class="fas fa-arrow-left"></i></button>
+                <button class="btn-back" data-action="show-screen" data-screen="screen-home" title="Back to Home" data-i18n-title="backToHome"><i class="fas fa-arrow-left"></i></button>
             </div>
             <div class="topbar-center">
                 <img src="assets/ross-logo.svg" alt="Logo" class="logo-img-topbar invert-on-dark" onerror="this.style.display='none'"> <span data-i18n="hubTitle">ROSS - Rotor Manager</span>
             </div>
             <div class="topbar-actions">
-                <button class="btn-about" onclick="openAbout()" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
-                <button class="btn-theme" onclick="toggleTheme()" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
-                <select class="ui-language" onchange="changeLanguage(this.value)" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
-                <button class="btn-exit-small" onclick="exitApplication()" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
+                <button class="btn-about" data-action="about" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
+                <button class="btn-theme" data-action="toggle-theme" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
+                <select class="ui-language" data-action="change-language" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
+                <button class="btn-exit-small" data-action="exit" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
             </div>
         </div>
 
@@ -69,11 +69,11 @@
             <div class="hub-header">
                 <h2 data-i18n="hubMyRotors">My Rotors</h2>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn-secondary" onclick="document.getElementById('upload-rotor-hub').click()"><i class="fas fa-upload"></i> <span data-i18n="homeLoadRotor">Load Rotor</span></button>
-                    <button class="btn-primary" onclick="createNewRotorInHub()"><i class="fas fa-plus"></i> <span data-i18n="hubAddRotor">Add New Rotor</span></button>
-                    <button class="btn-primary btn-multirotor" onclick="openMultiRotorModal()"><i class="fas fa-link"></i> <span data-i18n="hubLinkMultiRotor">Link MultiRotor</span></button>
-                    <button class="btn-primary btn-multirotor" onclick="openConcatenateModal()"><i class="fas fa-compress-arrows-alt"></i> <span data-i18n="hubConcatenate">Concatenate</span></button>
-                    <input type="file" id="upload-rotor-hub" accept=".json, .toml" style="display: none;" onchange="loadRotor(event)">
+                    <button class="btn-secondary" data-action="choose-file" data-input="upload-rotor-hub"><i class="fas fa-upload"></i> <span data-i18n="homeLoadRotor">Load Rotor</span></button>
+                    <button class="btn-primary" data-action="new-rotor"><i class="fas fa-plus"></i> <span data-i18n="hubAddRotor">Add New Rotor</span></button>
+                    <button class="btn-primary btn-multirotor" data-action="open-multirotor"><i class="fas fa-link"></i> <span data-i18n="hubLinkMultiRotor">Link MultiRotor</span></button>
+                    <button class="btn-primary btn-multirotor" data-action="open-concatenate"><i class="fas fa-compress-arrows-alt"></i> <span data-i18n="hubConcatenate">Concatenate</span></button>
+                    <input type="file" id="upload-rotor-hub" accept=".json, .toml" style="display: none;" data-action="load-rotor">
                 </div>
             </div>
             <div id="rotor-hub-list" class="hub-list">
@@ -85,23 +85,23 @@
     <div id="screen-modeling" class="screen">
         <div class="topbar">
             <div class="topbar-left">
-                <button class="btn-back" onclick="returnToHub()" title="Back to Hub" data-i18n-title="backToHub"><i class="fas fa-arrow-left"></i></button>
-                <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="Toggle Sidebar" data-i18n-title="toggleSidebar"><i class="fas fa-bars"></i></button>
-                <button class="btn-help-general" onclick="openGeneralHelp()" title="How to use" data-i18n-title="howToUse"><i class="fas fa-question-circle"></i></button>
-                <button class="btn-history" id="btn-undo" onclick="undoModelling()" title="Undo" data-i18n-title="undo" disabled><i class="fas fa-rotate-left"></i></button>
-                <button class="btn-history" id="btn-redo" onclick="redoModelling()" title="Redo" data-i18n-title="redo" disabled><i class="fas fa-rotate-right"></i></button>
+                <button class="btn-back" data-action="open-hub" title="Back to Hub" data-i18n-title="backToHub"><i class="fas fa-arrow-left"></i></button>
+                <button class="btn-toggle-sidebar" data-action="toggle-sidebar" title="Toggle Sidebar" data-i18n-title="toggleSidebar"><i class="fas fa-bars"></i></button>
+                <button class="btn-help-general" data-action="help-modelling" title="How to use" data-i18n-title="howToUse"><i class="fas fa-question-circle"></i></button>
+                <button class="btn-history" id="btn-undo" data-action="undo" title="Undo" data-i18n-title="undo" disabled><i class="fas fa-rotate-left"></i></button>
+                <button class="btn-history" id="btn-redo" data-action="redo" title="Redo" data-i18n-title="redo" disabled><i class="fas fa-rotate-right"></i></button>
             </div>
             <div class="topbar-center">
                 <img src="assets/ross-logo.svg" alt="Logo" class="logo-img-topbar invert-on-dark" onerror="this.style.display='none'"> <span data-i18n="modelingTitle">ROSS - Modeling</span><span id="modeling-rotor-name"></span>
             </div>
             <div class="topbar-actions">
-                <button class="btn-py" onclick="generatePythonFile()" title="Generate Python" data-i18n-title="generatePython"><i class="fab fa-python"></i> <span class="btn-text" data-i18n="generatePython">Generate Python</span></button>
-                <button class="btn-save" onclick="saveRotor(event)" title="Save Rotor" data-i18n-title="saveRotor"><i class="fas fa-save"></i> <span class="btn-text" data-i18n="saveRotor">Save Rotor</span></button>
-                <button class="btn-analysis-go" onclick="switchScreen('screen-analysis')" title="Go to Analysis" data-i18n-title="goToAnalysis"><span class="btn-text" data-i18n="goToAnalysis">Go to Analysis</span> <i class="fas fa-arrow-right"></i></button>
-                <button class="btn-about" onclick="openAbout()" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
-                <button class="btn-theme" onclick="toggleTheme()" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
-                <select class="ui-language" onchange="changeLanguage(this.value)" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
-                <button class="btn-exit-small" onclick="exitApplication()" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
+                <button class="btn-py" data-action="export-python" title="Generate Python" data-i18n-title="generatePython"><i class="fab fa-python"></i> <span class="btn-text" data-i18n="generatePython">Generate Python</span></button>
+                <button class="btn-save" data-action="save-rotor" title="Save Rotor" data-i18n-title="saveRotor"><i class="fas fa-save"></i> <span class="btn-text" data-i18n="saveRotor">Save Rotor</span></button>
+                <button class="btn-analysis-go" data-action="show-screen" data-screen="screen-analysis" title="Go to Analysis" data-i18n-title="goToAnalysis"><span class="btn-text" data-i18n="goToAnalysis">Go to Analysis</span> <i class="fas fa-arrow-right"></i></button>
+                <button class="btn-about" data-action="about" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
+                <button class="btn-theme" data-action="toggle-theme" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
+                <select class="ui-language" data-action="change-language" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
+                <button class="btn-exit-small" data-action="exit" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
             </div>
         </div>
 
@@ -158,22 +158,22 @@
     <div id="screen-analysis" class="screen">
         <div class="topbar">
             <div class="topbar-left">
-                <button class="btn-back" onclick="openRotorHub()" title="Back to Hub" data-i18n-title="backToHub"><i class="fas fa-arrow-left"></i></button>
-                <button class="btn-toggle-sidebar" onclick="toggleAnalysisSidebar()" title="Toggle Sidebar" data-i18n-title="toggleSidebar"><i class="fas fa-bars"></i></button>
-                <button class="btn-help-general" onclick="openAnalysisHelp()" title="How to use Analysis" data-i18n-title="howToUseAnalysis"><i class="fas fa-question-circle"></i></button>
+                <button class="btn-back" data-action="open-hub" title="Back to Hub" data-i18n-title="backToHub"><i class="fas fa-arrow-left"></i></button>
+                <button class="btn-toggle-sidebar" data-action="toggle-analysis-sidebar" title="Toggle Sidebar" data-i18n-title="toggleSidebar"><i class="fas fa-bars"></i></button>
+                <button class="btn-help-general" data-action="help-analysis" title="How to use Analysis" data-i18n-title="howToUseAnalysis"><i class="fas fa-question-circle"></i></button>
             </div>
             <div class="topbar-center">
                 <img src="assets/ross-logo.svg" alt="Logo" class="logo-img-topbar invert-on-dark" onerror="this.style.display='none'"> <span data-i18n="analysisTitle">ROSS - Analysis</span>
             </div>
             <div class="topbar-actions">
-                <button class="btn-py" onclick="generatePythonFile()" title="Generate Python" data-i18n-title="generatePython"><i class="fab fa-python"></i> <span class="btn-text" data-i18n="generatePython">Generate Python</span></button>
-                <button class="btn-save" onclick="saveAnalysis(event)" title="Save Analysis" data-i18n-title="saveAnalysis"><i class="fas fa-save"></i> <span class="btn-text" data-i18n="saveAnalysis">Save Analysis</span></button>
-                <button class="btn-secondary" onclick="document.getElementById('upload-analysis-screen').click()" title="Load Analysis" data-i18n-title="loadAnalysis"><i class="fas fa-folder-open"></i> <span class="btn-text" data-i18n="load">Load</span></button>
-                <input type="file" id="upload-analysis-screen" accept=".json" style="display: none;" onchange="loadAnalysis(event)">
-                <button class="btn-about" onclick="openAbout()" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
-                <button class="btn-theme" onclick="toggleTheme()" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
-                <select class="ui-language" onchange="changeLanguage(this.value)" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
-                <button class="btn-exit-small" onclick="exitApplication()" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
+                <button class="btn-py" data-action="export-python" title="Generate Python" data-i18n-title="generatePython"><i class="fab fa-python"></i> <span class="btn-text" data-i18n="generatePython">Generate Python</span></button>
+                <button class="btn-save" data-action="save-analysis" title="Save Analysis" data-i18n-title="saveAnalysis"><i class="fas fa-save"></i> <span class="btn-text" data-i18n="saveAnalysis">Save Analysis</span></button>
+                <button class="btn-secondary" data-action="choose-file" data-input="upload-analysis-screen" title="Load Analysis" data-i18n-title="loadAnalysis"><i class="fas fa-folder-open"></i> <span class="btn-text" data-i18n="load">Load</span></button>
+                <input type="file" id="upload-analysis-screen" accept=".json" style="display: none;" data-action="load-analysis">
+                <button class="btn-about" data-action="about" title="About ROSS" data-i18n-title="about"><i class="fas fa-info-circle"></i></button>
+                <button class="btn-theme" data-action="toggle-theme" title="Switch between the light and dark theme" data-i18n-title="themeToggle"><i class="fas fa-moon"></i></button>
+                <select class="ui-language" data-action="change-language" title="Language" data-i18n-title="language"><option value="en">English</option><option value="pt">Português</option></select>
+                <button class="btn-exit-small" data-action="exit" title="Exit" data-i18n-title="exit"><i class="fas fa-power-off"></i></button>
             </div>
         </div>
 

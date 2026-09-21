@@ -37,48 +37,39 @@ const button = () => { const b = node('button'); b.nextElementSibling = node('ad
 
 const CALLS = {
     // Hub
-    openRotorHub: [], returnToHub: [],
-    createNewRotorInHub: [], copyRotorInHub: [0], deleteRotorInHub: [0],
+    copyRotorInHub: [0], deleteRotorInHub: [0],
     editRotorName: [0], saveRotorFromHub: [0], generatePythonFromHub: [0],
     openRotorWorkspace: [0, 'screen-modeling'],
     // screens and panels
-    switchScreen: ['screen-modeling'], toggleSidebar: [], toggleAnalysisSidebar: [],
-    toggleTheme: [],
-    pickTab: ['shafts'], toggleAdvanced: [button], changeLanguage: ['pt'],
+    pickTab: ['shafts'], toggleAdvanced: [button],
     // element form
     openForm: [true], selectSubType: ['BASIC'], closeForm: [], fillDefault: [],
     editItem: [0], copyItem: [0], deleteItem: [0], saveItem: [],
     handleUnitChange: [() => { const s = node('unit'); s.value = 'meter'; s.id = 'inp-L_unit'; return s; }],
     // rotor
-    saveRotor: [event], loadRotor: [event],
+    saveRotor: [event],
     // analyses
     addAnalysis: [event], runCardAnalysis: ['x1', 'modes'], toggleAnalysis: ['x1'],
-    deleteAnalysis: [event, 'card-x1'], saveAnalysis: [event],
-    loadAnalysis: [event], loadAnalysisDirect: [event],
-    generatePythonFile: [], toggleDashAdv: [button], checkDeps: ['x1'],
+    deleteAnalysis: [event, 'card-x1'], toggleDashAdv: [button], checkDeps: ['x1'],
     addProbeRow: ['x1', 'probes', 'modes'], addForceRow: ['x1', 'forces', 'time_response'],
     addUnbalanceRow: ['x1', 'unbalances', 'unbalance'],
     addAngleProbeRow: ['x1', 'probes', 'unbalance'],
     // help and modals
-    openGeneralHelp: [], openAnalysisHelp: [], openSectionHelp: ['shafts'],
+    openSectionHelp: ['shafts'],
     openAnalysisCardHelp: [event, 'modes'], closeHelpModal: [],
-    openAbout: [], closeAbout: [],
+    closeAbout: [],
     closeCustomAlert: [], closeCustomConfirm: [false], closeCustomPrompt: [null],
     confirmCustomPrompt: [],
     // multirotor, concatenation and node
-    openMultiRotorModal: [], closeMultiRotorModal: [], saveMultiRotor: [], describeCoupling: [],
+    closeMultiRotorModal: [], saveMultiRotor: [], describeCoupling: [],
     switchMultiRotorTarget: ['driving'],
-    openConcatenateModal: [], closeConcatenateModal: [], saveConcatenation: [],
+    closeConcatenateModal: [], saveConcatenation: [],
     swapConcatenationOrder: [], describeJoint: [],
     addElementFromNodeHub: ['shafts'], closeNodeHub: [],
     // splitting a shaft: index 99 does not exist, so the call returns before it
     // asks anything -- what is being smoke-tested is that the name is wired,
     // not that the dialog works (tests/js/test_split.js does that).
     splitItem: [99],
-    // undo and redo on an empty history: both answer null and do nothing, which
-    // is what makes them safe to call here. The bookkeeping is in
-    // tests/js/test_history.js.
-    undoModelling: [], redoModelling: [],
     // ticking and the two bulk actions: with nothing ticked both return at
     // once, which is what makes them safe to call here. The behaviour is in
     // tests/js/test_selection.js.
@@ -89,9 +80,10 @@ const CALLS = {
 };
 
 // Not called, and why. The list is deliberately short.
-const OUTSIDE = {
-    exitApplication: 'shuts the server down and closes the window',
-};
+// (`exitApplication` used to be here. It left the bridge in slice 12 and is
+// the `exit` action now; tests/js/test_actions.js keeps it out of the run for
+// the same reason.)
+const OUTSIDE = {};
 
 let ok = 0, failed = 0;
 function check(description, condition) {

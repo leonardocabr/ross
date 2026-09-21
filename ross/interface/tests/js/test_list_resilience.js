@@ -231,7 +231,7 @@ check('the hub counts every element of every kind', /\(9 elements\)/.test(node('
 const { readFileSync } = await import('fs');
 const page = readFileSync(new URL('../../frontend/index.html', import.meta.url), 'utf8');
 check('the hub\'s load button carries its translation key',
-    /upload-rotor-hub'\)\.click\(\)"><i class="fas fa-upload"><\/i> <span data-i18n="homeLoadRotor">/.test(page));
+    /data-action="choose-file" data-input="upload-rotor-hub"><i class="fas fa-upload"><\/i> <span data-i18n="homeLoadRotor">/.test(page));
 
 shutDown();
 
