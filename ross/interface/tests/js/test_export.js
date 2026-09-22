@@ -24,11 +24,10 @@ import {
 import { state } from '../../frontend/core/state.js';
 import '../../frontend/main.js';
 
-// `generatePythonFile` left the bridge in slice 12: the buttons reach it through
-// the `export-python` action now. The function is the same.
-// `generatePythonFromHub` left the bridge in slice 14 (the hub card's button is
-// the `export-rotor-python` action now); the function is the same.
-const { closeCustomAlert } = window;
+// Imported from their modules: the `window` bridge they used to be read off is
+// gone (slice 15). The buttons reach them through the `export-python`,
+// `export-rotor-python` and `alert-ok` actions; the functions are the same.
+const { closeCustomAlert } = await import('../../frontend/components/modals.js');
 const { generatePythonFromHub } = await import('../../frontend/features/hub.js');
 const { generatePythonFile } = await import('../../frontend/features/export.js');
 

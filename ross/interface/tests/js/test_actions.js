@@ -1,8 +1,8 @@
 // What the buttons mean, by name -- and that every name means something.
 //
-// WHY THIS BATTERY EXISTS. The page is moving off the `window` bridge
-// (core/actions.js): a button now says `data-action="save-rotor"` and one
-// listener looks the name up. The failure this trades away was silent -- a
+// WHY THIS BATTERY EXISTS. The page moved off the `window` bridge
+// (core/actions.js, slices 12 to 15): a button says `data-action="save-rotor"`
+// and one listener looks the name up. The failure this trades away was silent -- a
 // function missing from `window` left its button dead. The failure it could
 // introduce is the same one under a new name: a `data-action` nobody defined.
 // So the table is read against the HTML in both directions, every action is
@@ -160,9 +160,9 @@ check('a file button opens the input it names', opened === 'upload-rotor-hub');
 
 // --- every action, pressed once ----------------------------------------------------------
 //
-// The same promise the smoke battery makes for the bridge: nothing throws on
-// the way in. `exit` is left out for the reason the smoke battery gave: it
-// shuts the server down and closes the window.
+// The promise the old smoke battery made for the bridge, now for the table:
+// nothing throws on the way in. `exit` is left out: it shuts the server down
+// and closes the window.
 const LEFT_OUT = ['exit', 'battery-probe'];
 const event = { preventDefault() {}, stopPropagation() {}, target: { files: [], value: '' } };
 // Whatever an action reads from its element: a file input, a screen, a row, a
@@ -290,14 +290,82 @@ await deleting;
 check('a card\'s delete button removes that card', cardRemoved);
 check('and forgets its analysis', !analysesToSave().some(a => a.title === 'Modes'));
 
+// --- the dialogs ----------------------------------------------------------------------------
+//
+// The answers used to be written into the attribute -- `closeCustomConfirm(true)`
+// -- and are names now. What a mix-up would cost is a confirmation read as a
+// refusal or the other way round (a rotor deleted on "No"), so each answer is
+// pressed and what the waiting code receives is read back.
+const { openCustomAlert, openCustomConfirm, openCustomPrompt } =
+    await import('../../frontend/components/modals.js');
+// A button that answers the wrong dialog leaves this one waiting forever; the
+// race turns that into a failed check with a name instead of a battery that
+// never ends.
+async function answerWith(open, action) {
+    const waiting = open();
+    runAction(element('BUTTON', action), event);
+    return Promise.race([waiting, new Promise(done => setTimeout(() => done('no answer'), 50))]);
+}
+check('"Yes" confirms', await answerWith(() => openCustomConfirm('?'), 'confirm-yes') === true);
+check('"No" refuses', await answerWith(() => openCustomConfirm('?'), 'confirm-no') === false);
+node('custom-prompt-input').value = 'typed';
+check('the prompt\'s OK gives back what was typed',
+    await answerWith(() => openCustomPrompt('?', 'typed'), 'prompt-ok') === 'typed');
+check('and its cancel gives back nothing',
+    await answerWith(() => openCustomPrompt('?', 'typed'), 'prompt-cancel') === null);
+check('the alert\'s OK lets the waiting code go on',
+    await answerWith(() => openCustomAlert('!').then(() => 'closed'), 'alert-ok') === 'closed');
+
+// ... and in the page, each answer sits on the button that says it. The
+// check above cannot see a "Yes" button carrying `confirm-no`.
+function buttonsOf(overlay) {
+    const start = PAGE.indexOf('id="' + overlay + '"');
+    const box = PAGE.slice(start, PAGE.indexOf('<div id="', start + 1));
+    return [...box.matchAll(/<button class="(btn-[a-z-]+)"[^>]*data-action="([a-z-]+)"/g)]
+        .map(m => m[1] + ' ' + m[2]);
+}
+check('the confirm dialog: X and No refuse, Yes confirms',
+    buttonsOf('custom-confirm-overlay').join(' | ')
+        === 'btn-close-modal confirm-no | btn-confirm confirm-yes | btn-cancel confirm-no');
+check('the prompt: X and Cancel give nothing back, OK the text',
+    buttonsOf('custom-prompt-overlay').join(' | ')
+        === 'btn-close-modal prompt-cancel | btn-confirm prompt-ok | btn-cancel prompt-cancel');
+check('the alert: both close it',
+    buttonsOf('custom-alert-overlay').join(' | ') === 'btn-close-modal alert-ok | btn-confirm alert-ok');
+
+// The rotor selects of the two hub modals are fields: their sentence is
+// rewritten on change. With two different rotors picked, it says something.
+openRotor();
+state.rotorLibrary.push(Object.assign(JSON.parse(JSON.stringify(state.rotorLibrary[0])), { name: 'Other', uid: 'uid_o' }));
+node('mr-driving').value = '0'; node('mr-driven').value = '1'; node('mr-hint').innerHTML = '';
+handleEvent({ type: 'change', target: element('SELECT', 'describe-coupling') });
+check('changing a MultiRotor select describes the coupling', /Other/.test(node('mr-hint').innerHTML));
+node('cc-first').value = '0'; node('cc-second').value = '1'; node('cc-hint').innerHTML = '';
+handleEvent({ type: 'change', target: element('SELECT', 'describe-joint') });
+check('changing a concatenation select describes the joint', /Other/.test(node('cc-hint').innerHTML));
+runAction(element('BUTTON', 'swap-concatenation'), event);
+check('and the swap button swaps the two', node('cc-first').value === '1' && node('cc-second').value === '0');
+const selects = [...PAGE.matchAll(/<select id="(mr-driving|mr-driven|cc-first|cc-second)" data-action="(describe-[a-z]+)"/g)]
+    .map(m => m[1] + ' ' + m[2]);
+check('the four selects carry their sentence in the page', selects.join(' | ')
+    === 'mr-driving describe-coupling | mr-driven describe-coupling | cc-first describe-joint | cc-second describe-joint');
+
+// --- nothing on the window -------------------------------------------------------------------
+//
+// The bridge is gone. A name hung on `window` again would be a function the
+// page could reach without the table -- the thing slices 12 to 15 undid.
+// Comment lines out: main.js tells the story of the bridge in its header.
+const MAIN = fs.readFileSync(path.join(FRONTEND, 'main.js'), 'utf8')
+    .split('\n').filter(line => !line.trim().startsWith('//')).join('\n');
+check('main.js publishes nothing on the window', !MAIN.includes('Object.assign(window'));
+
 // --- the ratchet -------------------------------------------------------------------------
 //
-// How many inline handlers are left in index.html. It only goes down: each
-// stage of the move lowers it, and a new `onclick=` in the page fails here.
-// The five `onerror` on the logo images are not calls to anything on the
-// bridge (they hide a missing picture) and are counted apart.
+// Inline handlers in index.html: none since slice 15, and a new `onclick=`
+// in the page fails here. The five `onerror` on the logo images call nothing
+// (they hide a missing picture) and are counted apart.
 const inline = (PAGE.match(/\son(?!error)[a-z]+="/g) || []).length;
-check('inline handlers left in index.html: ' + inline + ' (at most 21)', inline <= 21);
+check('inline handlers left in index.html: ' + inline + ' (none)', inline === 0);
 
 // The same count for the HTML the JavaScript writes (the hub's rotor cards and
 // the analysis cards, today). Comment lines are left out: a comment that

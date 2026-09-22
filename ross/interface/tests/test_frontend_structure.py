@@ -104,22 +104,23 @@ def test_the_file_protocol_guard_is_a_classic_script():
         )
 
 
-def test_only_one_place_publishes_to_window():
-    """The bridge to the inline handlers lives in a single block.
+def test_nothing_publishes_to_window():
+    """No module hangs functions on `window`.
 
-    Before there were 21 `window.x = function` scattered through the file, each one
-    an invisible decision to make something global. The bridge has to be a list you
-    read top to bottom -- and one that shrinks when the next slice replaces the
-    inline handlers with event delegation."""
+    There used to be 21 `window.x = function` scattered through the file, then
+    one bridge block in main.js for the inline handlers of the HTML (73 names at
+    its largest). Since slice 15 every button names an action (core/actions.js)
+    and the bridge is gone; a function made global again would be one the page
+    reaches without the table."""
     scattered = []
     for module in MODULES:
         for number, line in enumerate(_text(module).split("\n"), 1):
             if re.match(r"\s*window\.[A-Za-z_$][\w$]*\s*=\s*(async\s+)?function", line):
                 scattered.append("%s:%d" % (module, number))
-    assert scattered == [], "the bridge is scattered across %s" % scattered
+    assert scattered == [], "functions hung on the window in %s" % scattered
 
-    blocks = [m for m in MODULES if "Object.assign(window, {" in _text(m)]
-    assert blocks == ["main.js"], "the bridge is in %s" % blocks
+    blocks = [m for m in MODULES if "Object.assign(window" in _text(m)]
+    assert blocks == [], "a bridge block came back in %s" % blocks
 
 
 def test_nothing_imports_the_entry_point():
@@ -324,9 +325,8 @@ def test_features_may_reference_each_other_but_run_nothing_on_load():
 def test_the_entry_point_holds_no_logic():
     """`main.js` wires the layers and decides nothing.
 
-    After the second delivery it is imports, the wiring between layers, the
-    bootstrap and the bridge. Any function declared there is logic that lost its
-    home."""
+    It is imports, the wiring between layers, the tables of actions and the
+    bootstrap. Any function declared there is logic that lost its home."""
     declarations = re.findall(
         r"^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)",
         _text("main.js"),

@@ -202,7 +202,7 @@
         <div class="modal-box about-box">
             <div class="modal-header">
                 <h3 data-i18n="about">About ROSS</h3>
-                <button class="btn-close-modal" onclick="closeAbout()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="close-about"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body about-body">
                 <img src="assets/ross-logo.svg" alt="ROSS" class="about-logo invert-on-dark" onerror="this.style.display='none'">
@@ -228,7 +228,7 @@
                      `showHelpEntry()`. Marked, changing the language with the help
                      open replaced the entry's title with the word "Help". -->
                 <h3 id="help-modal-title"></h3>
-                <button class="btn-close-modal" onclick="closeHelpModal()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="close-help"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body" id="help-modal-body">
             </div>
@@ -260,7 +260,7 @@
         <div class="modal-box" style="max-width: 450px; padding: 0;">
             <div class="modal-header">
                 <h3><i class="fas fa-link"></i> <span data-i18n="multiAdd">Add MultiRotor</span></h3>
-                <button class="btn-close-modal" onclick="closeMultiRotorModal()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="close-multirotor"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body form-box" style="border: none; box-shadow: none; margin-top: 0; border-radius: 0;">
                 <div class="input-group">
@@ -268,8 +268,8 @@
                     <input type="text" id="mr-name" value="My MultiRotor">
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <div class="input-group"><label data-i18n="multiDriving">Driving Rotor</label><select id="mr-driving" onchange="describeCoupling()"></select></div>
-                    <div class="input-group"><label data-i18n="multiDriven">Driven Rotor</label><select id="mr-driven" onchange="describeCoupling()"></select></div>
+                    <div class="input-group"><label data-i18n="multiDriving">Driving Rotor</label><select id="mr-driving" data-action="describe-coupling"></select></div>
+                    <div class="input-group"><label data-i18n="multiDriven">Driven Rotor</label><select id="mr-driven" data-action="describe-coupling"></select></div>
                 </div>
                 <!-- Where each rotor's gears are; written by `describeCoupling`. -->
                 <p id="mr-hint" style="color: var(--text-muted); margin-bottom: 15px; font-size: 13px; margin-top: 0;"></p>
@@ -314,8 +314,8 @@
                 </div>
 
                 <div class="form-actions">
-                    <button class="btn-confirm" onclick="saveMultiRotor()"><i class="fas fa-check"></i></button>
-                    <button class="btn-cancel" onclick="closeMultiRotorModal()"><i class="fas fa-times"></i></button>
+                    <button class="btn-confirm" data-action="save-multirotor"><i class="fas fa-check"></i></button>
+                    <button class="btn-cancel" data-action="close-multirotor"><i class="fas fa-times"></i></button>
                 </div>
             </div>
         </div>
@@ -326,14 +326,14 @@
         <div class="modal-box" style="max-width: 460px; padding: 0;">
             <div class="modal-header">
                 <h3><i class="fas fa-compress-arrows-alt"></i> <span data-i18n="concatTitle">Concatenate Rotors</span></h3>
-                <button class="btn-close-modal" onclick="closeConcatenateModal()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="close-concatenate"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body form-box" style="border: none; box-shadow: none; margin-top: 0; border-radius: 0;">
                 <p style="color: var(--text-muted); margin-bottom: 15px; font-size: 13px; margin-top: 0;" data-i18n="concatWhatItIs">One shaft line turning at one speed. To couple two shafts through a gear mesh, each at its own speed, use Link MultiRotor instead.</p>
                 <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <div class="input-group"><label data-i18n="concatFirst">First Rotor</label><select id="cc-first" onchange="describeJoint()"></select></div>
-                    <div class="input-group"><label data-i18n="concatSecond">Second Rotor</label><select id="cc-second" onchange="describeJoint()"></select></div>
-                    <button type="button" class="btn-secondary" style="margin-bottom: 12px;" onclick="swapConcatenationOrder()" data-i18n-title="concatSwap"><i class="fas fa-exchange-alt"></i></button>
+                    <div class="input-group"><label data-i18n="concatFirst">First Rotor</label><select id="cc-first" data-action="describe-joint"></select></div>
+                    <div class="input-group"><label data-i18n="concatSecond">Second Rotor</label><select id="cc-second" data-action="describe-joint"></select></div>
+                    <button type="button" class="btn-secondary" style="margin-bottom: 12px;" data-action="swap-concatenation" data-i18n-title="concatSwap"><i class="fas fa-exchange-alt"></i></button>
                 </div>
                 <p id="cc-hint" style="color: var(--text-muted); margin-bottom: 15px; font-size: 13px; margin-top: 0;"></p>
                 <div class="input-group">
@@ -341,8 +341,8 @@
                     <input type="text" id="cc-name" placeholder="First + Second" data-i18n-placeholder="phConcatName">
                 </div>
                 <div class="form-actions">
-                    <button class="btn-confirm" onclick="saveConcatenation()"><i class="fas fa-check"></i></button>
-                    <button class="btn-cancel" onclick="closeConcatenateModal()"><i class="fas fa-times"></i></button>
+                    <button class="btn-confirm" data-action="save-concatenation"><i class="fas fa-check"></i></button>
+                    <button class="btn-cancel" data-action="close-concatenate"><i class="fas fa-times"></i></button>
                 </div>
             </div>
         </div>
@@ -352,7 +352,7 @@
         <div class="modal-box" style="max-width: 400px; padding: 0;">
             <div class="modal-header">
                 <h3 style="color: var(--text-main); font-size: 15px;"><i class="fas fa-edit" style="color: var(--accent-primary);"></i> <span data-i18n="dialogInputRequired">Input Required</span></h3>
-                <button class="btn-close-modal" onclick="closeCustomPrompt(null)"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="prompt-cancel"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body form-box" style="border: none; box-shadow: none; margin-top: 0; border-radius: 0;">
                 <p id="custom-prompt-message" style="margin-bottom: 10px; font-size: 13px; color: var(--text-muted); font-weight: 600;"></p>
@@ -360,8 +360,8 @@
                     <input type="text" id="custom-prompt-input" style="width: 100%;">
                 </div>
                 <div class="form-actions">
-                    <button class="btn-confirm" onclick="confirmCustomPrompt()"><i class="fas fa-check"></i> OK</button>
-                    <button class="btn-cancel" onclick="closeCustomPrompt(null)"><i class="fas fa-times"></i> <span data-i18n="cancel">Cancel</span></button>
+                    <button class="btn-confirm" data-action="prompt-ok"><i class="fas fa-check"></i> OK</button>
+                    <button class="btn-cancel" data-action="prompt-cancel"><i class="fas fa-times"></i> <span data-i18n="cancel">Cancel</span></button>
                 </div>
             </div>
         </div>
@@ -372,13 +372,13 @@
         <div class="modal-box" style="max-width: 400px; padding: 0;">
             <div class="modal-header">
                 <h3 style="color: var(--text-main); font-size: 15px;"><i class="fas fa-exclamation-triangle" style="color: var(--accent-danger);"></i> <span data-i18n="dialogConfirmAction">Confirm Action</span></h3>
-                <button class="btn-close-modal" onclick="closeCustomConfirm(false)"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="confirm-no"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body form-box" style="border: none; box-shadow: none; margin-top: 0; border-radius: 0;">
                 <p id="custom-confirm-message" style="margin-bottom: 20px; font-size: 14px; color: var(--text-main); line-height: 1.5;"></p>
                 <div class="form-actions">
-                    <button class="btn-confirm" style="background: var(--accent-danger);" onclick="closeCustomConfirm(true)"><i class="fas fa-check"></i> <span data-i18n="dialogYes">Yes</span></button>
-                    <button class="btn-cancel" onclick="closeCustomConfirm(false)"><i class="fas fa-times"></i> No</button>
+                    <button class="btn-confirm" style="background: var(--accent-danger);" data-action="confirm-yes"><i class="fas fa-check"></i> <span data-i18n="dialogYes">Yes</span></button>
+                    <button class="btn-cancel" data-action="confirm-no"><i class="fas fa-times"></i> <span data-i18n="dialogNo">No</span></button>
                 </div>
             </div>
         </div>
@@ -389,12 +389,12 @@
         <div class="modal-box" style="max-width: 400px; padding: 0;">
             <div class="modal-header">
                 <h3 style="color: var(--text-main); font-size: 15px;"><i class="fas fa-info-circle" style="color: var(--accent-primary);"></i> <span data-i18n="dialogNotice">Notice</span></h3>
-                <button class="btn-close-modal" onclick="closeCustomAlert()"><i class="fas fa-times"></i></button>
+                <button class="btn-close-modal" data-action="alert-ok"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body form-box" style="border: none; box-shadow: none; margin-top: 0; border-radius: 0;">
                 <p id="custom-alert-message" style="margin-bottom: 20px; font-size: 14px; color: var(--text-main); line-height: 1.5; white-space: pre-wrap;"></p>
                 <div class="form-actions" style="justify-content: center;">
-                    <button class="btn-confirm" onclick="closeCustomAlert()"><i class="fas fa-check"></i> OK</button>
+                    <button class="btn-confirm" data-action="alert-ok"><i class="fas fa-check"></i> OK</button>
                 </div>
             </div>
         </div>

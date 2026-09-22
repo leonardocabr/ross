@@ -1,16 +1,14 @@
 // Entry point.
 //
-// No logic here: it wires the layers, fires the bootstrap and publishes on
-// `window` the names the inline handlers of the HTML call. Everything else lives
-// in `core/`, `components/` and `features/`.
+// No logic here: it wires the layers, names what the buttons mean and fires
+// the bootstrap. Everything else lives in `core/`, `components/` and
+// `features/`.
 //
-// The bridge is temporary by construction: the next slice replaces the inline
-// handlers with event delegation, and each converted handler erases a name from
-// it.
-import { closeAbout } from './components/about.js';
-import { closeHelpModal } from './components/help.js';
+// Nothing is published on `window`. Until slice 15 this file ended in a
+// bridge block that hung on it every function an inline `onclick` of the HTML
+// called (73 names at its largest); every button now says `data-action="..."`
+// and one listener looks the name up (core/actions.js).
 import { onReorder } from './components/list.js';
-import { closeCustomAlert, closeCustomConfirm, closeCustomPrompt, confirmCustomPrompt } from './components/modals.js';
 import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
@@ -19,8 +17,6 @@ import { fillAnalysisTypes } from './features/analysis.js';
 import { renderRotorHub } from './features/hub.js';
 import { buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
-import { closeMultiRotorModal, describeCoupling, saveMultiRotor } from './features/multirotor.js';
-import { closeConcatenateModal, describeJoint, saveConcatenation, swapConcatenationOrder } from './features/concatenate.js';
 import { startWorkBar } from './features/progress.js';
 import { startTheme } from './core/theme.js';
 import { startErrorNotice } from './features/error_notice.js';
@@ -28,6 +24,7 @@ import { defineActions, startActions } from './core/actions.js';
 import { SHELL_ACTIONS } from './features/shell_actions.js';
 import { MODELING_ACTIONS } from './features/modeling_actions.js';
 import { ANALYSIS_ACTIONS } from './features/analysis_actions.js';
+import { DIALOG_ACTIONS } from './features/dialog_actions.js';
 
 // --- Wiring between layers -------------------------------------------------
 //
@@ -42,12 +39,11 @@ onReorder(buildRotorLive);
 onProjectChanged(refreshHistoryButtons);
 
 // What the buttons mean, by name (core/actions.js). One table per area of the
-// page; the bridge below shrinks as the areas move over.
+// page.
 defineActions(SHELL_ACTIONS);
 defineActions(MODELING_ACTIONS);
 defineActions(ANALYSIS_ACTIONS);
-
-
+defineActions(DIALOG_ACTIONS);
 
 // The schema is loaded once at startup; openForm waits for it.
 document.addEventListener('DOMContentLoaded', () => {
@@ -82,26 +78,4 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRotorHub();
     }
     startPersistence();
-});
-
-
-// --- Bridge to the inline handlers of the HTML -----------------------------
-//
-// An ES module has its own scope: nothing is global unless someone puts it
-// there. index.html and the HTML the cards generate call these functions by
-// name, in `onclick`/`onchange` attributes. While that is so, they have to be on
-// `window`, and this is the only place that puts them there -- before, there were
-// 21 `window.x =` scattered through the file.
-//
-// The bridge is temporary by construction. The next slice replaces the inline
-// handlers with event delegation, and each converted handler erases a name from
-// here: the bridge shrinking is the measure of progress.
-//
-// `tests/js/test_bridge.js` guards both sides -- that every name called in a
-// handler is here, and that nothing here has stopped being called.
-Object.assign(window, {
-    closeAbout, closeCustomAlert, closeCustomConfirm, closeCustomPrompt,
-    closeHelpModal, closeConcatenateModal, closeMultiRotorModal,
-    confirmCustomPrompt, describeJoint, describeCoupling, saveConcatenation,
-    saveMultiRotor, swapConcatenationOrder,
 });
