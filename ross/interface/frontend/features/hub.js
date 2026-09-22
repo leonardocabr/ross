@@ -44,7 +44,7 @@ export function renderRotorHub() {
         if (rotor.isMultiRotor) {
             badge = `<span class="badge-conversion badge-multirotor"><i class="fas fa-link"></i> MultiRotor</span>`;
         } else {
-            badge = `<span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:8px;">(${escapeHtml(t('elementsCount').replace('%1', elementCount(rotor)))})</span>`;
+            badge = `<span style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:8px;">(${escapeHtml(elementsLabel(elementCount(rotor)))})</span>`;
         }
 
         container.innerHTML += `
@@ -226,6 +226,11 @@ export function generatePythonFromHub(index) {
 // and bearings only, so a rotor with gears, couplings, seals or point masses
 // was announced with fewer elements than it had. Materials are not elements of
 // the rotor -- they are what the shafts are made of -- and stay out.
+// "1 element", not "1 elements".
+function elementsLabel(count) {
+    return (count === 1 ? t('elementsCountOne') : t('elementsCount')).replace('%1', count);
+}
+
 function elementCount(rotor) {
     return CATEGORIES
         .filter(category => category !== 'materials')

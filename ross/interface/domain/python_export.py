@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from .element_registry import ross_class_name
 from .legacy import migrate_element
+from .material_names import material_key, ross_material_name
 from .node_resolver import effective_nodes
 import textwrap
 
@@ -31,7 +32,16 @@ from .schema import unit_map_by_class
 #      the output is byte for byte the same.
 #   3. an explicitly null field counts as absent. Before it became the word
 #      `null` in the middle of the script -- a NameError on first run.
-DEVIATIONS = ("material_name_escaping", "select_value_escaping", "null_as_missing")
+#   4. a material's name loses its spaces (domain/material_names.py): ROSS
+#      refuses them, so the old script raised on its first `rs.Material`. It
+#      changed the one reference case with a space in a name,
+#      `material_com_apostrofo`.
+DEVIATIONS = (
+    "material_name_escaping",
+    "select_value_escaping",
+    "null_as_missing",
+    "material_name_without_spaces",
+)
 
 _DECIMAL = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 _RADIX = re.compile(r"^(?:0[xX][0-9a-fA-F]+|0[oO][0-7]+|0[bB][01]+)$")
@@ -189,7 +199,7 @@ def _material_expression(element, suffix):
         return "rs.materials.steel"
     return "materials_dict%s.get(%s, default_mat%s)" % (
         suffix,
-        _py_string(str(chosen).lower()),
+        _py_string(material_key(chosen)),
         suffix,
     )
 
@@ -205,10 +215,12 @@ def _build_rotor_block(r_data, suffix):
         if "poisson" in copy_of:
             copy_of["Poisson"] = copy_of.pop("poisson")
         args = _format_kwargs(copy_of, ["name", "element_type"], "Material")
-        name = _or(copy_of.get("name"), "MaterialCustom")
+        # The same name the rotor is built with (domain/material_names.py):
+        # a space in it and the exported script fails where the screen did not.
+        name = ross_material_name(_or(copy_of.get("name"), "MaterialCustom"))
         py += "materials_dict%s[%s] = rs.Material(name=%s, %s)\n" % (
             suffix,
-            _py_string(str(name).lower()),
+            _py_string(material_key(name)),
             _py_string(name),
             args,
         )

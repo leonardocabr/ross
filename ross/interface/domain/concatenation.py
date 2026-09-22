@@ -54,6 +54,7 @@ import re
 
 import ross as rs
 
+from .material_names import material_key, ross_material_name
 from .node_resolver import effective_nodes
 from .rotor_builder import build_rotor_from_ui
 
@@ -276,13 +277,15 @@ def _merged_materials(first, second):
     left alone does not raise: it builds half a machine out of the wrong metal.
     """
     merged = [copy.deepcopy(m) for m in _elements_of(first, "materials")]
-    by_name = {str(m.get("name", "")).strip().lower(): m for m in merged}
+    # Matched the way the builder matches them (domain/material_names.py):
+    # "Stainless Steel" and "Stainless_Steel" are one name to ROSS.
+    by_name = {material_key(m.get("name", "")): m for m in merged}
     renamed = {}
 
     for material in _elements_of(second, "materials"):
         material = copy.deepcopy(material)
-        name = str(material.get("name", "")).strip()
-        key = name.lower()
+        name = ross_material_name(material.get("name", ""))
+        key = material_key(name)
         existing = by_name.get(key)
         if existing is not None and _same_material(existing, material):
             continue
@@ -294,13 +297,13 @@ def _merged_materials(first, second):
             # simply illegal here, and borrowing it would raise on the build.
             new_name = "%s_R1" % name
             suffix = 1
-            while new_name.lower() in by_name:
+            while material_key(new_name) in by_name:
                 suffix += 1
                 new_name = "%s_R1_%d" % (name, suffix)
             material["name"] = new_name
             renamed[key] = new_name
         merged.append(material)
-        by_name[str(material.get("name", "")).strip().lower()] = material
+        by_name[material_key(material.get("name", ""))] = material
     return merged, renamed
 
 
@@ -357,7 +360,7 @@ def concatenated_project(first, second, first_conversions=(), second_conversions
                 if tag:
                     row["tag"] = "%s (R%d)" % (tag, rotor_index)
                 if rotor_index == 1:
-                    material = str(row.get("material", "")).strip().lower()
+                    material = material_key(row.get("material", ""))
                     if material in renamed:
                         row["material"] = renamed[material]
                 rows.append(row)

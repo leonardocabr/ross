@@ -153,8 +153,10 @@ def test_material_name_with_a_quote_no_longer_breaks_the_script():
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     ]
-    assert "O'Brien \\ Steel" in literals
-    assert "o'brien \\ steel" in literals
+    # ... with its spaces as underscores, the only form rs.Material accepts
+    # (domain/material_names.py); the quote and the backslash stay.
+    assert "O'Brien_\\_Steel" in literals
+    assert "o'brien_\\_steel" in literals
 
 
 def test_an_empty_project_still_produces_a_runnable_script():

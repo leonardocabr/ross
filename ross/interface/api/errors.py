@@ -20,11 +20,22 @@ Now it is centralised, and the split is by type:
   ROSS refuses a model ("Add at least one Shaft!", "Rotor has no bearings") and
   through which this application's validators refuse a field. Those messages
   help whoever is at the screen, and they still arrive whole.
+* an exception **ROSS raises on purpose** -> **400** as well, with its message
+  and nothing added. ROSS does not refuse only through `ValueError`: "Each
+  rotor needs a GearElement in the coupled nodes!" is a `TypeError`, and it
+  used to reach the screen as "Unexpected error (TypeError): ...", as though
+  the program had broken. "On purpose" is read off the traceback, not guessed
+  from the type: the innermost frame is in ROSS's own code (not this
+  interface's) and the instruction running there is a `raise`. A `TypeError`
+  from arithmetic inside ROSS -- a real crash -- is not a `raise` and stays a
+  500. The instruction is read from the bytecode, not from the source line,
+  because the packaged executable ships without sources.
 * any other exception -> **500**, naming the type. It still shows the detail,
   because this is a local single-user application and hiding it would protect
   nobody -- but the status code now tells the truth about whose fault it is.
 """
 
+import dis
 import logging
 import os
 import sys
@@ -73,6 +84,25 @@ def configure_logging():
     return logger
 
 
+_RAISE = dis.opmap["RAISE_VARARGS"]
+
+
+def raised_by_ross(error):
+    """Whether ROSS itself raised this, with a `raise` of its own."""
+    frame = error.__traceback__
+    if frame is None:
+        return False
+    while frame.tb_next is not None:
+        frame = frame.tb_next
+    module = str(frame.tb_frame.f_globals.get("__name__", ""))
+    if module != "ross" and not module.startswith("ross."):
+        return False
+    if module == "ross.interface" or module.startswith("ross.interface."):
+        return False
+    code = frame.tb_frame.f_code.co_code
+    return 0 <= frame.tb_lasti < len(code) and code[frame.tb_lasti] == _RAISE
+
+
 def register_handlers(app):
     """Install the handlers; with them, routes need no try/except."""
     configure_logging()
@@ -89,6 +119,9 @@ def register_handlers(app):
 
     @app.errorhandler(Exception)
     def _unexpected_error(error):
+        if raised_by_ross(error):
+            logger.info("ROSS refused at %s: %s", request.path, error)
+            return jsonify({"status": "error", "message": str(error)}), 400
         logger.exception("unexpected error in %s", request.path)
         return jsonify(
             {

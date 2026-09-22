@@ -10,6 +10,7 @@ import { listContext, projectChanged, state, getActiveData, syncBackToLibrary, w
 import { pick, pickAll, picked } from '../core/selection.js';
 import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
 import { afterInsertion, afterRemoval } from '../core/editing.js';
+import { renameMaterial, rossMaterialName } from '../core/material_names.js';
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
@@ -367,7 +368,8 @@ export function selectSubType(type) {
         sel.innerHTML = `<option value="Default (Steel)">${escapeHtml(t('defaultSteel'))}</option>`;
         
         activeData.materials.forEach(m => {
-            let mName = m.name || 'MaterialCustom';
+            // Escaped: a material's name is whatever was typed into it.
+            const mName = escapeHtml(m.name || 'MaterialCustom');
             sel.innerHTML += `<option value="${mName}">${mName}</option>`;
         });
     });
@@ -630,6 +632,9 @@ export function saveItem() {
             if (newObj.tag) {
                 newObj.tag = newObj.tag + "_" + (i + 1);
             }
+            if (state.currentTab === 'materials' && newObj.name !== undefined) {
+                newObj.name = rossMaterialName(newObj.name);
+            }
             activeData[state.currentTab].push(newObj);
         }        
     } else {
@@ -642,6 +647,15 @@ export function saveItem() {
             }
         });
         
+        // ROSS refuses a space in a material's name (core/material_names.js);
+        // and an edited name takes the elements that used it along.
+        if (state.currentTab === 'materials' && newObject.name !== undefined) {
+            newObject.name = rossMaterialName(newObject.name);
+            if (state.editingIndex >= 0) {
+                renameMaterial(activeData, activeData.materials[state.editingIndex].name, newObject.name);
+            }
+        }
+
         if (state.editingIndex >= 0) {
             activeData[state.currentTab][state.editingIndex] = newObject;
         } else {

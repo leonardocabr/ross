@@ -22,6 +22,7 @@ from ross.units import Q_
 from .cache import ELEMENT_CACHE
 from .element_registry import ross_class_name
 from .legacy import migrate_element
+from .material_names import material_key, ross_material_name
 from .node_resolver import effective_nodes, validate_node_topology
 from .units import INT_PARAMETERS, UNITS_MAPPING
 from ross.interface.services.expressions import safe_math_eval
@@ -39,14 +40,12 @@ def extract_kwargs(d, mat_dict, element_type, ignore_keys=["element_type", "n"])
             continue
 
         if k == "material":
-            mat_name = str(v).strip().lower()
-
-            if mat_name == "" or mat_name == "default (steel)":
+            if str(v).strip().lower() in ("", "default (steel)"):
                 kwargs[k] = rs.materials.steel
                 continue
 
             kwargs[k] = (
-                mat_dict.get(mat_name, list(mat_dict.values())[0])
+                mat_dict.get(material_key(v), list(mat_dict.values())[0])
                 if mat_dict
                 else rs.materials.steel
             )
@@ -163,17 +162,18 @@ def build_rotor_from_ui(data):
         return rs.MultiRotor(driving, driven, **multi_kwargs)
 
     mat_ui_props = {
-        str(m.get("name", "MaterialCustom")).strip().lower(): m
+        material_key(m.get("name", "MaterialCustom")): m
         for m in data.get("materials", [])
     }
 
     created_materials = {}
     for mat in data.get("materials", []):
-        name = str(mat.get("name", "MaterialCustom")).strip()
+        # ROSS refuses a space in the name; see domain/material_names.py.
+        name = ross_material_name(mat.get("name", "MaterialCustom"))
         kwargs = extract_kwargs(mat, {}, "Material", ["name", "element_type"])
         if "poisson" in kwargs:
             kwargs["Poisson"] = kwargs.pop("poisson")
-        created_materials[name.lower()] = rs.Material(name=name, **kwargs)
+        created_materials[material_key(name)] = rs.Material(name=name, **kwargs)
 
     def instantiate_with_cache(category, el_dict, n_val, builder_func, auto_tag):
         hash_data = {k: v for k, v in el_dict.items() if str(v).strip() != ""}
@@ -182,7 +182,7 @@ def build_rotor_from_ui(data):
         hash_data["__tag"] = el_dict.get("tag", auto_tag)
 
         if "material" in hash_data:
-            m_name = str(hash_data["material"]).strip().lower()
+            m_name = material_key(hash_data["material"])
             if m_name in mat_ui_props:
                 hash_data["__mat_props"] = {
                     k: v
