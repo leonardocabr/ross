@@ -8,16 +8,15 @@
 // handlers with event delegation, and each converted handler erases a name from
 // it.
 import { closeAbout } from './components/about.js';
-import { closeHelpModal, openAnalysisCardHelp } from './components/help.js';
-import { handleUnitChange } from './components/form.js';
+import { closeHelpModal } from './components/help.js';
 import { onReorder } from './components/list.js';
 import { closeCustomAlert, closeCustomConfirm, closeCustomPrompt, confirmCustomPrompt } from './components/modals.js';
 import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
 import { onProjectChanged } from './core/state.js';
-import { addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow, checkDeps, deleteAnalysis, fillAnalysisTypes, runCardAnalysis, toggleAnalysis, toggleDashAdv } from './features/analysis.js';
-import { copyRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub, openRotorWorkspace, renderRotorHub, saveRotorFromHub } from './features/hub.js';
+import { fillAnalysisTypes } from './features/analysis.js';
+import { renderRotorHub } from './features/hub.js';
 import { buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth } from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { closeMultiRotorModal, describeCoupling, saveMultiRotor } from './features/multirotor.js';
@@ -28,6 +27,7 @@ import { startErrorNotice } from './features/error_notice.js';
 import { defineActions, startActions } from './core/actions.js';
 import { SHELL_ACTIONS } from './features/shell_actions.js';
 import { MODELING_ACTIONS } from './features/modeling_actions.js';
+import { ANALYSIS_ACTIONS } from './features/analysis_actions.js';
 
 // --- Wiring between layers -------------------------------------------------
 //
@@ -45,6 +45,7 @@ onProjectChanged(refreshHistoryButtons);
 // page; the bridge below shrinks as the areas move over.
 defineActions(SHELL_ACTIONS);
 defineActions(MODELING_ACTIONS);
+defineActions(ANALYSIS_ACTIONS);
 
 
 
@@ -99,12 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
 // `tests/js/test_bridge.js` guards both sides -- that every name called in a
 // handler is here, and that nothing here has stopped being called.
 Object.assign(window, {
-    addAnalysis, addAngleProbeRow, addForceRow, addProbeRow, addUnbalanceRow,
-    checkDeps, closeAbout, closeCustomAlert, closeCustomConfirm,
-    closeCustomPrompt, closeHelpModal, closeConcatenateModal,
-    closeMultiRotorModal, confirmCustomPrompt, describeJoint, copyRotorInHub,
-    deleteAnalysis, deleteRotorInHub, editRotorName, generatePythonFromHub,
-    handleUnitChange, openAnalysisCardHelp, describeCoupling,
-    openRotorWorkspace, runCardAnalysis, saveConcatenation, saveMultiRotor,
-    saveRotorFromHub, swapConcatenationOrder, toggleAnalysis, toggleDashAdv,
+    closeAbout, closeCustomAlert, closeCustomConfirm, closeCustomPrompt,
+    closeHelpModal, closeConcatenateModal, closeMultiRotorModal,
+    confirmCustomPrompt, describeJoint, describeCoupling, saveConcatenation,
+    saveMultiRotor, swapConcatenationOrder,
 });

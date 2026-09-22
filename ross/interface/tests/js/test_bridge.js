@@ -54,13 +54,12 @@ function calledInHandlers(text) {
     return names;
 }
 
-// Four names no sweep finds: `buildDashboardHTML` picks the function through a
-// variable and interpolates it into the onclick
-// (`onclick="${btnFunc}(...)"`). They are declared here on purpose -- and the
-// test below checks that all four still exist.
-const BY_VARIABLE = ['addProbeRow', 'addForceRow', 'addUnbalanceRow', 'addAngleProbeRow'];
-
-const called = new Set(BY_VARIABLE);
+// There used to be four names here that no sweep could find, because
+// `buildDashboardHTML` picked the row editor through a variable and wrote it
+// into the handler. Since slice 14 the button names its list (`data-list`) and
+// the `add-row` action looks the editor up (features/analysis_actions.js), so
+// the exception is gone with the trick that needed it.
+const called = new Set();
 for (const source of SOURCES) for (const n of calledInHandlers(source)) called.add(n);
 
 // What the bridge publishes, read from the block itself.
@@ -88,9 +87,6 @@ const outsideTheBlock = [...called].filter(n => !published.has(n)).sort();
 check('and all of them come from the bridge block, not from leftovers elsewhere: '
           + outsideTheBlock.join(', '), outsideTheBlock.length === 0);
 
-check('the four picked by variable really exist',
-          BY_VARIABLE.every(n => typeof window[n] === 'function'));
-
 console.log('\nThe bridge publishes no more than needed');
 
 const unused = [...published].filter(n => !called.has(n)).sort();
@@ -103,8 +99,9 @@ check('the bridge is the size the HTML asks for',
 // Control: if `calledInHandlers` stopped finding anything, both sides above
 // would pass empty.
 // The floor comes down as the page moves to named actions (core/actions.js):
-// 55 names before slice 12, 30 after slice 13.
-check('control: the sweep really found handlers', called.size > 20);
+// 55 names before slice 12, 30 after slice 13, 13 after slice 14 -- only the
+// modals are left. The last stage removes the bridge and this battery with it.
+check('control: the sweep really found handlers', called.size > 10);
 
 console.log('\n' + ok + ' checks ok, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

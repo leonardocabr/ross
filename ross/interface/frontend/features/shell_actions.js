@@ -15,7 +15,10 @@ import { toggleTheme } from '../core/theme.js';
 import { loadAnalysis, loadAnalysisDirect, saveAnalysis } from './analysis.js';
 import { openConcatenateModal } from './concatenate.js';
 import { generatePythonFile } from './export.js';
-import { createNewRotorInHub, openRotorHub } from './hub.js';
+import {
+    copyRotorInHub, createNewRotorInHub, deleteRotorInHub, editRotorName, generatePythonFromHub,
+    openRotorHub, openRotorWorkspace, saveRotorFromHub,
+} from './hub.js';
 import { changeLanguage, loadRotor, redoModelling, saveRotor, undoModelling } from './modeling.js';
 import { openMultiRotorModal } from './multirotor.js';
 import { exitApplication, switchScreen, toggleAnalysisSidebar, toggleSidebar } from './screens.js';
@@ -40,6 +43,14 @@ export const SHELL_ACTIONS = {
     'open-multirotor': () => openMultiRotorModal(),
     'open-concatenate': () => openConcatenateModal(),
     'load-rotor': (element, event) => loadRotor(event),
+
+    // a rotor's card on the hub; `data-index` is its place in the library
+    'rename-rotor': element => editRotorName(Number(element.dataset.index)),
+    'copy-rotor': element => copyRotorInHub(Number(element.dataset.index)),
+    'delete-rotor': element => deleteRotorInHub(Number(element.dataset.index)),
+    'open-rotor': element => openRotorWorkspace(Number(element.dataset.index), element.dataset.screen),
+    'save-rotor-file': element => saveRotorFromHub(Number(element.dataset.index)),
+    'export-rotor-python': element => generatePythonFromHub(Number(element.dataset.index)),
 
     // modelling
     'toggle-sidebar': () => toggleSidebar(),

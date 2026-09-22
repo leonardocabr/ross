@@ -64,6 +64,38 @@ const hubNamed = [...PAGE.matchAll(/data-action="add-from-node-hub" data-categor
 check('and so does every node-hub button', hubButtons === 7
     && hubNamed.length === 7 && hubNamed.every(c => CATEGORIES.includes(c)));
 
+// Every element that names an action carries what that action reads. An
+// action whose attribute is missing does not fail on the click: it runs with
+// `undefined` -- a card deleted under the wrong id, an analysis recalculated as
+// no analysis at all -- so the attributes are checked where they are written.
+const REQUIRES = {
+    'run-card': ['data-card', 'data-type'],
+    'delete-card': ['data-card'],
+    'toggle-card': ['data-card'],
+    'card-help': ['data-type'],
+    'check-deps': ['data-card'],
+    'add-row': ['data-list', 'data-card', 'data-field', 'data-type'],
+    'open-rotor': ['data-index', 'data-screen'],
+    'rename-rotor': ['data-index'], 'copy-rotor': ['data-index'], 'delete-rotor': ['data-index'],
+    'save-rotor-file': ['data-index'], 'export-rotor-python': ['data-index'],
+    'edit-element': ['data-index'], 'copy-element': ['data-index'], 'delete-element': ['data-index'],
+    'split-element': ['data-index'], 'pick-element': ['data-index'],
+    'pick-subtype': ['data-subtype'], 'section-help': ['data-category'],
+    'choose-file': ['data-input'], 'show-screen': ['data-screen'],
+};
+const missing = [];
+for (const text of TEXTS) {
+    for (const tag of text.matchAll(/<[a-z]+\b[^<>]*data-action="([a-z-]+)"[^<>]*>/g)) {
+        for (const attribute of REQUIRES[tag[1]] || []) {
+            if (!tag[0].includes(attribute + '=')) missing.push(tag[1] + ' without ' + attribute);
+        }
+    }
+}
+check('every element carries what its action reads: ' + [...new Set(missing)].join(', '), missing.length === 0);
+// Control: the sweep does find the tags it checks.
+check('control: the attribute sweep sees the generated cards',
+    TEXTS.some(text => /<button[^<>]*data-action="run-card"[^<>]*>/.test(text)));
+
 // --- the listener's rules ------------------------------------------------------------
 
 let pressed = [];
@@ -136,7 +168,9 @@ const event = { preventDefault() {}, stopPropagation() {}, target: { files: [], 
 // Whatever an action reads from its element: a file input, a screen, a row, a
 // category, a subtype. One set serves them all.
 const attributes = { input: 'upload-rotor-hub', screen: 'screen-modeling', index: '0',
-                     tab: 'shafts', category: 'shafts', subtype: 'BASIC' };
+                     tab: 'shafts', category: 'shafts', subtype: 'BASIC',
+                     // an analysis card and one of its row editors
+                     card: 'x1', type: 'modes', list: 'probe_list', field: 'probes' };
 const failures = [];
 // Some actions start work they do not return (`editItem` opens the form and
 // hands back nothing); a failure there would end the battery with no name on
@@ -164,7 +198,9 @@ for (const name of actionNames().filter(n => !LEFT_OUT.includes(n))) {
     const el = element(name === 'change-language' ? 'SELECT' : 'BUTTON', name,
         // `toggle-advanced` opens the block right after its button.
         { dataset: Object.assign({ action: name }, attributes), value: 'en',
-          nextElementSibling: { style: { display: 'none' } } });
+          nextElementSibling: { style: { display: 'none' } },
+          // `remove-row` removes the row its button sits in.
+          remove() {} });
     openRotor();
     try {
         const answer = runAction(el, event);
@@ -201,6 +237,59 @@ openRotor();
 runAction(element('BUTTON', 'pick-tab', { dataset: { action: 'pick-tab', tab: 'disks' } }), event);
 check('a tab button opens its own tab', state.currentTab === 'disks');
 
+// --- the analysis cards -----------------------------------------------------------------
+//
+// The row editors used to be picked through a variable and written into the
+// handler, which is why the bridge battery had to list four names by hand. The
+// button now names its kind of list, and the table picks the editor.
+const containers = { probe_list: 'probe', force_list: 'force', unbalance_list: 'unb',
+                     angle_probe_list: 'angle-probe' };
+for (const [list, prefix] of Object.entries(containers)) {
+    const box = node(prefix + '-container-f1-c1');
+    box.innerHTML = '';
+    runAction(element('BUTTON', 'add-row', { dataset: { action: 'add-row', list, card: 'c1', field: 'f1', type: 'modes' } }), event);
+    check('the add button of a ' + list + ' adds to its own list', /probe-row/.test(box.innerHTML));
+}
+thrown = null;
+try {
+    runAction(element('BUTTON', 'add-row', { dataset: { action: 'add-row', list: 'mystery_list', card: 'c1', field: 'f1' } }), event);
+} catch (error) { thrown = error; }
+check('a kind of list with no editor fails with its name', thrown && /mystery_list/.test(thrown.message));
+
+// A row's remove button removes the row it sits in -- not itself, and not the
+// named element the listener found (which is the button).
+let removed = null;
+const row = { remove() { removed = 'row'; } };
+const removeButton = element('BUTTON', 'remove-row');
+removeButton.closest = selector => (selector === '.probe-row' ? row : removeButton);
+runAction(removeButton, event);
+check('a row\'s remove button removes its row', removed === 'row');
+
+// --- the rotor cards of the hub ------------------------------------------------------------
+
+openRotor();
+state.rotorLibrary.push(JSON.parse(JSON.stringify(state.rotorLibrary[0])));
+state.rotorLibrary[1].name = 'Second';
+runAction(element('BUTTON', 'open-rotor', { dataset: { action: 'open-rotor', index: '1', screen: 'screen-modeling' } }), event);
+check('a rotor card opens its own rotor', state.projectData === state.rotorLibrary[1]);
+// ... on the screen it names: only the modelling screen lights the sidebar.
+node('sel:.sidebar').style.opacity = '0';
+runAction(element('BUTTON', 'open-rotor', { dataset: { action: 'open-rotor', index: '0', screen: 'screen-modeling' } }), event);
+check('and on the screen the card names', node('sel:.sidebar').style.opacity === '1');
+
+// Deleting a card asks first, then removes that card and forgets its analysis.
+const { closeCustomConfirm } = await import('../../frontend/components/modals.js');
+const { registerAnalysis, analysesToSave } = await import('../../frontend/core/analysis_store.js');
+registerAnalysis('c9', 'modes', 'Modes', '');
+let cardRemoved = false;
+node('card-c9').remove = () => { cardRemoved = true; };
+const deleting = runAction(element('BUTTON', 'delete-card', { dataset: { action: 'delete-card', card: 'c9' } }), event);
+await new Promise(done => setTimeout(done, 0));
+closeCustomConfirm(true);
+await deleting;
+check('a card\'s delete button removes that card', cardRemoved);
+check('and forgets its analysis', !analysesToSave().some(a => a.title === 'Modes'));
+
 // --- the ratchet -------------------------------------------------------------------------
 //
 // How many inline handlers are left in index.html. It only goes down: each
@@ -208,7 +297,7 @@ check('a tab button opens its own tab', state.currentTab === 'disks');
 // The five `onerror` on the logo images are not calls to anything on the
 // bridge (they hide a missing picture) and are counted apart.
 const inline = (PAGE.match(/\son(?!error)[a-z]+="/g) || []).length;
-check('inline handlers left in index.html: ' + inline + ' (at most 22)', inline <= 22);
+check('inline handlers left in index.html: ' + inline + ' (at most 21)', inline <= 21);
 
 // The same count for the HTML the JavaScript writes (the hub's rotor cards and
 // the analysis cards, today). Comment lines are left out: a comment that
@@ -217,6 +306,7 @@ check('inline handlers left in index.html: ' + inline + ' (at most 22)', inline 
 const generated = sources(FRONTEND)
     .map(text => text.split('\n').filter(line => !line.trim().startsWith('//')).join('\n'))
     .reduce((total, text) => total + (text.match(/\bon[a-z]+=\\?["']/g) || []).length, 0);
-check('inline handlers written by the JavaScript: ' + generated + ' (at most 33)', generated <= 33);
+// None left since slice 14: from here on it can only stay at zero.
+check('inline handlers written by the JavaScript: ' + generated + ' (none)', generated === 0);
 
 shutDown();

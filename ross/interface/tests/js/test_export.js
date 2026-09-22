@@ -26,7 +26,10 @@ import '../../frontend/main.js';
 
 // `generatePythonFile` left the bridge in slice 12: the buttons reach it through
 // the `export-python` action now. The function is the same.
-const { generatePythonFromHub, closeCustomAlert } = window;
+// `generatePythonFromHub` left the bridge in slice 14 (the hub card's button is
+// the `export-rotor-python` action now); the function is the same.
+const { closeCustomAlert } = window;
+const { generatePythonFromHub } = await import('../../frontend/features/hub.js');
 const { generatePythonFile } = await import('../../frontend/features/export.js');
 
 let ok = 0, failed = 0;

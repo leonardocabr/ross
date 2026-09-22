@@ -52,21 +52,21 @@ export function renderRotorHub() {
                 <div class="hub-card-top">
                     <div class="hub-card-title">
                         <i class="${rotor.isMultiRotor ? 'fas fa-link' : 'fas fa-cogs'}"></i> 
-                        <span style="cursor:pointer;" onclick="editRotorName(${index})" title="${escapeHtml(t('editName'))}">
+                        <span style="cursor:pointer;" data-action="rename-rotor" data-index="${index}" title="${escapeHtml(t('editName'))}">
                             ${escapeHtml(name)} <i class="fas fa-pen" style="font-size:11px; color:var(--text-muted); margin-left:4px;"></i>
                         </span> 
                         ${badge}
                     </div>
                     <div class="hub-card-actions">
-                        <button class="btn-action copy" onclick="copyRotorInHub(${index})" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>
-                        <button class="btn-action delete" onclick="deleteRotorInHub(${index})" title="${escapeHtml(t('delete'))}"><i class="fas fa-trash"></i></button>
+                        <button class="btn-action copy" data-action="copy-rotor" data-index="${index}" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>
+                        <button class="btn-action delete" data-action="delete-rotor" data-index="${index}" title="${escapeHtml(t('delete'))}"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
                 <div class="hub-card-bottom">
-                    <button class="btn-primary" onclick="openRotorWorkspace(${index}, 'screen-modeling')"><i class="fas fa-tools"></i> ${escapeHtml(t('goToModeling'))}</button>
-                    <button class="btn-secondary" onclick="openRotorWorkspace(${index}, 'screen-analysis')"><i class="fas fa-chart-line"></i> ${escapeHtml(t('goToAnalysis'))}</button>
-                    <button class="btn-secondary" onclick="saveRotorFromHub(${index})"><i class="fas fa-save"></i> ${escapeHtml(t('saveJson'))}</button>
-                    <button class="btn-secondary" onclick="generatePythonFromHub(${index})"><i class="fab fa-python"></i> ${escapeHtml(t('generatePython'))}</button>
+                    <button class="btn-primary" data-action="open-rotor" data-index="${index}" data-screen="screen-modeling"><i class="fas fa-tools"></i> ${escapeHtml(t('goToModeling'))}</button>
+                    <button class="btn-secondary" data-action="open-rotor" data-index="${index}" data-screen="screen-analysis"><i class="fas fa-chart-line"></i> ${escapeHtml(t('goToAnalysis'))}</button>
+                    <button class="btn-secondary" data-action="save-rotor-file" data-index="${index}"><i class="fas fa-save"></i> ${escapeHtml(t('saveJson'))}</button>
+                    <button class="btn-secondary" data-action="export-rotor-python" data-index="${index}"><i class="fab fa-python"></i> ${escapeHtml(t('generatePython'))}</button>
                 </div>
             </div>
         `;

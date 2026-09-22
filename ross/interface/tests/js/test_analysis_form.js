@@ -19,8 +19,28 @@ globalThis.fetch = async path => {
 import { schemaReady, analysisFieldsFor } from '../../frontend/core/schema.js';
 import { buildDashboardHTML } from '../../frontend/features/analysis.js';
 
-const OLD = JSON.parse(readFileSync(
+const FROZEN = JSON.parse(readFileSync(
     new URL('../golden/analysis_dashboards.json', import.meta.url), 'utf8'));
+
+// One change applies to every form at once, and so it is applied to the frozen
+// file here, by rule, instead of being listed analysis by analysis: the sliders
+// left in phase 5, slice 14. Their fields became plain numbers and their bounds
+// went away -- a fixed 0-4000 cannot fit a speed that depends on the machine,
+// and the slider did not follow a change of unit. Written as a transformation,
+// the rest of each frozen form keeps being compared exactly; listing the ten
+// analyses that have a speed would have stopped comparing them altogether.
+function withoutSliders(forms) {
+    const out = {};
+    for (const [name, fields] of Object.entries(forms)) {
+        out[name] = fields.map(field => {
+            if (field.type !== 'range') return field;
+            const { min, max, step, ...rest } = field;
+            return { ...rest, type: 'number' };
+        });
+    }
+    return out;
+}
+const OLD = withoutSliders(FROZEN);
 
 let ok = 0, failed = 0;
 function check(description, condition) {
@@ -74,10 +94,10 @@ const CHANGED_ON_PURPOSE = ['clearance', 'ucs', 'campbell', 'freq_response', 'mo
 // back as a pair, after ROSS fixed the line that refused any value for it.
 const REBUILT = {
     clearance: html =>
-        html.includes('addUnbalanceRow') && !html.includes('unbalance_magnitude')
+        html.includes('data-list="unbalance_list"') && !html.includes('unbalance_magnitude')
         && html.includes('input-minimum_allowable_speed-')
         && html.includes('input-maximum_continuous_speed-')
-        && html.includes('addAngleProbeRow'),
+        && html.includes('data-list="angle_probe_list"'),
     ucs: html =>
         html.includes('bearing_freq_min') && html.includes('bearing_freq_max'),
     campbell: html => html.includes('input-matched_whirl-'),

@@ -896,12 +896,6 @@ button {
     margin-bottom: 0;
     min-width: 90px;
 }
-.dash-control-group input[type="range"] {
-    flex: 1 1 auto;
-    min-width: 60px;
-    cursor: pointer;
-    accent-color: var(--accent);
-}
 .dash-control-group input[type="number"],
 .dash-control-group input[type="text"] {
     width: 75px !important;

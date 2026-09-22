@@ -32,26 +32,10 @@ import { registerAnalysis, recordResult, forgetAllAnalyses }
 import '../../frontend/main.js';
 
 // --- what each name receives -------------------------------------------------
-const event = () => ({ preventDefault() {}, stopPropagation() {}, target: { files: [], value: '' } });
-const button = () => { const b = node('button'); b.nextElementSibling = node('advanced'); return b; };
 
 const CALLS = {
-    // Hub
-    copyRotorInHub: [0], deleteRotorInHub: [0],
-    editRotorName: [0], saveRotorFromHub: [0], generatePythonFromHub: [0],
-    openRotorWorkspace: [0, 'screen-modeling'],
-    // the unit selectors of the analysis cards (the modelling form's own went
-    // to the `change-unit` action in slice 13)
-    handleUnitChange: [() => { const s = node('unit'); s.value = 'meter'; s.id = 'inp-L_unit'; return s; }],
-    // analyses
-    addAnalysis: [event], runCardAnalysis: ['x1', 'modes'], toggleAnalysis: ['x1'],
-    deleteAnalysis: [event, 'card-x1'], toggleDashAdv: [button], checkDeps: ['x1'],
-    addProbeRow: ['x1', 'probes', 'modes'], addForceRow: ['x1', 'forces', 'time_response'],
-    addUnbalanceRow: ['x1', 'unbalances', 'unbalance'],
-    addAngleProbeRow: ['x1', 'probes', 'unbalance'],
     // help and modals
-    openAnalysisCardHelp: [event, 'modes'], closeHelpModal: [],
-    closeAbout: [],
+    closeHelpModal: [], closeAbout: [],
     closeCustomAlert: [], closeCustomConfirm: [false], closeCustomPrompt: [null],
     confirmCustomPrompt: [],
     // multirotor and concatenation
