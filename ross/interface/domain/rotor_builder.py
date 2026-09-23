@@ -21,7 +21,7 @@ import ross as rs
 from ross.units import Q_
 
 from .cache import ELEMENT_CACHE
-from .element_registry import ross_class_name
+from .element_registry import resolve_constructor, ross_class_name, ross_constructor
 from .legacy import migrate_element
 from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes, validate_node_topology
@@ -134,12 +134,49 @@ class Assembled(NamedTuple):
     `Assembled` of its own, and `coupling` what joins them: the coupled nodes,
     the side the driven line is drawn on and the orientation angle, as read
     from the project.
+
+    `geometry` keeps the dimensions an element was built from when ROSS does
+    not: a disk made by `DiskElement.from_geometry` holds only m, Ip and Id.
+    It maps a category to a list parallel to `placed`'s, with the dimensions
+    in SI -- or None for an element built from its mass and inertias.
     """
 
     rotor: object
     placed: dict | None
     halves: tuple | None = None
     coupling: dict | None = None
+    geometry: dict | None = None
+
+
+# The dimensions DiskElement.from_geometry takes, and how the form names them.
+DISK_DIMENSIONS = ("width", "i_d", "o_d")
+
+
+def disk_dimensions(row):
+    """The width and diameters of a "Geometry" disk row, in metres.
+
+    Checked here and not left to ROSS: `from_geometry` computes the mass as
+    rho * pi * w * (o_d^2 - i_d^2) / 4 and takes whatever comes out, so an
+    inner diameter larger than the outer one builds a disk of negative mass
+    without a word.
+    """
+    others = [k for k in row if k not in DISK_DIMENSIONS]
+    kwargs = extract_kwargs(row, {}, "DiskElement.from_geometry", others)
+    missing = [k for k in DISK_DIMENSIONS if k not in kwargs]
+    if missing:
+        raise ValueError(
+            "A disk from its geometry needs the width and both diameters "
+            "(missing: %s)." % ", ".join(missing)
+        )
+    width, i_d, o_d = (
+        float(getattr(kwargs[k], "m", kwargs[k])) for k in DISK_DIMENSIONS
+    )
+    if width <= 0 or i_d < 0 or o_d <= i_d:
+        raise ValueError(
+            "Invalid disk geometry: the width must be positive and the outer "
+            "diameter larger than the inner one."
+        )
+    return {"width": width, "i_d": i_d, "o_d": o_d}
 
 
 def build_rotor_from_ui(data):
@@ -270,24 +307,32 @@ def assemble_rotor(data):
     if not ross_shafts:
         raise ValueError("Add at least one Shaft!")
 
-    # Disks
+    # Disks: from m, Ip and Id (BASIC), or from their dimensions (Geometry,
+    # DiskElement.from_geometry).
     ross_disks = []
+    disk_geometry = []
     disks_eff = effective_nodes(data.get("disks", []))
     for i, d in enumerate(data.get("disks", [])):
         n_val = disks_eff[i]
         auto_tag = f"disk_{i}"
+        constructor = ross_constructor("disks", d.get("element_type"))
+        dimensions = disk_dimensions(d) if "." in constructor else None
 
         def build_disk():
             kwargs = extract_kwargs(
-                d, created_materials, "DiskElement", ["n", "element_type"]
+                d, created_materials, constructor, ["n", "element_type"]
             )
             if "tag" not in kwargs:
                 kwargs["tag"] = auto_tag
-            return rs.DiskElement(n=n_val, **kwargs)
+            if dimensions is not None:
+                # No material chosen is the form's own "Default (Steel)".
+                kwargs.setdefault("material", rs.materials.steel)
+            return resolve_constructor(constructor)(n=n_val, **kwargs)
 
         ross_disks.append(
             instantiate_with_cache("disk", d, n_val, build_disk, auto_tag)
         )
+        disk_geometry.append(dimensions)
 
     # Gears
     ross_gears = []
@@ -451,4 +496,4 @@ def assemble_rotor(data):
         bearing_elements=ross_bearings + ross_seals,
         point_mass_elements=ross_pointmasses,
     )
-    return Assembled(rotor, placed)
+    return Assembled(rotor, placed, geometry={"disks": disk_geometry})

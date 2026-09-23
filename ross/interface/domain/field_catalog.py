@@ -108,6 +108,18 @@ FIELDS = {
             F("tag", "Tag", "Identificador", group="advanced"),
             F("color", "Hex Color", "Cor (hex)", group="advanced"),
         ],
+        # DiskElement.from_geometry: the disk's dimensions and material; ROSS
+        # works out m, Ip and Id from them.
+        "Geometry": [
+            F("n", "Node #", "Nó", optional=True),
+            F("width", "Width", "Largura"),
+            F("o_d", "Outer Diameter", "Diâmetro Externo"),
+            F("i_d", "Inner Diameter", "Diâmetro Interno"),
+            F("material", "Material Name", "Material", control="material_ref"),
+            F("scale_factor", "Scale Factor", "Fator de Escala", group="advanced"),
+            F("tag", "Tag", "Identificador", group="advanced"),
+            F("color", "Hex Color", "Cor (hex)", group="advanced"),
+        ],
     },
     "gears": {
         "BASIC": [

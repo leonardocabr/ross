@@ -17,7 +17,7 @@ in DEVIATIONS.
 import re
 from decimal import Decimal
 
-from .element_registry import ross_class_name
+from .element_registry import ross_class_name, ross_constructor
 from .legacy import migrate_element
 from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes
@@ -243,17 +243,22 @@ def _build_rotor_block(r_data, suffix):
         s=suffix
     )
 
-    # Disks
+    # Disks: rs.DiskElement from m, Ip and Id, or rs.DiskElement.from_geometry
+    # from the dimensions and a material -- the call the rotor was built with.
     py += "disks_data%s = [\n" % suffix
     nodes = effective_nodes(r_data.get("disks") or [])
     for position, disk in enumerate(r_data.get("disks") or []):
-        args = _format_kwargs(disk, ["element_type"], "DiskElement")
-        args = _with_node_arg(disk, args, nodes[position])
-        py += "    dict(%s),\n" % args
-    py += (
-        "]\ndisks{s} = [rs.DiskElement(**kwargs) for kwargs in disks_data{s}]\n".format(
-            s=suffix
+        make = ross_constructor("disks", disk.get("element_type"))
+        from_geometry = "." in make
+        args = _format_kwargs(
+            disk, ["element_type"] + (["material"] if from_geometry else []), make
         )
+        args = _with_node_arg(disk, args, nodes[position])
+        if from_geometry:
+            args += ", material=%s" % _material_expression(disk, suffix)
+        py += "    (rs.%s, dict(%s)),\n" % (make, args)
+    py += "]\ndisks{s} = [make(**kwargs) for make, kwargs in disks_data{s}]\n".format(
+        s=suffix
     )
 
     # Gears

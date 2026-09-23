@@ -114,6 +114,7 @@ const DefaultExamples = {
     materials_BASIC: { name: "Steel", rho: "7800", E: "211e9", G_s: "81.2e9" },
     shafts_BASIC: { L: "500", odl: "100", idl: "0", material: "Default (Steel)" },
     disks_BASIC: { m: "32", Id: "0.2", Ip: "0.3" },
+    disks_Geometry: { width: "70", o_d: "280", i_d: "50", material: "Default (Steel)" },
     gears_BASIC: { m: "4.67", Id: "0.015", Ip: "0.030", n_teeth: "26", pitch_diameter: "187", pr_angle: "22.5", helix_angle: "0" },
     gears_TVMS: { material: "Default (Steel)", width: "20", bore_diameter: "70", module: "2", n_teeth: "62", pr_angle: "20" },
     couplings_BASIC: { m_l: "37.8875", m_r: "37.8875", Ip_l: "1.0985", Ip_r: "1.0985", kr_z: "3.04256e6" },

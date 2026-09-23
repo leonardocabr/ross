@@ -18,17 +18,21 @@ sys.path.append(ROOT)
 import ross as rs
 
 from ross.interface.domain import units
+from ross.interface.domain.element_registry import resolve_constructor
 
 
 def test_every_mapped_unit_is_a_real_ross_parameter():
     """This test would have caught BE-13 on its own, on the day of the bearing refactor."""
     problems = []
     for ross_class, mapping in units.UNITS_MAPPING.items():
-        cls = getattr(rs, ross_class, None)  # noqa: F405
-        if cls is None:
-            problems.append(f"class rs.{ross_class} does not exist")
+        # "Class.method" is an alternative constructor (DiskElement.from_geometry):
+        # its own signature is the one that has to take the parameter.
+        target = resolve_constructor(ross_class)
+        if target is None:
+            problems.append(f"rs.{ross_class} does not exist")
             continue
-        signature = set(inspect.signature(cls.__init__).parameters)
+        method = target if "." in ross_class else target.__init__
+        signature = set(inspect.signature(method).parameters)
         for parameter in mapping:
             if parameter not in signature:
                 problems.append(f"{ross_class}.{parameter}")

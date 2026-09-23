@@ -176,6 +176,7 @@ def test_the_equivalent_disk_is_the_inverse_of_rosss_from_geometry():
     )
     back = equivalent_disk(real.m, real.Ip, bore_radius=0.025)
     assert back["bored"] is True
+    assert back["exact"] is False
     assert back["outer_radius"] == pytest.approx(0.13, rel=1e-9)
     assert back["inner_radius"] == pytest.approx(0.025)
     assert back["width"] == pytest.approx(0.04, rel=1e-9)
@@ -199,8 +200,100 @@ def test_a_disk_in_the_scene_is_sized_from_its_own_row_and_its_shaft():
     _, scene = scene_of(built)
     disk = scene["disks"][0]
     assert disk["z"] == pytest.approx(0.25)
-    assert disk["equivalent"]["outer_radius"] == pytest.approx(0.13, rel=1e-6)
-    assert disk["equivalent"]["width"] == pytest.approx(0.04, rel=1e-6)
+    assert disk["shape"]["exact"] is False
+    assert disk["shape"]["outer_radius"] == pytest.approx(0.13, rel=1e-6)
+    assert disk["shape"]["width"] == pytest.approx(0.04, rel=1e-6)
+
+
+# --- a disk described by its dimensions (DiskElement.from_geometry) ----------------
+
+
+def geometry_disk(**extra):
+    """The example of ROSS's own docstring: 70 mm wide, 280 mm by 50 mm."""
+    return dict(
+        {
+            "element_type": "Geometry",
+            "n": "1",
+            "width": "70",
+            "o_d": "280",
+            "i_d": "50",
+            "material": "Steel",
+        },
+        **extra,
+    )
+
+
+def test_a_disk_from_its_dimensions_is_the_one_rosss_from_geometry_builds():
+    """Same material as the project's (7810 kg/m^3, not ROSS's own steel),
+    millimetres converted: the mass and both inertias are ROSS's."""
+    assembled, _ = scene_of(project(disks=[geometry_disk()]))
+    built = assembled.placed["disks"][0]
+    material = ross.Material(name="Steel", rho=7810, E=211e9, G_s=81.2e9)
+    real = ross.DiskElement.from_geometry(
+        n=1, material=material, width=0.07, i_d=0.05, o_d=0.28
+    )
+    assert type(built) is ross.DiskElement
+    for name in ("m", "Ip", "Id"):
+        assert float(getattr(built, name)) == pytest.approx(
+            float(getattr(real, name)), rel=1e-12
+        ), name
+
+
+def test_a_disk_from_its_dimensions_takes_the_unit_each_one_was_typed_in():
+    mixed = geometry_disk(width="7", width_unit="cm", i_d="0.05", i_d_unit="m")
+    assembled, _ = scene_of(project(disks=[mixed]))
+    assert assembled.geometry["disks"] == [
+        pytest.approx({"width": 0.07, "i_d": 0.05, "o_d": 0.28})
+    ]
+
+
+def test_a_disk_from_its_dimensions_is_drawn_with_them_and_says_so():
+    """No equivalent disk for this one: the scene has the real dimensions,
+    even though ROSS kept only m, Ip and Id."""
+    _, scene = scene_of(
+        project(
+            disks=[geometry_disk(), {"n": "2", "m": "10", "Ip": "0.1", "Id": "0.05"}]
+        )
+    )
+    exact, basic = scene["disks"]
+    assert exact["shape"] == pytest.approx(
+        {
+            "outer_radius": 0.14,
+            "inner_radius": 0.025,
+            "width": 0.07,
+            "bored": True,
+            "exact": True,
+        }
+    )
+    assert basic["shape"]["exact"] is False
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        {"i_d": "300"},  # bore larger than the disk: negative mass in ROSS
+        {"width": "0"},
+        {"width": "-5"},
+        {"i_d": "-1"},
+        {"o_d": ""},
+    ],
+)
+def test_a_disk_geometry_that_makes_no_disk_is_refused(row):
+    """`from_geometry` takes whatever comes out: an inner diameter larger than
+    the outer one builds a disk of negative mass without a word."""
+    with pytest.raises(ValueError, match="disk"):
+        assemble_rotor(project(disks=[geometry_disk(**row)]))
+
+
+def test_a_disk_from_its_dimensions_with_no_material_is_of_the_default_steel():
+    """No material is what the form's "Default (Steel)" means everywhere else."""
+    row = geometry_disk()
+    del row["material"]
+    assembled, _ = scene_of(project(disks=[row]))
+    real = ross.DiskElement.from_geometry(
+        n=1, material=ross.materials.steel, width=0.07, i_d=0.05, o_d=0.28
+    )
+    assert float(assembled.placed["disks"][0].m) == pytest.approx(float(real.m))
 
 
 def test_an_inertia_too_small_for_the_bore_gives_a_solid_disk_and_says_so():
@@ -312,6 +405,21 @@ def test_a_multirotor_is_two_lines_each_in_its_own_coordinates():
     # The driven line's parts keep their own numbering: ROSS renumbers the
     # driven rotor inside the MultiRotor, and the rows on screen do not.
     assert scene["driven"]["gears"][0]["n"] == 1
+
+
+def test_each_half_of_a_multirotor_keeps_the_dimensions_of_its_own_disks():
+    driven = _gear_rotor(1)
+    driven["disks"] = [geometry_disk(n="2")]
+    built = {
+        "isMultiRotor": True,
+        "driving_rotor": _gear_rotor(2),
+        "driven_rotor": driven,
+        "multi_params": {"coupled_nodes": "2, 1", "gear_mesh_stiffness": "1e8"},
+    }
+    _, scene = scene_of(built)
+    assert scene["driving"]["disks"] == []
+    assert scene["driven"]["disks"][0]["shape"]["exact"] is True
+    assert scene["driven"]["disks"][0]["shape"]["outer_radius"] == pytest.approx(0.14)
 
 
 # --- what reaches the screen -------------------------------------------------------------

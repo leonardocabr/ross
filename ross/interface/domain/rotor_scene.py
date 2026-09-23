@@ -25,9 +25,10 @@ Most elements have no shape in ROSS. A disk is a mass and two inertias; a
 bearing is stiffness and damping at a node. Decided with Leonardo: a disk is
 drawn as the **equivalent steel disk** -- the one with the same mass and polar
 inertia, bored to the shaft it sits on -- so its size on screen means something
-physical, and it is flagged as equivalent. Bearings, seals and point masses are
-drawn in proportion to the shaft, as ROSS's 2D figure does, and carry no
-dimensions here.
+physical, and it is flagged as equivalent. A disk the project describes by its
+dimensions (the "Geometry" form, `DiskElement.from_geometry`) is drawn with
+those, and flagged as exact. Bearings, seals and point masses are drawn in
+proportion to the shaft, as ROSS's 2D figure does, and carry no dimensions here.
 """
 
 import math
@@ -102,7 +103,25 @@ def equivalent_disk(m, Ip, bore_radius):
         squared = 2 * Ip / m
     ro = math.sqrt(squared)
     width = ring_width(m, ro, ri)
-    return {"outer_radius": ro, "inner_radius": ri, "width": width, "bored": bored}
+    return {
+        "outer_radius": ro,
+        "inner_radius": ri,
+        "width": width,
+        "bored": bored,
+        "exact": False,
+    }
+
+
+def exact_disk(dimensions):
+    """The disk as the project describes it: width and diameters, in metres."""
+    ri = dimensions["i_d"] / 2
+    return {
+        "outer_radius": dimensions["o_d"] / 2,
+        "inner_radius": ri,
+        "width": dimensions["width"],
+        "bored": ri > 0,
+        "exact": True,
+    }
 
 
 def ring_width(m, outer_radius, inner_radius):
@@ -113,8 +132,9 @@ def ring_width(m, outer_radius, inner_radius):
     return m / (STEEL_DENSITY * math.pi * (ro * ro - ri * ri))
 
 
-def _describe(rotor, placed):
+def _describe(rotor, placed, geometry=None):
     z = _node_z(rotor, placed)
+    disk_geometry = (geometry or {}).get("disks") or [None] * len(placed["disks"])
     structural = {int(n) for n in rotor.nodes}
     shafts = placed["shafts"]
 
@@ -167,19 +187,24 @@ def _describe(rotor, placed):
             }
         )
 
-    for index, d in enumerate(placed["disks"]):
-        entry = {
-            "index": index,
-            **at(d),
-            "m": _f(d.m),
-            "Ip": _f(d.Ip),
-            "Id": _f(d.Id),
-            "tag": d.tag,
-        }
-        entry["equivalent"] = equivalent_disk(
-            d.m, d.Ip, _shaft_radius_at(shafts, int(d.n))
+    for index, (d, dimensions) in enumerate(
+        zip(placed["disks"], disk_geometry, strict=True)
+    ):
+        scene["disks"].append(
+            {
+                "index": index,
+                **at(d),
+                "m": _f(d.m),
+                "Ip": _f(d.Ip),
+                "Id": _f(d.Id),
+                "tag": d.tag,
+                "shape": (
+                    exact_disk(dimensions)
+                    if dimensions
+                    else equivalent_disk(d.m, d.Ip, _shaft_radius_at(shafts, int(d.n)))
+                ),
+            }
         )
-        scene["disks"].append(entry)
 
     for index, g in enumerate(placed["gears"]):
         bore = _f(getattr(g, "bore_diameter", None))
@@ -236,7 +261,10 @@ def describe_scene(assembled):
     coupled nodes, and which side the driven line is drawn on.
     """
     if assembled.halves is None:
-        return {"kind": "rotor", **_describe(assembled.rotor, assembled.placed)}
+        return {
+            "kind": "rotor",
+            **_describe(assembled.rotor, assembled.placed, assembled.geometry),
+        }
 
     driving, driven = assembled.halves
     multi = assembled.rotor
@@ -244,8 +272,8 @@ def describe_scene(assembled):
     return {
         "kind": "multirotor",
         "format": FORMAT,
-        "driving": _describe(driving.rotor, driving.placed),
-        "driven": _describe(driven.rotor, driven.placed),
+        "driving": _describe(driving.rotor, driving.placed, driving.geometry),
+        "driven": _describe(driven.rotor, driven.placed, driven.geometry),
         "coupled_nodes": [int(n) for n in coupling.get("coupled_nodes", [])],
         "position": coupling.get("position"),
         "orientation_angle": _f(coupling.get("orientation_angle")),

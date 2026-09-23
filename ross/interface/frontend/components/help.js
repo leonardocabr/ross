@@ -126,8 +126,8 @@ const HelpContent = {
             pt: `<i class='fas fa-compact-disc'></i> Ajuda: Discos`,
         },
         body: {
-            en: `<p>Disks represent concentrated masses on the rotor, like impellers, couplings hubs, or turbine blades.</p><h4>Key Parameters:</h4><ul><li><b>Mass (m):</b> Disk mass [kg].</li><li><b>Polar Inertia (Ip):</b> Inertia around the rotational axis [kg.m²].</li><li><b>Diametral Inertia (Id):</b> Inertia around the transverse axis [kg.m²].</li></ul>`,
-            pt: `<p>Discos representam massas concentradas no rotor: impelidores, cubos de acoplamento, pás de turbina.</p><h4>Parâmetros principais:</h4><ul><li><b>Massa (m):</b> massa do disco [kg].</li><li><b>Inércia polar (Ip):</b> inércia em torno do eixo de rotação [kg.m²].</li><li><b>Inércia diametral (Id):</b> inércia em torno do eixo transversal [kg.m²].</li></ul>`,
+            en: `<p>Disks represent concentrated masses on the rotor, like impellers, couplings hubs, or turbine blades.</p><h4>Key Parameters:</h4><ul><li><b>Mass (m):</b> Disk mass [kg].</li><li><b>Polar Inertia (Ip):</b> Inertia around the rotational axis [kg.m²].</li><li><b>Diametral Inertia (Id):</b> Inertia around the transverse axis [kg.m²].</li></ul><p>The <b>Geometry</b> model takes the disk's dimensions instead — width, outer and inner diameters [mm] and material — and ROSS works out m, Ip and Id (<code>DiskElement.from_geometry</code>).</p>`,
+            pt: `<p>Discos representam massas concentradas no rotor: impelidores, cubos de acoplamento, pás de turbina.</p><h4>Parâmetros principais:</h4><ul><li><b>Massa (m):</b> massa do disco [kg].</li><li><b>Inércia polar (Ip):</b> inércia em torno do eixo de rotação [kg.m²].</li><li><b>Inércia diametral (Id):</b> inércia em torno do eixo transversal [kg.m²].</li></ul><p>O modelo <b>Geometry</b> recebe as dimensões do disco — largura, diâmetros externo e interno [mm] e material — e o ROSS calcula m, Ip e Id (<code>DiskElement.from_geometry</code>).</p>`,
         },
     },
     gears: {
