@@ -12,7 +12,8 @@ from ross.interface.domain.requests import (
     ROTOR_REQUEST,
     SPLIT_REQUEST,
 )
-from ross.interface.domain.rotor_builder import build_rotor_from_ui
+from ross.interface.domain.rotor_builder import assemble_rotor
+from ross.interface.domain.rotor_scene import describe_scene
 from ross.interface.domain.ross_import import project_from_ross_file
 from ross.interface.domain.splitting import split_shaft
 
@@ -37,7 +38,8 @@ def build_rotor():
     length. That is domain geometry, and the domain is here.
     """
     payload = ROTOR_REQUEST.read(request.get_json(silent=True))
-    rotor = build_rotor_from_ui(payload["project"])
+    assembled = assemble_rotor(payload["project"])
+    rotor = assembled.rotor
     fig = rotor.plot_rotor()
 
     fig_json_str = fig.to_json()
@@ -89,6 +91,9 @@ def build_rotor():
             "plot_json": json.dumps(fig_dict),
             "mass": float(rotor.m),
             "ip": float(rotor.Ip),
+            # What the 3D view draws (domain/rotor_scene.py): the same rotor,
+            # from the same build, so the two views cannot disagree.
+            "scene": describe_scene(assembled),
         }
     )
 

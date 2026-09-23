@@ -14,6 +14,7 @@ release could remove.
 import ast
 import hashlib
 import json
+from typing import NamedTuple
 
 import numpy as np
 import ross as rs
@@ -118,7 +119,36 @@ def extract_kwargs(d, mat_dict, element_type, ignore_keys=["element_type", "n"])
     return kwargs
 
 
+class Assembled(NamedTuple):
+    """A built rotor, and where each of its elements came from.
+
+    `placed` maps each category of the project to the ROSS elements built from
+    it, **in the order of the project's list** -- the order the screen numbers
+    its rows. The rotor itself cannot say this: `Rotor` sorts its elements by
+    node, and the element cache (domain/cache.py) shares one element among
+    every rotor that describes it the same way, so neither position nor
+    identity inside the rotor leads back to a row. It is `domain/rotor_scene.py`
+    that needs it, so a click on a part in the 3D view opens the right row.
+
+    For a MultiRotor, `placed` is None, `halves` holds the two halves, each an
+    `Assembled` of its own, and `coupling` what joins them: the coupled nodes,
+    the side the driven line is drawn on and the orientation angle, as read
+    from the project.
+    """
+
+    rotor: object
+    placed: dict | None
+    halves: tuple | None = None
+    coupling: dict | None = None
+
+
 def build_rotor_from_ui(data):
+    """The ROSS rotor the project describes."""
+    return assemble_rotor(data).rotor
+
+
+def assemble_rotor(data):
+    """The rotor, together with which element came from which row."""
     # Before anything is built: an element naming a material this rotor does
     # not have used to be answered with the first material of the list, in
     # silence (domain/material_names.py). A MultiRotor is checked half by half,
@@ -126,8 +156,10 @@ def build_rotor_from_ui(data):
     validate_materials(data)
 
     if data.get("isMultiRotor"):
-        driving = build_rotor_from_ui(data["driving_rotor"])
-        driven = build_rotor_from_ui(data["driven_rotor"])
+        driving_half = assemble_rotor(data["driving_rotor"])
+        driven_half = assemble_rotor(data["driven_rotor"])
+        driving = driving_half.rotor
+        driven = driven_half.rotor
         params = data.get("multi_params", {})
 
         c_nodes_str = str(params.get("coupled_nodes", "0, 0")).split(",")
@@ -165,7 +197,16 @@ def build_rotor_from_ui(data):
         if params.get("orientation_angle"):
             multi_kwargs["orientation_angle"] = float(params["orientation_angle"])
 
-        return rs.MultiRotor(driving, driven, **multi_kwargs)
+        return Assembled(
+            rs.MultiRotor(driving, driven, **multi_kwargs),
+            None,
+            (driving_half, driven_half),
+            {
+                "coupled_nodes": list(coupled_nodes),
+                "position": multi_kwargs["position"],
+                "orientation_angle": multi_kwargs.get("orientation_angle", 0.0),
+            },
+        )
 
     mat_ui_props = {
         material_key(m.get("name", "MaterialCustom")): m
@@ -386,6 +427,17 @@ def build_rotor_from_ui(data):
 
     validate_node_topology(all_elements)
 
+    # Taken before the sorts below, which put the lists in node order.
+    placed = {
+        "shafts": list(ross_shafts),
+        "couplings": list(ross_couplings),
+        "disks": list(ross_disks),
+        "gears": list(ross_gears),
+        "bearings": list(ross_bearings),
+        "seals": list(ross_seals),
+        "pointmasses": list(ross_pointmasses),
+    }
+
     ross_shafts.sort(key=lambda x: x.n)
     ross_disks.sort(key=lambda x: x.n)
     ross_gears.sort(key=lambda x: x.n)
@@ -393,9 +445,10 @@ def build_rotor_from_ui(data):
     ross_seals.sort(key=lambda x: x.n)
     ross_pointmasses.sort(key=lambda x: x.n)
 
-    return rs.Rotor(
+    rotor = rs.Rotor(
         shaft_elements=ross_shafts + ross_couplings,
         disk_elements=ross_disks + ross_gears,
         bearing_elements=ross_bearings + ross_seals,
         point_mass_elements=ross_pointmasses,
     )
+    return Assembled(rotor, placed)
