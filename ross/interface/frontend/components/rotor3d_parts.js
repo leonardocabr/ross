@@ -6,165 +6,449 @@
 //
 // What the prototype taught, measured (see the project's 3D evaluation):
 //
-// * **one geometry for the whole rotor.** Every part is merged into a single
-//   mesh with its colour in the vertices -- one draw call, whatever the number
-//   of elements, where the prototype spent about five per shaft element and
+// * **few geometries for the whole rotor.** Every part is merged, with its
+//   colour in the vertices, into one mesh per finish (bare metal, painted) and
+//   one set of outlines -- a handful of draw calls whatever the number of
+//   elements, where the prototype spent about five per shaft element and
 //   seventeen per bearing;
 // * **everything built here is disposed here.** The prototype removed the old
 //   meshes from the scene and never freed them: eleven times the geometries on
 //   the GPU after twenty edits. `dispose()` below frees every geometry and
 //   material this module created, and nothing it did not create;
-// * **detail stays**, as decided with Leonardo: disks with hub, web and rim,
-//   gears with their own number of teeth, bearing housings with their base.
+// * **detail stays**, as decided with Leonardo, and after the first look at it
+//   he asked for more: chamfered shafts, disks with hub, tapered web, rim and a
+//   bolt circle, gears with involute teeth, lightening holes and a keyway,
+//   pillow blocks with their bolts and grease nipple, ribbed seal glands,
+//   couplings as a flanged hub on each node with a disc pack and a spacer.
+//
+// Solids of revolution are built here by `revolve` rather than three.js's
+// LatheGeometry: Lathe smooths the normal across every corner of the profile,
+// so a shaft's end face and its side shaded as one rounded surface. Here each
+// segment of the profile keeps its own normal -- smooth around the axis, sharp
+// at the corners -- and the corners are where the outlines are drawn.
 
-import { SEAL_FLANGE } from '../core/rotor3d_layout.js';
+import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
 
-const SEGMENTS = { shaft: 36, part: 48 };
+const SEGMENTS = { shaft: 40, part: 56, small: 12 };
 
 // A gear with more teeth than this is drawn with this many: past it the teeth
 // are finer than a pixel at any sensible zoom, and each one costs vertices.
 export const MAX_DRAWN_TEETH = 160;
 
-// Revolve an (r, z) profile around the z axis. LatheGeometry revolves around y;
-// the quarter turn about x takes y to z.
-function lathe(THREE, profile, segments) {
-    const points = profile.map(([r, z]) => new THREE.Vector2(Math.max(r, 0), z));
-    const geometry = new THREE.LatheGeometry(points, segments);
-    geometry.rotateX(Math.PI / 2);
-    return geometry;
-}
+// Colours of what ROSS does not colour: bolts, the bearing's bushing, a
+// coupling's disc pack. As numbers: the page's own colours are CSS tokens, and
+// these are materials, not interface.
+const STEEL = 0xb4bcc4;
+const BRASS = 0xc39a45;
+const DISC_PACK = 0x8e98a2;
 
-// A closed ring or cylinder between two radii, from z0 to z1.
-function annulus(THREE, rIn, rOut, z0, z1, segments = SEGMENTS.part) {
-    if (rIn > 1e-9) {
-        return lathe(THREE, [[rIn, z0], [rOut, z0], [rOut, z1], [rIn, z1], [rIn, z0]], segments);
+// Where the outline is drawn: between two faces more than this apart.
+const EDGE_ANGLE = 28;
+
+// --- building blocks ------------------------------------------------------------
+
+// A solid of revolution around the z axis, from an (r, z) profile. The profile
+// goes around the section counter-clockwise (r across, z up), as every profile
+// in this file does, so the normals point out of the solid.
+function revolve(THREE, profile, segments, edges) {
+    const bands = profile.length - 1;
+    const position = new Float32Array(bands * segments * 18);
+    const normal = new Float32Array(bands * segments * 18);
+    const cos = [];
+    const sin = [];
+    for (let j = 0; j <= segments; j++) {
+        const a = (j / segments) * Math.PI * 2;
+        cos.push(Math.cos(a));
+        sin.push(Math.sin(a));
     }
-    return lathe(THREE, [[0, z0], [rOut, z0], [rOut, z1], [0, z1]], segments);
-}
-
-function box(THREE, sx, sy, sz, x, y, z) {
-    const geometry = new THREE.BoxGeometry(sx, sy, sz);
-    geometry.translate(x, y, z);
+    const normals = [];
+    let k = 0;
+    for (let i = 0; i < bands; i++) {
+        const [ra, za] = profile[i];
+        const [rb, zb] = profile[i + 1];
+        const length = Math.hypot(rb - ra, zb - za) || 1;
+        const nr = (zb - za) / length;
+        const nz = -(rb - ra) / length;
+        normals.push([nr, nz]);
+        for (let j = 0; j < segments; j++) {
+            // Counter-clockwise seen from where the normal points: along the
+            // profile t and around the axis s, t x s points into the solid, so
+            // each triangle goes the other way round.
+            const quad = [[ra, za, j], [rb, zb, j + 1], [rb, zb, j], [ra, za, j], [ra, za, j + 1], [rb, zb, j + 1]];
+            for (const [r, z, m] of quad) {
+                position[k] = r * cos[m]; position[k + 1] = r * sin[m]; position[k + 2] = z;
+                normal[k] = nr * cos[m]; normal[k + 1] = nr * sin[m]; normal[k + 2] = nz;
+                k += 3;
+            }
+        }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
+    if (edges) {
+        // A circle wherever two neighbouring segments of the profile meet at
+        // an angle, and at the two ends of an open profile.
+        const limit = Math.cos((EDGE_ANGLE * Math.PI) / 180);
+        for (let i = 0; i < profile.length; i++) {
+            const before = normals[i - 1];
+            const after = normals[i];
+            const corner = !before || !after || before[0] * after[0] + before[1] * after[1] < limit;
+            if (corner && profile[i][0] > 1e-9) edges.push({ circle: profile[i], segments });
+        }
+    }
     return geometry;
 }
 
-// --- one builder per kind, each returning plain geometries in the part's frame
+// A closed ring (or disk, with rIn 0) between two radii, from z0 to z1, with
+// its edges broken by a chamfer `c` on the outside.
+function ring(THREE, rIn, rOut, z0, z1, edges, segments = SEGMENTS.part, c = 0) {
+    const ch = Math.min(c, (rOut - rIn) / 3, Math.abs(z1 - z0) / 3);
+    const profile = [[rIn, z0], [rOut - ch, z0]];
+    if (ch > 0) profile.push([rOut, z0 + ch], [rOut, z1 - ch]); else profile.push([rOut, z1]);
+    profile.push([rOut - ch, z1]);
+    if (ch <= 0) profile.pop();
+    profile.push([rIn, z1], [rIn, z0]);
+    return revolve(THREE, profile, segments, edges);
+}
 
-function shaftPieces(THREE, part) {
+// Plain three.js geometry, made flat-shaded and outline-ready. Everything that
+// is not a solid of revolution goes through here.
+function faceted(THREE, geometry, edges) {
+    const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+    if (flat !== geometry) geometry.dispose();
+    flat.deleteAttribute('uv');
+    flat.computeVertexNormals();
+    if (edges) edges.push({ geometry: flat });
+    return flat;
+}
+
+// A hex bolt head, its axis along `axis` ('x', 'y' or 'z'), centred at (x, y, z).
+function boltHead(THREE, size, height, axis, x, y, z, edges) {
+    const head = new THREE.CylinderGeometry(size, size, height, 6);
+    if (axis === 'z') head.rotateX(Math.PI / 2);
+    if (axis === 'x') head.rotateZ(Math.PI / 2);
+    head.translate(x, y, z);
+    return faceted(THREE, head, edges);
+}
+
+// Bolt heads on a circle of radius `radius` around the axis, on the face at z.
+function boltCircle(THREE, count, radius, size, height, z, edges, phase = 0) {
+    const heads = [];
+    for (let i = 0; i < count; i++) {
+        const a = phase + (i / count) * Math.PI * 2;
+        heads.push(boltHead(THREE, size, height, 'z', Math.cos(a) * radius, Math.sin(a) * radius, z, edges));
+    }
+    return heads;
+}
+
+// --- one builder per kind -------------------------------------------------------
+//
+// Each returns a list of { geometry, color, finish } in the part's own frame,
+// with `color` null for "the element's own colour".
+
+const own = (geometry, finish = 'metal') => ({ geometry, color: null, finish });
+const steel = geometry => ({ geometry, color: STEEL, finish: 'metal' });
+
+function shaftPieces(THREE, part, edges) {
     const { odl, odr, idl, idr } = part.profile;
     const z0 = part.z0;
     const z1 = part.z1;
-    if (idl > 1e-9 || idr > 1e-9) {
-        return [lathe(THREE, [[idl / 2, z0], [odl / 2, z0], [odr / 2, z1], [idr / 2, z1], [idl / 2, z0]], SEGMENTS.shaft)];
-    }
-    return [lathe(THREE, [[0, z0], [odl / 2, z0], [odr / 2, z1], [0, z1]], SEGMENTS.shaft)];
+    const ro0 = odl / 2;
+    const ro1 = odr / 2;
+    const ri0 = idl / 2;
+    const ri1 = idr / 2;
+    // A chamfer of 6 % of the radius on an end that stands proud (the layout
+    // says which), never more than a fifth of the element's length.
+    const c = end => (part.chamfer && part.chamfer[end] ? Math.min(0.06 * (end ? ro1 : ro0), (z1 - z0) / 5) : 0);
+    const c0 = c(0);
+    const c1 = c(1);
+    const profile = [[ri0, z0], [ro0 - c0, z0]];
+    if (c0) profile.push([ro0, z0 + c0]);
+    if (c1) profile.push([ro1, z1 - c1], [ro1 - c1, z1]); else profile.push([ro1, z1]);
+    profile.push([ri1, z1], [ri0, z0]);
+    return [own(revolve(THREE, profile, SEGMENTS.shaft, edges))];
 }
 
-// Hub, web and rim, as in the prototype. The web is a third of the hub's width,
-// so the disk reads as a disk and not as a drum.
-function diskPieces(THREE, part) {
+// A wheel: hub the full width, a web that thins from hub to rim, the rim, and
+// a circle of bolts on both faces of the web. A symbolic disk (no size in
+// ROSS) is a plain thin ring.
+function diskPieces(THREE, part, edges) {
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
     const ri = Math.min(part.bore, part.radius * 0.9);
     const ro = part.radius;
-    if (part.symbolic || ro - ri < 1e-6) return [annulus(THREE, ri, ro, z - w / 2, z + w / 2)];
+    if (part.symbolic || ro - ri < 1e-6) return [own(ring(THREE, ri, ro, z - w / 2, z + w / 2, edges))];
     const dr = ro - ri;
-    const rHub = ri + dr * 0.28;
-    const rRim = ri + dr * 0.72;
-    const wWeb = w * 0.34;
-    const wRim = w * 0.86;
+    const rHub = ri + dr * 0.26;
+    const rRim = ro - dr * 0.2;
+    const hub = w / 2;
+    const webIn = w * 0.24;
+    const webOut = w * 0.15;
+    const rim = w * 0.44;
+    const ch = Math.min(dr, w) * 0.06;
     const profile = [
-        [ri, -w / 2], [rHub, -w / 2], [rHub, -wWeb / 2], [rRim, -wWeb / 2], [rRim, -wRim / 2],
-        [ro, -wRim / 2], [ro, wRim / 2], [rRim, wRim / 2], [rRim, wWeb / 2], [rHub, wWeb / 2],
-        [rHub, w / 2], [ri, w / 2], [ri, -w / 2],
-    ].map(([r, dz]) => [r, z + dz]);
-    return [lathe(THREE, profile, SEGMENTS.part)];
-}
-
-// A spur gear: the teeth the element has, between the root and the tip, around
-// its bore. The tip is ROSS's addendum radius; the root sits 1.25 addenda below
-// the pitch circle, the standard dedendum.
-function gearPieces(THREE, part) {
-    const z = (part.z0 + part.z1) / 2;
-    const w = part.faceWidth;
-    const tip = part.radius;
-    const pitch = Math.min(part.pitch || tip, tip);
-    const addendum = Math.max(tip - pitch, tip * 0.02);
-    const root = Math.max(pitch - 1.25 * addendum, part.bore * 1.05);
-    const teeth = Math.min(Math.max(Math.round(part.teeth) || 24, 6), MAX_DRAWN_TEETH);
-    const shape = new THREE.Shape();
-    const step = (2 * Math.PI) / teeth;
-    for (let i = 0; i < teeth; i++) {
-        const a = i * step;
-        // Root, rise to the tip, across it, back down: a trapezoidal tooth.
-        const fractions = [0.0, 0.18, 0.5, 0.68];
-        const radii = [root, tip, tip, root];
-        for (let k = 0; k < 4; k++) {
-            const angle = a + fractions[k] * step;
-            const x = Math.cos(angle) * radii[k];
-            const y = Math.sin(angle) * radii[k];
-            if (i === 0 && k === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
-        }
-    }
-    shape.closePath();
-    const hole = new THREE.Path();
-    hole.absarc(0, 0, part.bore, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-    const body = new THREE.ExtrudeGeometry(shape, { depth: w, bevelEnabled: false, curveSegments: 24 });
-    body.translate(0, 0, z - w / 2);
-    // The hub stands a little proud of the teeth on both faces.
-    const hubRadius = Math.min(part.bore + (root - part.bore) * 0.35, root);
-    const hub = annulus(THREE, part.bore, hubRadius, part.z0, part.z1);
-    return [body, hub];
-}
-
-function couplingPieces(THREE, part) {
-    const z0 = Math.min(part.z0, part.z1);
-    const z1 = Math.max(part.z0, part.z1);
-    const L = z1 - z0;
-    const ro = part.radius;
-    const flange = L * 0.26;
-    const spacer = Math.max(part.bore * 1.1, ro * 0.5);
-    return [
-        annulus(THREE, part.bore, ro, z0, z0 + flange),
-        annulus(THREE, part.bore, spacer, z0 + flange, z1 - flange),
-        annulus(THREE, part.bore, ro, z1 - flange, z1),
+        [ri, z - hub], [rHub - ch, z - hub], [rHub, z - hub + ch], [rHub, z - webIn],
+        [rRim, z - webOut], [rRim, z - rim + ch], [rRim + ch, z - rim], [ro - ch, z - rim], [ro, z - rim + ch],
+        [ro, z + rim - ch], [ro - ch, z + rim], [rRim + ch, z + rim], [rRim, z + rim - ch], [rRim, z + webOut],
+        [rHub, z + webIn], [rHub, z + hub - ch], [rHub - ch, z + hub], [ri, z + hub], [ri, z - hub],
     ];
-}
-
-// A split housing on a base plate, as the prototype drew it: a rounded cap
-// over the shaft, a block under it, a plate reaching past both sides.
-function bearingPieces(THREE, part) {
-    const r = part.shaftRadius;
-    const z = (part.z0 + part.z1) / 2;
-    const w = Math.abs(part.z1 - part.z0);
-    const cap = part.radius;
-    const pieces = [annulus(THREE, r * 1.02, cap, z - w * 0.46, z + w * 0.46)];
-    const blockHeight = 1.3 * r;
-    pieces.push(box(THREE, cap * 1.7, blockHeight, w * 0.9, 0, -blockHeight / 2 - r * 0.2, z));
-    const plateHeight = 0.4 * r;
-    pieces.push(box(THREE, cap * 3.2, plateHeight, w, 0, -1.9 * r + plateHeight / 2, z));
+    const pieces = [own(revolve(THREE, profile, SEGMENTS.part, edges))];
+    const rBolts = rHub + (rRim - rHub) * 0.3;
+    const size = Math.min(dr * 0.045, w * 0.3);
+    // The web's face at the bolt circle, read off its taper.
+    const t = (rBolts - rHub) / (rRim - rHub);
+    const face = webIn + (webOut - webIn) * t;
+    for (const side of [-1, 1]) {
+        boltCircle(THREE, 8, rBolts, size, size * 0.7, z + side * (face + size * 0.3), edges)
+            .forEach(g => pieces.push(steel(g)));
+    }
     return pieces;
 }
 
-function sealPieces(THREE, part) {
-    const r = part.shaftRadius;
-    const z = (part.z0 + part.z1) / 2;
-    const w = Math.abs(part.z1 - part.z0);
-    return [
-        annulus(THREE, r * 1.02, part.radius, z - w / 2, z + w * 0.3),
-        annulus(THREE, r * 1.02, part.radius * SEAL_FLANGE, z + w * 0.3, z + w / 2),
-    ];
+// One tooth space after another: an involute flank up from the root (radial
+// below the base circle), across the tip, and down the other flank. The
+// thickness at the pitch circle is half the circular pitch.
+function toothOutline(THREE, g) {
+    const teeth = Math.min(Math.max(Math.round(g.teeth) || 24, 6), MAX_DRAWN_TEETH);
+    const pressure = (20 * Math.PI) / 180;
+    const base = g.pitch * Math.cos(pressure);
+    const involute = a => Math.tan(a) - a;
+    const halfAtPitch = Math.PI / (2 * teeth);
+    const halfAt = r => {
+        if (r <= base) return halfAtPitch + involute(pressure);
+        return halfAtPitch + involute(pressure) - involute(Math.acos(base / r));
+    };
+    const samples = 5;
+    const radii = [];
+    for (let s = 0; s <= samples; s++) radii.push(g.root + ((g.tip - g.root) * s) / samples);
+    const shape = new THREE.Shape();
+    const step = (2 * Math.PI) / teeth;
+    let first = true;
+    const at = (r, a) => {
+        const x = Math.cos(a) * r;
+        const y = Math.sin(a) * r;
+        if (first) { shape.moveTo(x, y); first = false; } else shape.lineTo(x, y);
+    };
+    for (let i = 0; i < teeth; i++) {
+        const centre = i * step;
+        // The tooth may not be wider than its share of the circle at the root.
+        const limit = step * 0.48;
+        radii.forEach(r => at(r, centre - Math.min(halfAt(r), limit)));
+        [...radii].reverse().forEach(r => at(r, centre + Math.min(halfAt(r), limit)));
+        // Along the root to the next tooth.
+        at(g.root, centre + step / 2);
+    }
+    shape.closePath();
+    return shape;
 }
 
-function pointMassPieces(THREE, part) {
+// A bore with a keyway, as a hole path (clockwise).
+function boreWithKeyway(THREE, radius) {
+    const path = new THREE.Path();
+    const half = radius * 0.22;
+    const depth = radius * 0.2;
+    const a = Math.asin(Math.min(half / radius, 0.9));
+    path.moveTo(Math.cos(Math.PI / 2 - a) * radius, Math.sin(Math.PI / 2 - a) * radius);
+    path.absarc(0, 0, radius, Math.PI / 2 - a, Math.PI / 2 + a - 2 * Math.PI, true);
+    path.lineTo(-half, radius + depth);
+    path.lineTo(half, radius + depth);
+    path.closePath();
+    return path;
+}
+
+// A spur gear. A small one is solid; a large one is a toothed rim on a thin
+// web with lightening holes, around a hub that stands proud of the faces. A
+// pinion cut on its shaft (see `gearDrawing`) has no bore of its own.
+function gearPieces(THREE, part, edges) {
+    const g = part.gear;
+    const z = (part.z0 + part.z1) / 2;
+    const w = part.faceWidth;
+    const hubHalf = Math.abs(part.z1 - part.z0) / 2;
+    const extrude = (shape, depth, at) => {
+        const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 20 });
+        geometry.translate(0, 0, at - depth / 2);
+        return faceted(THREE, geometry, edges);
+    };
+    const pieces = [];
+    if (g.onShaft) {
+        // Teeth only, on the shaft's surface.
+        const shape = toothOutline(THREE, g);
+        const hole = new THREE.Path();
+        hole.absarc(0, 0, g.root * 0.999, 0, Math.PI * 2, true);
+        shape.holes.push(hole);
+        pieces.push(own(extrude(shape, w, z)));
+        return pieces;
+    }
+    const rHub = Math.min(g.bore + (g.root - g.bore) * 0.32, g.bore * 1.8);
+    const rimInner = g.root - Math.max((g.root - g.bore) * 0.14, 2.2 * g.module);
+    const webbed = rimInner - rHub > 0.9 * w && rimInner - rHub > 3 * g.module;
+    const outline = toothOutline(THREE, g);
+    if (!webbed) {
+        outline.holes.push(boreWithKeyway(THREE, g.bore));
+        pieces.push(own(extrude(outline, w, z)));
+        pieces.push(own(ring(THREE, g.bore, Math.max(rHub, g.bore * 1.25), z - hubHalf, z - w / 2, edges)));
+        pieces.push(own(ring(THREE, g.bore, Math.max(rHub, g.bore * 1.25), z + w / 2, z + hubHalf, edges)));
+        return pieces;
+    }
+    // The rim: the teeth around a ring.
+    const inner = new THREE.Path();
+    inner.absarc(0, 0, rimInner, 0, Math.PI * 2, true);
+    outline.holes.push(inner);
+    pieces.push(own(extrude(outline, w, z)));
+    // The web, thinner, with lightening holes.
+    const web = new THREE.Shape();
+    web.absarc(0, 0, rimInner * 1.001, 0, Math.PI * 2, false);
+    const webHole = new THREE.Path();
+    webHole.absarc(0, 0, rHub * 0.999, 0, Math.PI * 2, true);
+    web.holes.push(webHole);
+    const holes = rimInner / rHub > 3 ? 6 : 4;
+    const rHoles = (rHub + rimInner) / 2;
+    const holeRadius = Math.min((rimInner - rHub) * 0.3, (Math.PI * rHoles) / holes * 0.32);
+    for (let i = 0; i < holes; i++) {
+        const a = (i / holes) * Math.PI * 2 + Math.PI / holes;
+        const hole = new THREE.Path();
+        hole.absarc(Math.cos(a) * rHoles, Math.sin(a) * rHoles, holeRadius, 0, Math.PI * 2, true);
+        web.holes.push(hole);
+    }
+    pieces.push(own(extrude(web, w * 0.3, z)));
+    // The hub, with its keyway.
+    const hubShape = new THREE.Shape();
+    hubShape.absarc(0, 0, rHub, 0, Math.PI * 2, false);
+    hubShape.holes.push(boreWithKeyway(THREE, g.bore));
+    pieces.push(own(extrude(hubShape, 2 * hubHalf, z)));
+    return pieces;
+}
+
+// Drawn to the side at x = ±offset: a half the coupling, as a hub on its node
+// and a flange facing the span, bolted, with a disc pack against it.
+function couplingPieces(THREE, part, edges) {
+    const z0 = Math.min(part.z0, part.z1);
+    const z1 = Math.max(part.z0, part.z1);
+    const span = z1 - z0;
+    const R = part.radius;
+    const [bore0, bore1] = part.bores || [part.bore, part.bore];
+    const hubLength = Math.min(0.3 * span, 1.1 * R);
+    const flange = Math.min(0.35 * hubLength, 0.25 * R);
+    const pack = Math.min(0.05 * span, 0.08 * R);
+    const pieces = [];
+    const half = (bore, from, sign) => {
+        const hubRadius = Math.max(bore * 1.45, 0.6 * R);
+        const flangeAt = from + sign * (hubLength - flange);
+        const end = from + sign * hubLength;
+        const lo = Math.min(from, flangeAt);
+        const hi = Math.max(from, flangeAt);
+        pieces.push(own(ring(THREE, bore, hubRadius, lo, hi, edges, SEGMENTS.part, 0.08 * hubRadius)));
+        pieces.push(own(ring(THREE, bore, R, Math.min(flangeAt, end), Math.max(flangeAt, end), edges, SEGMENTS.part, 0.04 * R)));
+        const packFrom = end;
+        const packTo = end + sign * pack;
+        pieces.push({ geometry: ring(THREE, bore * 1.1, R * 0.86, Math.min(packFrom, packTo), Math.max(packFrom, packTo), edges),
+            color: DISC_PACK, finish: 'metal' });
+        boltCircle(THREE, 6, R * 0.78, R * 0.07, R * 0.05, flangeAt - sign * R * 0.025, edges, Math.PI / 6)
+            .forEach(g => pieces.push(steel(g)));
+    };
+    half(bore0, z0, 1);
+    half(bore1, z1, -1);
+    // The spacer between the two disc packs: a slender tube.
+    const spacerFrom = z0 + hubLength + pack;
+    const spacerTo = z1 - hubLength - pack;
+    if (spacerTo > spacerFrom) {
+        const spacer = Math.max(Math.max(bore0, bore1) * 1.25, 0.45 * R);
+        pieces.push(own(ring(THREE, spacer * 0.7, spacer, spacerFrom, spacerTo, edges)));
+    }
+    return pieces;
+}
+
+// A pillow block, seen from the front: a round cap over the shaft, a body that
+// widens to two feet, a base; extruded along the shaft. A brass bushing shows
+// in the bore; hex bolts hold the cap and the feet; a grease nipple on top.
+function bearingPieces(THREE, part, edges) {
     const r = part.shaftRadius;
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
+    const { feet, base, top } = SYMBOL.bearing;
+    const depth = w * 0.86;
+    // The bevel grows the outline by its own size: the outline is drawn that
+    // much inside, so the block ends where SYMBOL.bearing says it does.
+    const bevel = Math.min(0.06 * r, depth * 0.08);
+    const cap = part.radius - bevel;
+    const edge = feet * r - bevel;
+    const bottom = -base * r + bevel;
+    const footTop = (-base + 0.4) * r;
+    const shape = new THREE.Shape();
+    shape.moveTo(-edge, bottom);
+    shape.lineTo(edge, bottom);
+    shape.lineTo(edge, footTop);
+    shape.lineTo(cap * 1.02, footTop);
+    shape.lineTo(cap, 0);
+    shape.absarc(0, 0, cap, 0, Math.PI, false);
+    shape.lineTo(-cap * 1.02, footTop);
+    shape.lineTo(-edge, footTop);
+    shape.closePath();
+    const bore = new THREE.Path();
+    bore.absarc(0, 0, 1.25 * r + bevel, 0, Math.PI * 2, true);
+    shape.holes.push(bore);
+    const body = new THREE.ExtrudeGeometry(shape, {
+        depth: depth - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel,
+        bevelSegments: 1, curveSegments: 28,
+    });
+    body.translate(0, 0, z - depth / 2 + bevel);
+    const pieces = [own(faceted(THREE, body, edges), 'paint')];
+    // The bushing, proud of the housing on both faces.
+    pieces.push({ geometry: ring(THREE, r * 1.01, r * 1.25, z - w / 2, z + w / 2, edges), color: BRASS, finish: 'metal' });
+    // Cap bolts, vertical, where the cap meets the body; foot bolts.
+    const boltSize = 0.16 * r;
+    for (const x of [-1.2 * r, 1.2 * r]) {
+        const y = Math.sqrt(Math.max(part.radius * part.radius - x * x, 0));
+        pieces.push(steel(boltHead(THREE, boltSize, 0.3 * r, 'y', x, y + 0.1 * r, z, edges)));
+    }
+    for (const x of [-(feet - 0.45) * r, (feet - 0.45) * r]) {
+        pieces.push(steel(boltHead(THREE, boltSize, 0.25 * r, 'y', x, footTop + 0.12 * r, z, edges)));
+    }
+    // The grease nipple, from inside the cap up to the top SYMBOL.bearing gives.
+    const stemFrom = part.radius - 0.05 * r;
+    const stem = new THREE.CylinderGeometry(0.07 * r, 0.1 * r, top * r - stemFrom, 10);
+    stem.translate(0, (top * r + stemFrom) / 2, z);
+    pieces.push({ geometry: faceted(THREE, stem, null), color: BRASS, finish: 'metal' });
+    return pieces;
+}
+
+// A labyrinth gland: a ribbed ring round the shaft, and a flange with its
+// bolts on one face.
+function sealPieces(THREE, part, edges) {
+    const r = part.shaftRadius;
+    const z = (part.z0 + part.z1) / 2;
+    const w = Math.abs(part.z1 - part.z0);
+    const R = part.radius;
+    const ribs = 4;
+    const bodyFrom = z - w / 2;
+    const bodyTo = z + w * 0.28;
+    const pitch = (bodyTo - bodyFrom) / ribs;
+    const groove = R - 0.06 * (R - r) - 0.04 * r;
+    const profile = [[r * 1.02, bodyFrom], [R, bodyFrom]];
+    for (let i = 0; i < ribs; i++) {
+        const a = bodyFrom + i * pitch;
+        profile.push([R, a + pitch * 0.6], [groove, a + pitch * 0.6], [groove, a + pitch]);
+        if (i < ribs - 1) profile.push([R, a + pitch]);
+    }
+    profile.push([groove, bodyTo], [r * 1.02, bodyTo], [r * 1.02, bodyFrom]);
+    const pieces = [own(revolve(THREE, profile, SEGMENTS.part, edges))];
+    pieces.push(own(ring(THREE, r * 1.02, R * SEAL_FLANGE, bodyTo, z + w / 2, edges, SEGMENTS.part, 0.03 * R)));
+    boltCircle(THREE, 6, R * (1 + SEAL_FLANGE) / 2, 0.06 * R, 0.05 * R, z + w / 2 + 0.025 * R, edges)
+        .forEach(g => pieces.push(steel(g)));
+    return pieces;
+}
+
+// A clamped collar: the ring, its lug on top and the clamp screw.
+function pointMassPieces(THREE, part, edges) {
+    const r = part.shaftRadius;
+    const z = (part.z0 + part.z1) / 2;
+    const w = Math.abs(part.z1 - part.z0);
+    const lug = new THREE.BoxGeometry(r * 0.5, r * 0.55, w * 0.7);
+    lug.translate(0, part.radius + r * 0.2, z);
     return [
-        annulus(THREE, r * 1.02, part.radius, z - w / 2, z + w / 2),
-        // The clamp's lug, on top.
-        box(THREE, r * 0.5, r * 0.55, w * 0.7, 0, part.radius + r * 0.25, z),
+        own(ring(THREE, r * 1.02, part.radius, z - w / 2, z + w / 2, edges, SEGMENTS.part, 0.05 * part.radius), 'paint'),
+        own(faceted(THREE, lug, edges), 'paint'),
+        steel(boltHead(THREE, 0.14 * r, 0.6 * r, 'x', r * 0.32, part.radius + r * 0.22, z, edges)),
     ];
 }
 
@@ -228,17 +512,51 @@ export function mergeColoured(THREE, pieces) {
     return merged;
 }
 
+// The outlines: the circles `revolve` marked at its corners, moved like their
+// part, and the sharp edges of every faceted piece -- all in one set of lines.
+function outlineLines(THREE, marks) {
+    const chunks = [];
+    let count = 0;
+    for (const mark of marks) {
+        if (mark.circle) {
+            const [r, z] = mark.circle;
+            const n = mark.segments;
+            const points = new Float32Array(n * 6);
+            for (let i = 0; i < n; i++) {
+                const a = (i / n) * Math.PI * 2;
+                const b = ((i + 1) / n) * Math.PI * 2;
+                points.set([Math.cos(a) * r + mark.dx, Math.sin(a) * r + mark.dy, z + mark.dz,
+                    Math.cos(b) * r + mark.dx, Math.sin(b) * r + mark.dy, z + mark.dz], i * 6);
+            }
+            chunks.push(points);
+            count += points.length;
+        } else {
+            const lines = new THREE.EdgesGeometry(mark.geometry, EDGE_ANGLE);
+            const points = lines.attributes.position.array;
+            chunks.push(points);
+            count += points.length;
+            lines.dispose();
+        }
+    }
+    const all = new Float32Array(count);
+    let at = 0;
+    for (const chunk of chunks) { all.set(chunk, at); at += chunk.length; }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(all, 3));
+    return geometry;
+}
+
 // The circles that mark the nodes on the shaft surface, as one set of lines.
 function ringLines(THREE, rings, segments = 40) {
     const points = new Float32Array(rings.length * segments * 6);
     let k = 0;
-    for (const ring of rings) {
-        const r = ring.radius * 1.004;
+    for (const node of rings) {
+        const r = node.radius * 1.004;
         for (let i = 0; i < segments; i++) {
             const a = (i / segments) * Math.PI * 2;
             const b = ((i + 1) / segments) * Math.PI * 2;
-            points.set([ring.x + Math.cos(a) * r, ring.y + Math.sin(a) * r, ring.z,
-                ring.x + Math.cos(b) * r, ring.y + Math.sin(b) * r, ring.z], k);
+            points.set([node.x + Math.cos(a) * r, node.y + Math.sin(a) * r, node.z,
+                node.x + Math.cos(b) * r, node.y + Math.sin(b) * r, node.z], k);
             k += 6;
         }
     }
@@ -247,46 +565,72 @@ function ringLines(THREE, rings, segments = 40) {
     return geometry;
 }
 
-// The whole rotor as three.js objects: one mesh for every part, one set of
-// lines for the node rings. `dispose` frees exactly what was made here.
+// How each finish looks. Bare metal takes its look from the environment the
+// view lights the scene with; paint is duller.
+const FINISHES = {
+    metal: { metalness: 0.78, roughness: 0.3 },
+    paint: { metalness: 0.15, roughness: 0.55 },
+};
+
+// The whole rotor as three.js objects: a mesh per finish, the outlines, and
+// the node rings. `dispose` frees exactly what was made here.
 //
-// `look.ring` is the colour of the node rings, read from the page's theme by
-// the caller: this module does not touch the DOM.
+// `look.ring` and `look.outline` are colours read from the page's theme by the
+// caller: this module does not touch the DOM.
 export function buildRotorModel(THREE, layout, look = {}) {
     const colors = new Map();
-    const pieces = [];
+    const byFinish = { metal: [], paint: [] };
+    const marks = [];
     for (const part of layout.parts) {
         const build = BUILDERS[part.kind];
         if (!build) continue;
-        const color = colorOf(THREE, colors, part.color);
-        for (const geometry of build(THREE, part)) {
-            const o = part.offset;
-            if (o.x || o.y || o.z) geometry.translate(o.x, o.y, o.z);
-            pieces.push({ geometry, color });
+        const partColor = colorOf(THREE, colors, part.color);
+        const edges = [];
+        const o = part.offset;
+        for (const piece of build(THREE, part, edges)) {
+            if (o.x || o.y || o.z) piece.geometry.translate(o.x, o.y, o.z);
+            const color = piece.color === null ? partColor : colorOf(THREE, colors, `#${piece.color.toString(16).padStart(6, '0')}`);
+            byFinish[piece.finish].push({ geometry: piece.geometry, color });
+        }
+        // Outlines of faceted pieces are read after the move; circles move here.
+        for (const mark of edges) {
+            if (mark.circle) marks.push({ ...mark, dx: o.x, dy: o.y, dz: o.z });
+            else marks.push(mark);
         }
     }
 
     const group = new THREE.Group();
     const made = { geometries: [], materials: [] };
-    if (pieces.length) {
-        const geometry = mergeColoured(THREE, pieces);
-        const material = new THREE.MeshStandardMaterial({
-            vertexColors: true, metalness: 0.35, roughness: 0.45,
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = 'rotor';
-        group.add(mesh);
+    const keep = (object, geometry, material) => {
+        group.add(object);
         made.geometries.push(geometry);
         made.materials.push(material);
+    };
+    // Before merging, which frees the pieces the faceted outlines are read from.
+    const outlines = marks.length ? outlineLines(THREE, marks) : null;
+    for (const finish of ['metal', 'paint']) {
+        if (!byFinish[finish].length) continue;
+        const geometry = mergeColoured(THREE, byFinish[finish]);
+        const material = new THREE.MeshStandardMaterial({ vertexColors: true, ...FINISHES[finish] });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = finish;
+        mesh.castShadow = true;
+        keep(mesh, geometry, material);
+    }
+    if (outlines) {
+        const material = new THREE.LineBasicMaterial({
+            color: look.outline || 'black', transparent: true, opacity: 0.35, depthWrite: false,
+        });
+        const lines = new THREE.LineSegments(outlines, material);
+        lines.name = 'outlines';
+        keep(lines, outlines, material);
     }
     if (layout.rings.length) {
         const geometry = ringLines(THREE, layout.rings);
         const material = new THREE.LineBasicMaterial({ color: look.ring || 'steelblue' });
         const lines = new THREE.LineSegments(geometry, material);
         lines.name = 'nodes';
-        group.add(lines);
-        made.geometries.push(geometry);
-        made.materials.push(material);
+        keep(lines, geometry, material);
     }
 
     const release = () => {

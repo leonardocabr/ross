@@ -118,6 +118,8 @@ def test_a_coupling_spans_its_two_nodes():
     assert coupling["n"] == 3
     assert coupling["z1"] - coupling["z0"] == pytest.approx(0.1)
     assert coupling["z0"] == pytest.approx(0.75)
+    # ROSS lumps the two halves at the two nodes; the view draws a hub there.
+    assert (coupling["m_l"], coupling["m_r"]) == (1.0, 1.0)
 
 
 # --- each part knows its row ------------------------------------------------------

@@ -3782,7 +3782,7 @@
      "cxx": "0",
      "element_type": "BASIC",
      "kxx": "1e7",
-     "n": "3"
+     "n": "4"
     }
    ],
    "couplings": [
@@ -3795,8 +3795,8 @@
      "kt_x": "1e6",
      "kt_y": "1e6",
      "m_l": "2",
-     "m_r": "2",
-     "n": "1",
+     "m_r": "3",
+     "n": "2",
      "o_d": "120"
     }
    ],
@@ -3821,7 +3821,7 @@
      "odl": "50"
     },
     {
-     "L": "100",
+     "L": "250",
      "element_type": "BASIC",
      "idl": "0",
      "material": "Steel",
@@ -3832,6 +3832,7 @@
      "element_type": "BASIC",
      "idl": "0",
      "material": "Steel",
+     "n": "3",
      "odl": "50"
     }
    ]
@@ -3853,28 +3854,30 @@
      "index": 1,
      "kind": "BearingElement",
      "link": false,
-     "n": 3,
+     "n": 4,
      "n_link": null,
      "tag": "bearing_1_BASIC",
-     "z": 0.6
+     "z": 0.85
     }
    ],
    "couplings": [
     {
      "color": "#647e91",
      "index": 0,
-     "n": 1,
+     "m_l": 2.0,
+     "m_r": 3.0,
+     "n": 2,
      "outer_diameter": 0.12,
      "tag": "coupling_0",
-     "z0": 0.25,
-     "z1": 0.35
+     "z0": 0.5,
+     "z1": 0.6
     }
    ],
    "disks": [],
    "format": 1,
    "gears": [],
    "kind": "rotor",
-   "length": 0.6,
+   "length": 0.85,
    "nodes": [
     {
      "n": 0,
@@ -3886,11 +3889,15 @@
     },
     {
      "n": 2,
-     "z": 0.35
+     "z": 0.5
     },
     {
      "n": 3,
      "z": 0.6
+    },
+    {
+     "n": 4,
+     "z": 0.85
     }
    ],
    "pointmasses": [],
@@ -3918,19 +3925,19 @@
      "odr": 0.05,
      "tag": "shaft_1",
      "z0": 0.25,
-     "z1": 0.35
+     "z1": 0.5
     },
     {
      "color": "#525252",
      "idl": 0.0,
      "idr": 0.0,
      "index": 2,
-     "n": 2,
+     "n": 3,
      "odl": 0.05,
      "odr": 0.05,
      "tag": "shaft_2",
-     "z0": 0.35,
-     "z1": 0.6
+     "z0": 0.6,
+     "z1": 0.85
     }
    ]
   }
@@ -4586,6 +4593,461 @@
    "kind": "multirotor",
    "orientation_angle": 0.5,
    "position": "above"
+  }
+ },
+ "ross_multirotor_example": {
+  "project": {
+   "driven_rotor": {
+    "bearings": [
+     {
+      "cxx": "3e3",
+      "kxx": "10.1e6",
+      "kyy": "41.6e6",
+      "n": "1"
+     },
+     {
+      "cxx": "3e3",
+      "kxx": "10.1e6",
+      "kyy": "41.6e6",
+      "n": "3"
+     }
+    ],
+    "couplings": [],
+    "disks": [
+     {
+      "Id": "0.0745",
+      "Ip": "0.149",
+      "m": "7.45",
+      "n": "2"
+     }
+    ],
+    "gears": [
+     {
+      "Id": "0.002",
+      "Ip": "0.004",
+      "base_diameter": "71.34",
+      "element_type": "BASIC",
+      "m": "5",
+      "n": "0",
+      "n_teeth": "23",
+      "pr_angle": "22.5"
+     }
+    ],
+    "materials": [
+     {
+      "E": "211e9",
+      "G_s": "81.2e9",
+      "name": "Steel",
+      "rho": "7810"
+     }
+    ],
+    "pointmasses": [],
+    "seals": [],
+    "shafts": [
+     {
+      "L": "300",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "150"
+     },
+     {
+      "L": "5000",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "150"
+     },
+     {
+      "L": "100",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "150"
+     }
+    ]
+   },
+   "driving_rotor": {
+    "bearings": [
+     {
+      "cxx": "3e3",
+      "kxx": "183.9e6",
+      "kyy": "200.4e6",
+      "n": "0"
+     },
+     {
+      "cxx": "3e3",
+      "kxx": "183.9e6",
+      "kyy": "200.4e6",
+      "n": "3"
+     }
+    ],
+    "couplings": [],
+    "disks": [
+     {
+      "Id": "16.1",
+      "Ip": "32.2",
+      "m": "525.7",
+      "n": "1"
+     },
+     {
+      "Id": "3.115",
+      "Ip": "6.23",
+      "m": "116.04",
+      "n": "2"
+     }
+    ],
+    "gears": [
+     {
+      "Id": "56.95",
+      "Ip": "113.9",
+      "element_type": "BASIC",
+      "m": "726.4",
+      "n": "4",
+      "n_teeth": "328",
+      "pitch_diameter": "1100",
+      "pr_angle": "22.5"
+     }
+    ],
+    "materials": [
+     {
+      "E": "211e9",
+      "G_s": "81.2e9",
+      "name": "Steel",
+      "rho": "7810"
+     }
+    ],
+    "pointmasses": [],
+    "seals": [],
+    "shafts": [
+     {
+      "L": "100",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "300"
+     },
+     {
+      "L": "4240",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "300"
+     },
+     {
+      "L": "1160",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "220"
+     },
+     {
+      "L": "300",
+      "element_type": "BASIC",
+      "idl": "0",
+      "material": "Steel",
+      "odl": "220"
+     }
+    ]
+   },
+   "isMultiRotor": true,
+   "multi_params": {
+    "coupled_nodes": "4, 0",
+    "gear_mesh_stiffness": "1e8",
+    "orientation_angle": "0",
+    "position": "below"
+   }
+  },
+  "scene": {
+   "coupled_nodes": [
+    4,
+    0
+   ],
+   "driven": {
+    "bearings": [
+     {
+      "color": "#355d7a",
+      "index": 0,
+      "kind": "BearingElement",
+      "link": false,
+      "n": 1,
+      "n_link": null,
+      "tag": "bearing_0_BASIC",
+      "z": 0.3
+     },
+     {
+      "color": "#355d7a",
+      "index": 1,
+      "kind": "BearingElement",
+      "link": false,
+      "n": 3,
+      "n_link": null,
+      "tag": "bearing_1_BASIC",
+      "z": 5.3999999999999995
+     }
+    ],
+    "couplings": [],
+    "disks": [
+     {
+      "Id": 0.0745,
+      "Ip": 0.149,
+      "color": "Firebrick",
+      "index": 0,
+      "link": false,
+      "m": 7.45,
+      "n": 2,
+      "shape": {
+       "bored": true,
+       "exact": false,
+       "inner_radius": 0.075,
+       "outer_radius": 0.18540496217739155,
+       "width": 0.01056130335498187
+      },
+      "tag": "disk_0",
+      "z": 5.3
+     }
+    ],
+    "format": 1,
+    "gears": [
+     {
+      "Ip": 0.004,
+      "bore_radius": 0.075,
+      "color": "Goldenrod",
+      "index": 0,
+      "link": false,
+      "m": 5.0,
+      "n": 0,
+      "outer_radius": 0.04196622802655402,
+      "pitch_radius": 0.038608929784429695,
+      "tag": "gear_0_BASIC",
+      "teeth": 23,
+      "width": null,
+      "width_is_equivalent": true,
+      "z": 0.0
+     }
+    ],
+    "length": 5.3999999999999995,
+    "nodes": [
+     {
+      "n": 0,
+      "z": 0.0
+     },
+     {
+      "n": 1,
+      "z": 0.3
+     },
+     {
+      "n": 2,
+      "z": 5.3
+     },
+     {
+      "n": 3,
+      "z": 5.3999999999999995
+     }
+    ],
+    "pointmasses": [],
+    "seals": [],
+    "shafts": [
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 0,
+      "n": 0,
+      "odl": 0.15,
+      "odr": 0.15,
+      "tag": "shaft_0",
+      "z0": 0.0,
+      "z1": 0.3
+     },
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 1,
+      "n": 1,
+      "odl": 0.15,
+      "odr": 0.15,
+      "tag": "shaft_1",
+      "z0": 0.3,
+      "z1": 5.3
+     },
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 2,
+      "n": 2,
+      "odl": 0.15,
+      "odr": 0.15,
+      "tag": "shaft_2",
+      "z0": 5.3,
+      "z1": 5.3999999999999995
+     }
+    ]
+   },
+   "driven_offset": 5.8,
+   "driving": {
+    "bearings": [
+     {
+      "color": "#355d7a",
+      "index": 0,
+      "kind": "BearingElement",
+      "link": false,
+      "n": 0,
+      "n_link": null,
+      "tag": "bearing_0_BASIC",
+      "z": 0.0
+     },
+     {
+      "color": "#355d7a",
+      "index": 1,
+      "kind": "BearingElement",
+      "link": false,
+      "n": 3,
+      "n_link": null,
+      "tag": "bearing_1_BASIC",
+      "z": 5.5
+     }
+    ],
+    "couplings": [],
+    "disks": [
+     {
+      "Id": 16.1,
+      "Ip": 32.2,
+      "color": "Firebrick",
+      "index": 0,
+      "link": false,
+      "m": 525.7,
+      "n": 1,
+      "shape": {
+       "bored": true,
+       "exact": false,
+       "inner_radius": 0.15,
+       "outer_radius": 0.3162330294178755,
+       "width": 0.2764500761355559
+      },
+      "tag": "disk_0",
+      "z": 0.1
+     },
+     {
+      "Id": 3.115,
+      "Ip": 6.23,
+      "color": "Firebrick",
+      "index": 1,
+      "link": false,
+      "m": 116.04,
+      "n": 2,
+      "shape": {
+       "bored": true,
+       "exact": false,
+       "inner_radius": 0.15,
+       "outer_radius": 0.2913361746028045,
+       "width": 0.07582003048077601
+      },
+      "tag": "disk_1",
+      "z": 4.34
+     }
+    ],
+    "format": 1,
+    "gears": [
+     {
+      "Ip": 113.9,
+      "bore_radius": 0.11,
+      "color": "Goldenrod",
+      "index": 0,
+      "link": false,
+      "m": 726.4,
+      "n": 4,
+      "outer_radius": 0.5533536585365855,
+      "pitch_radius": 0.55,
+      "tag": "gear_0_BASIC",
+      "teeth": 328,
+      "width": 0.10066523312643927,
+      "width_is_equivalent": true,
+      "z": 5.8
+     }
+    ],
+    "length": 5.8,
+    "nodes": [
+     {
+      "n": 0,
+      "z": 0.0
+     },
+     {
+      "n": 1,
+      "z": 0.1
+     },
+     {
+      "n": 2,
+      "z": 4.34
+     },
+     {
+      "n": 3,
+      "z": 5.5
+     },
+     {
+      "n": 4,
+      "z": 5.8
+     }
+    ],
+    "pointmasses": [],
+    "seals": [],
+    "shafts": [
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 0,
+      "n": 0,
+      "odl": 0.3,
+      "odr": 0.3,
+      "tag": "shaft_0",
+      "z0": 0.0,
+      "z1": 0.1
+     },
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 1,
+      "n": 1,
+      "odl": 0.3,
+      "odr": 0.3,
+      "tag": "shaft_1",
+      "z0": 0.1,
+      "z1": 4.34
+     },
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 2,
+      "n": 2,
+      "odl": 0.22,
+      "odr": 0.22,
+      "tag": "shaft_2",
+      "z0": 4.34,
+      "z1": 5.5
+     },
+     {
+      "color": "#525252",
+      "idl": 0.0,
+      "idr": 0.0,
+      "index": 3,
+      "n": 3,
+      "odl": 0.22,
+      "odr": 0.22,
+      "tag": "shaft_3",
+      "z0": 5.5,
+      "z1": 5.8
+     }
+    ]
+   },
+   "format": 1,
+   "kind": "multirotor",
+   "orientation_angle": 0.0,
+   "position": "below"
   }
  }
 }

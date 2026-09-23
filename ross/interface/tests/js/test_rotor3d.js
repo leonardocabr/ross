@@ -99,6 +99,58 @@ check('the driven line\'s parts are keyed apart and carry the shift',
     multiParts.filter(p => p.half === 'driven').every(p => p.key.startsWith('driven:')
         && (p.hanging || (near(p.offset.x, placed.x) && near(p.offset.y, placed.y) && near(p.offset.z, placed.z)))));
 
+// ROSS's own MultiRotor example: the pinion's pitch diameter (77 mm) is smaller
+// than its 150 mm shaft. Drawn as given, its teeth were buried in the shaft
+// and the two gears were drawn inside each other -- what Leonardo saw.
+const example = CASES.ross_multirotor_example.scene;
+const exampleParts = layoutScene(example).parts;
+const pinion = exampleParts.find(p => p.half === 'driven' && p.kind === 'gear');
+const wheel = exampleParts.find(p => p.half === 'driving' && p.kind === 'gear');
+check('a pitch circle inside its own shaft is drawn as teeth cut on the shaft',
+    pinion.gear.onShaft === true && near(pinion.gear.root, pinion.shaftRadius)
+    && pinion.gear.pitch > pinion.shaftRadius && near(pinion.gear.rossPitch, pinion.entry.pitch_radius));
+check('a gear bigger than its shaft keeps ROSS\'s pitch circle',
+    wheel.gear.onShaft === false && near(wheel.gear.pitch, wheel.entry.pitch_radius));
+const exampleOffset = drivenPlacement(example);
+const exampleDistance = Math.hypot(exampleOffset.x, exampleOffset.y);
+check('the two gears are drawn in mesh: the axes are the drawn pitch radii apart',
+    near(exampleDistance, wheel.gear.pitch + pinion.gear.pitch));
+check('and neither shaft runs into the other gear',
+    exampleDistance - pinion.shaftRadius >= wheel.gear.tip && exampleDistance - wheel.shaftRadius >= pinion.gear.tip);
+check('a gear with no width in ROSS is drawn ten modules wide, and says so',
+    pinion.entry.width === null && pinion.gear.widthAssumed && near(pinion.faceWidth, 10 * pinion.gear.module));
+
+// --- shafts and couplings --------------------------------------------------------
+console.log('\nShaft ends and couplings');
+
+const everyShafts = everyParts.filter(p => p.kind === 'shaft').sort((a, b) => a.z0 - b.z0);
+check('a free end of the shaft line is chamfered', everyShafts[0].chamfer[0] === true);
+check('an end that meets a thicker element is not', everyShafts[0].chamfer[1] === false);
+check('the thicker element\'s end, standing proud of the thinner one, is', everyShafts[1].chamfer[0] === true);
+
+// ROSS lumps a coupling's halves at its two nodes (m_l, m_r): a hub on each,
+// and only a slender spacer between them.
+const couplingCase = CASES.coupling.scene;
+const couplingPart = layoutScene(couplingCase).parts.find(p => p.kind === 'coupling');
+const couplingModel = buildRotorModel(THREE, { parts: [couplingPart], rings: [] });
+const cp = couplingModel.object.getObjectByName('metal').geometry.attributes.position.array;
+const span = couplingPart.z1 - couplingPart.z0;
+let hubAtLeft = false;
+let hubAtRight = false;
+let bulkInMiddle = false;
+for (let i = 0; i < cp.length; i += 3) {
+    const radius = Math.hypot(cp[i], cp[i + 1]);
+    const z = cp[i + 2];
+    if (radius > 0.95 * couplingPart.radius && z < couplingPart.z0 + 0.35 * span) hubAtLeft = true;
+    if (radius > 0.95 * couplingPart.radius && z > couplingPart.z1 - 0.35 * span) hubAtRight = true;
+    if (radius > 0.6 * couplingPart.radius && Math.abs(z - (couplingPart.z0 + couplingPart.z1) / 2) < 0.15 * span) bulkInMiddle = true;
+}
+check('a coupling is a flanged hub at each of its nodes', hubAtLeft && hubAtRight);
+check('and not a drum across the span', !bulkInMiddle);
+check('it carries ROSS\'s two lumped masses for the tooltip',
+    couplingPart.entry.m_l === 2 && couplingPart.entry.m_r === 3);
+couplingModel.dispose();
+
 // --- the pointer ----------------------------------------------------------------------
 console.log('\nThe pointer finds the part it is on');
 
@@ -159,18 +211,42 @@ for (const [name, { scene }] of Object.entries(CASES)) {
 }
 
 // --- the solids -------------------------------------------------------------------------
-console.log('\nThe solids: one mesh, ROSS\'s colours, in the layout\'s box, freed on rebuild');
+console.log('\nThe solids: a mesh per finish, ROSS\'s colours, in the layout\'s box, freed on rebuild');
+
+// Every triangle of a mesh faces the way its normals say. `revolve` writes its
+// normals itself; a triangle wound the other way is lit from behind, which is
+// what a rotor that looks black on the side facing the light is.
+function facingOut(geometry) {
+    const p = geometry.attributes.position.array;
+    const n = geometry.attributes.normal.array;
+    let good = 0;
+    let counted = 0;
+    for (let i = 0; i < p.length; i += 9) {
+        const e1 = [p[i + 3] - p[i], p[i + 4] - p[i + 1], p[i + 5] - p[i + 2]];
+        const e2 = [p[i + 6] - p[i], p[i + 7] - p[i + 1], p[i + 8] - p[i + 2]];
+        const c = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        const area = Math.hypot(...c);
+        if (area < 1e-12) continue;
+        const normal = [0, 1, 2].map(k => n[i + k] + n[i + 3 + k] + n[i + 6 + k]);
+        counted += 1;
+        if (c[0] * normal[0] + c[1] * normal[1] + c[2] * normal[2] > 0) good += 1;
+    }
+    return counted ? good / counted : 0;
+}
 
 for (const [name, { scene }] of Object.entries(CASES)) {
     const layout = layoutScene(scene);
     const model = buildRotorModel(THREE, layout);
-    const mesh = model.object.getObjectByName('rotor');
-    const lines = model.object.getObjectByName('nodes');
-    check(`${name}: one mesh for every part and one set of node rings`,
-        model.object.children.length === 2 && mesh.isMesh && lines.isLineSegments);
-    check(`${name}: coloured by vertex`, mesh.material.vertexColors === true && !!mesh.geometry.attributes.color);
-    mesh.geometry.computeBoundingBox();
-    const box = mesh.geometry.boundingBox;
+    const meshes = model.object.children.filter(o => o.isMesh);
+    const names = model.object.children.map(o => o.name).sort();
+    check(`${name}: a mesh per finish, the outlines and the node rings, nothing else`,
+        meshes.length >= 1 && names.every(n => ['metal', 'paint', 'outlines', 'nodes'].includes(n))
+        && model.object.getObjectByName('nodes').isLineSegments
+        && model.object.getObjectByName('outlines').isLineSegments);
+    check(`${name}: coloured by vertex`, meshes.every(m => m.material.vertexColors === true && !!m.geometry.attributes.color));
+    check(`${name}: every face turned the way it is lit`, meshes.every(m => facingOut(m.geometry) > 0.999));
+    const box = new THREE.Box3();
+    meshes.forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); });
     const size = Math.max(...[0, 1, 2].map(i => layout.bounds.max[i] - layout.bounds.min[i]));
     const inside = ['x', 'y', 'z'].every((axis, i) => box.min[axis] >= layout.bounds.min[i] - 1e-3 * size
         && box.max[axis] <= layout.bounds.max[i] + 1e-3 * size);
@@ -184,21 +260,22 @@ for (const [name, { scene }] of Object.entries(CASES)) {
 // Colours: ROSS's names, not the prototype's fixed palette.
 const oneDisk = { parts: layoutScene(every).parts.filter(p => p.kind === 'disk').slice(0, 1), rings: [], bounds: null };
 const diskModel = buildRotorModel(THREE, oneDisk);
-const colour = diskModel.object.getObjectByName('rotor').geometry.attributes.color.array;
+const colour = diskModel.object.getObjectByName('metal').geometry.attributes.color.array;
 const firebrick = new THREE.Color().setHex(THREE.Color.NAMES.firebrick);
 check('a disk is ROSS\'s Firebrick', near(colour[0], firebrick.r, 1e-6) && near(colour[1], firebrick.g, 1e-6)
     && near(colour[2], firebrick.b, 1e-6));
 diskModel.dispose();
 const unknown = { ...oneDisk, parts: [{ ...oneDisk.parts[0], color: 'not-a-colour' }] };
 const greyModel = buildRotorModel(THREE, unknown);
-const grey = greyModel.object.getObjectByName('rotor').geometry.attributes.color.array;
+const grey = greyModel.object.getObjectByName('metal').geometry.attributes.color.array;
 check('a colour three.js does not know is the shaft grey, not white',
     near(grey[0], new THREE.Color(0x525252).r, 1e-6) && grey[0] < 0.5);
 greyModel.dispose();
 
 // Teeth: the gear's own count, up to the cap.
 const gearOnly = teeth => {
-    const part = { ...layoutScene(every).parts.find(p => p.kind === 'gear'), teeth };
+    const found = layoutScene(every).parts.find(p => p.kind === 'gear');
+    const part = { ...found, gear: { ...found.gear, teeth } };
     const model = buildRotorModel(THREE, { parts: [part], rings: [] });
     const count = model.vertices;
     model.dispose();
@@ -208,11 +285,11 @@ check('more teeth, more vertices: the count is the gear\'s', gearOnly(40) > gear
 
 // The teeth are as wide as the gear's face; only the hub stands proud of them.
 const gearModel = buildRotorModel(THREE, { parts: [gearPart], rings: [] });
-const positions = gearModel.object.getObjectByName('rotor').geometry.attributes.position.array;
+const positions = gearModel.object.getObjectByName('metal').geometry.attributes.position.array;
 let toothLo = Infinity;
 let toothHi = -Infinity;
 for (let i = 0; i < positions.length; i += 3) {
-    if (Math.hypot(positions[i], positions[i + 1]) > gearPart.pitch) {
+    if (Math.hypot(positions[i], positions[i + 1]) > gearPart.gear.pitch) {
         toothLo = Math.min(toothLo, positions[i + 2]);
         toothHi = Math.max(toothHi, positions[i + 2]);
     }

@@ -45,8 +45,9 @@ function loadLibrary() {
         loadingLibrary = Promise.all([
             import('three'),
             import('three/addons/controls/OrbitControls.js'),
-        ]).then(([THREE, controls]) => {
-            library = { THREE, OrbitControls: controls.OrbitControls };
+            import('three/addons/environments/RoomEnvironment.js'),
+        ]).then(([THREE, controls, room]) => {
+            library = { THREE, OrbitControls: controls.OrbitControls, RoomEnvironment: room.RoomEnvironment };
             return library;
         }).finally(() => { loadingLibrary = null; });
     }
@@ -60,6 +61,56 @@ function themeColor(name, fallback) {
     return value || fallback;
 }
 
+// How the rotor is lit. Metal looks like metal by what it reflects, so the
+// scene is lit by a room -- three.js's RoomEnvironment, made once into an
+// environment map -- with the tones mapped as a camera would. A light from
+// above casts the rotor's shadow on a floor under it: without it, a rotor
+// floats, and its supports read as being nowhere.
+function light(stageScene, renderer) {
+    const { THREE, RoomEnvironment } = library;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+    const makeEnvironment = new THREE.PMREMGenerator(renderer);
+    const room = new RoomEnvironment();
+    stageScene.environment = makeEnvironment.fromScene(room, 0.04).texture;
+    room.dispose();
+    makeEnvironment.dispose();
+
+    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    stageScene.add(sun, sun.target);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.22 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    stageScene.add(floor);
+    return { sun, floor };
+}
+
+// The floor under the rotor's box, and the light's shadow camera around it.
+function placeFloor(current, bounds) {
+    const { sun, floor } = current;
+    const [x0, y0, z0] = bounds.min;
+    const [x1, y1, z1] = bounds.max;
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    const size = Math.max(x1 - x0, y1 - y0, z1 - z0);
+    floor.position.set(cx, y0 - 0.02 * size, cz);
+    floor.scale.set((x1 - x0) + size, (z1 - z0) + size, 1);
+    sun.position.set(cx + 0.3 * size, y1 + 2 * size, cz + 0.2 * size);
+    sun.target.position.set(cx, y0, cz);
+    const shadow = sun.shadow.camera;
+    const half = 0.75 * size;
+    shadow.left = -half; shadow.right = half; shadow.top = half; shadow.bottom = -half;
+    shadow.near = 0.1 * size; shadow.far = 5 * size;
+    shadow.updateProjectionMatrix();
+    sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.002 * size;
+}
+
 function makeStage(container) {
     const { THREE, OrbitControls } = library;
     // Throws where WebGL is off or missing; the caller says so on screen.
@@ -70,11 +121,12 @@ function makeStage(container) {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(FOV, 1, 0.001, 100);
     scene.add(camera);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x3a4652, 1.5));
-    // The key light rides with the camera, so the side you look at is lit.
-    const key = new THREE.DirectionalLight(0xffffff, 1.7);
-    key.position.set(0.5, 1, 0.3);
-    camera.add(key);
+    // A little light that rides with the camera, so the side you look at is
+    // never in the dark.
+    const fill = new THREE.DirectionalLight(0xffffff, 0.5);
+    fill.position.set(0.5, 1, 0.3);
+    camera.add(fill);
+    const { sun, floor } = light(scene, renderer);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.addEventListener('change', requestFrame);
@@ -107,7 +159,10 @@ function makeStage(container) {
         requestFrame();
     });
 
-    const fresh = { container, renderer, scene, camera, controls, sleeve, tip, raycaster: new THREE.Raycaster(), hovered: null };
+    const fresh = {
+        container, renderer, scene, camera, controls, sleeve, tip, sun, floor,
+        raycaster: new THREE.Raycaster(), hovered: null,
+    };
     if (typeof ResizeObserver === 'function') {
         new ResizeObserver(() => { fitCanvas(fresh); requestFrame(); }).observe(container);
     }
@@ -170,8 +225,12 @@ export async function showRotor3d(container, scene) {
     }
     layout = layoutScene(scene);
     direction = viewDirection(scene);
-    model = buildRotorModel(library.THREE, layout, { ring: themeColor('--accent', 'steelblue') });
+    model = buildRotorModel(library.THREE, layout, {
+        ring: themeColor('--accent', 'steelblue'),
+        outline: themeColor('--text-strong', 'black'),
+    });
     stage.scene.add(model.object);
+    placeFloor(stage, layout.bounds);
     stage.hovered = null;
     if (needsFraming(layout.bounds) || framedFrom !== String(direction)) frameRotor();
     requestFrame();
@@ -252,6 +311,10 @@ function line(label, value) {
     return `<div><span class="rotor3d-tip-label">${escapeHtml(label)}</span> ${escapeHtml(value)}</div>`;
 }
 
+function note(text) {
+    return `<div class="rotor3d-tip-note">${escapeHtml(text)}</div>`;
+}
+
 function halfName(part) {
     if (part.half === 'driving') return t('multiDriving');
     if (part.half === 'driven') return t('multiDriven');
@@ -288,10 +351,15 @@ function describePart(part) {
         if (e.teeth) rows.push(line(t('rotor3dTeeth'), String(e.teeth)));
         if (e.pitch_radius) rows.push(line(t('rotor3dPitch'), mm(2 * e.pitch_radius)));
         if (e.width) rows.push(line(t('rotor3dWidth'), mm(e.width)));
-        if (e.width_is_equivalent) rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dEquivalentWidth'))}</div>`);
+        if (!e.width) rows.push(note(t('rotor3dAssumedWidth')));
+        else if (e.width_is_equivalent) rows.push(note(t('rotor3dEquivalentWidth')));
+        if (part.gear && part.gear.onShaft) rows.push(note(t('rotor3dPinionOnShaft')));
     } else if (part.kind === 'coupling') {
         rows.push(line(t('rotor3dLength'), mm(Math.abs(part.z1 - part.z0))));
         if (e.outer_diameter) rows.push(line(t('rotor3dOuter'), mm(e.outer_diameter)));
+        if (e.m_l != null) rows.push(line(t('rotor3dMassLeft'), `${number(e.m_l)} kg`));
+        if (e.m_r != null) rows.push(line(t('rotor3dMassRight'), `${number(e.m_r)} kg`));
+        rows.push(note(t('rotor3dCouplingHubs')));
     } else if (part.kind === 'pointmass') {
         rows.push(line(t('rotor3dMass'), `${number(e.m)} kg`));
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dNoSize'))}</div>`);

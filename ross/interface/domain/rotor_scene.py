@@ -194,6 +194,10 @@ def _describe(rotor, placed, geometry=None):
                 "z0": z.get(n),
                 "z1": z.get(n + 1),
                 "outer_diameter": _f(getattr(c, "o_d", None)),
+                # ROSS lumps the coupling's two halves at its two nodes: m_l
+                # at the left one, m_r at the right. The view draws a hub there.
+                "m_l": _f(getattr(c, "m_l", None)),
+                "m_r": _f(getattr(c, "m_r", None)),
                 "tag": c.tag,
                 "color": _color(c),
             }

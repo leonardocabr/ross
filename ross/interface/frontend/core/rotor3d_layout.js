@@ -18,7 +18,9 @@
 // node. The proportions are the prototype's, which were chosen to read as a
 // bearing housing, a seal gland and a clamped collar at any rotor size.
 export const SYMBOL = {
-    bearing: { radius: 1.6, width: 2.6 },
+    // A pillow block: the cap is `radius`, the feet reach `feet` to each side
+    // and the base sits `base` below the axis; the grease nipple tops it.
+    bearing: { radius: 1.6, width: 2.6, feet: 2.6, base: 1.9, top: 2.0 },
     seal: { radius: 1.25, width: 1.0 },
     pointmass: { radius: 1.35, width: 1.0 },
     // A disk whose mass or inertia is not positive has no equivalent size:
@@ -32,6 +34,37 @@ export const SYMBOL = {
 // how much wider than its gland a seal's flange is.
 export const GEAR_HUB = 0.62;
 export const SEAL_FLANGE = 1.2;
+
+// The face width a gear is drawn with when ROSS has none, in modules: gears
+// are commonly 8 to 12 modules wide.
+export const FACE_WIDTH_IN_MODULES = 10;
+
+// How a gear is drawn, from what ROSS keeps of it: the pitch radius, the tip
+// (addendum) radius, the number of teeth, the bore and the width.
+//
+// The module is the pitch diameter over the teeth, the dedendum 1.25 modules.
+// One case needs a decision: a pitch circle **inside the gear's own shaft**.
+// ROSS takes it -- the pinion of its MultiRotor example has a 77 mm pitch
+// diameter on a 150 mm shaft -- because the mesh only needs the radius. Drawn
+// as given, the teeth would be buried in the shaft and the gear would look like
+// a ring stuck to it. It is drawn as what such a pinion is made as, teeth cut
+// on the shaft: the root on the shaft's surface, the pitch circle 1.25 modules
+// out. `rossPitch` keeps ROSS's number for the tooltip, and `onShaft` says so.
+export function gearDrawing(g, shaftRadius) {
+    const teeth = g.teeth > 0 ? g.teeth : 24;
+    const rossPitch = g.pitch_radius || g.outer_radius || 2 * shaftRadius;
+    const module = (2 * rossPitch) / teeth;
+    const addendum = g.outer_radius > rossPitch ? g.outer_radius - rossPitch : module;
+    const hub = Math.max(g.bore_radius || 0, shaftRadius);
+    const onShaft = rossPitch <= hub;
+    const pitch = onShaft ? hub + 1.25 * addendum : rossPitch;
+    const root = Math.max(pitch - 1.25 * addendum, hub);
+    const width = g.width || FACE_WIDTH_IN_MODULES * module;
+    return {
+        teeth, pitch, rossPitch, root, tip: pitch + addendum, bore: g.bore_radius || shaftRadius,
+        width, widthAssumed: !g.width, onShaft, module,
+    };
+}
 
 // When a node has no shaft element at all (a link node, or an empty rotor),
 // symbols need some radius: the median of the shaft radii keeps them in scale
@@ -68,23 +101,41 @@ function partsOfLine(line, half, offset) {
     const key = (category, index) => (half ? `${half}:${category}:${index}` : `${category}:${index}`);
     const base = { half, offset };
 
+    // An end of a shaft element is chamfered where it stands proud: at a free
+    // end, or at a step down to a thinner neighbour. Between two elements of the
+    // same diameter the surface runs on, as on a real shaft.
+    const exposed = (s, z, radius) => !shafts.some(o => o !== s && o.z0 != null && o.z1 != null
+        && (Math.abs(o.z0 - z) < 1e-9 || Math.abs(o.z1 - z) < 1e-9)
+        && shaftRadiusAt([o], z, 0) >= radius * 0.999);
     for (const s of shafts) {
         if (s.z0 == null || s.z1 == null) continue;
+        const profile = { odl: s.odl, odr: s.odr ?? s.odl, idl: s.idl || 0, idr: s.idr ?? s.idl ?? 0 };
         parts.push({
             ...base, key: key('shafts', s.index), category: 'shafts', index: s.index, kind: 'shaft',
             entry: s, color: s.color, z0: s.z0, z1: s.z1,
             radius: Math.max(s.odl || 0, s.odr || 0) / 2,
-            profile: { odl: s.odl, odr: s.odr ?? s.odl, idl: s.idl || 0, idr: s.idr ?? s.idl ?? 0 },
+            profile,
+            chamfer: [exposed(s, s.z0, profile.odl / 2), exposed(s, s.z1, profile.odr / 2)],
         });
     }
 
+    // A coupling occupies its span like a shaft element, but ROSS lumps its two
+    // halves at the two nodes (m_l, m_r): it is drawn as a hub on each node and
+    // a slender spacer between them. Its bore is the shaft it clamps on each side.
+    const others = shafts.filter(s => s.z0 != null && s.z1 != null);
+    const reaching = z => others.filter(s => Math.abs(s.z0 - z) < 1e-9 || Math.abs(s.z1 - z) < 1e-9);
     for (const c of line.couplings || []) {
         if (c.z0 == null || c.z1 == null) continue;
-        const r = radiusAt((c.z0 + c.z1) / 2);
+        const sideRadius = z => {
+            const touching = reaching(z);
+            return touching.length ? shaftRadiusAt(touching, z, typical) : typical;
+        };
+        const bores = [sideRadius(c.z0), sideRadius(c.z1)];
+        const r = Math.max(...bores);
         parts.push({
             ...base, key: key('couplings', c.index), category: 'couplings', index: c.index, kind: 'coupling',
             entry: c, color: c.color, z0: c.z0, z1: c.z1,
-            radius: c.outer_diameter ? c.outer_diameter / 2 : 2 * r, bore: r,
+            radius: c.outer_diameter ? Math.max(c.outer_diameter / 2, 1.3 * r) : 2.2 * r, bore: r, bores,
         });
     }
 
@@ -103,15 +154,13 @@ function partsOfLine(line, half, offset) {
 
     for (const g of line.gears || []) {
         if (g.z == null) continue;
-        const r = radiusAt(g.z);
-        const outer = g.outer_radius || g.pitch_radius || 2 * r;
-        const width = g.width || 0.4 * outer;
+        const drawn = gearDrawing(g, radiusAt(g.z));
         // The hub stands proud of the teeth on both faces (GEAR_HUB of the width).
         parts.push({
             ...base, key: key('gears', g.index), category: 'gears', index: g.index, kind: 'gear',
-            entry: g, color: g.color, z0: g.z - GEAR_HUB * width, z1: g.z + GEAR_HUB * width,
-            radius: outer, bore: g.bore_radius || r, faceWidth: width,
-            pitch: g.pitch_radius || outer, teeth: g.teeth || 0,
+            entry: g, color: g.color, z0: g.z - GEAR_HUB * drawn.width, z1: g.z + GEAR_HUB * drawn.width,
+            radius: drawn.tip, bore: drawn.bore, faceWidth: drawn.width, shaftRadius: radiusAt(g.z),
+            gear: drawn,
         });
     }
 
@@ -167,15 +216,20 @@ function linkDepths(line) {
 
 // Where the driven line of a MultiRotor goes. Along the axis, ROSS says it:
 // `driven_offset` is the `dz_pos` that lines the two coupled gears up. Across
-// it, the two axes are the sum of the pitch radii apart, on the line of gear
+// it, the two axes are the sum of the (drawn) pitch radii apart, on the line of gear
 // centres at `orientation_angle` from x -- ROSS's own definition of that angle.
 // (`position`, above or below, is how ROSS's 2D figure stacks the two lines on
 // paper; in space the angle is what places them.)
 export function drivenPlacement(scene) {
     const [drivingNode, drivenNode] = scene.coupled_nodes || [];
+    // The drawn pitch radius (gearDrawing), which is ROSS's but for a pinion
+    // whose pitch circle is inside its own shaft: the two gears are drawn in
+    // mesh, and do not overlap.
     const radiusOf = (line, node) => {
         const gear = (line.gears || []).find(g => g.n === node);
-        return gear ? (gear.pitch_radius || gear.outer_radius || 0) : 0;
+        if (!gear) return 0;
+        const shafts = line.shafts || [];
+        return gearDrawing(gear, shaftRadiusAt(shafts, gear.z, typicalRadius(shafts))).pitch;
     };
     let distance = radiusOf(scene.driving, drivingNode) + radiusOf(scene.driven, drivenNode);
     if (!(distance > 0)) {
@@ -219,12 +273,14 @@ function boundsOf(parts) {
         const o = p.offset;
         const r = p.radius;
         // What reaches past the cylinder of a part (components/rotor3d_parts.js):
-        // a bearing's base plate, wider than its cap and down at 1.9 shaft
-        // radii, a seal's flange, and a point mass's clamp lug on top.
+        // a bearing's feet, base and grease nipple (SYMBOL.bearing), a seal's
+        // flange, and a point mass's clamp lug on top.
         const flange = p.kind === 'seal' ? SEAL_FLANGE * r : r;
-        const across = p.kind === 'bearing' ? 1.6 * r : flange;
-        const below = p.kind === 'bearing' ? Math.max(1.9 * p.shaftRadius, r) : flange;
-        const above = p.kind === 'pointmass' ? r + 0.55 * p.shaftRadius : flange;
+        const bearing = SYMBOL.bearing;
+        const across = p.kind === 'bearing' ? bearing.feet * p.shaftRadius : flange;
+        const below = p.kind === 'bearing' ? bearing.base * p.shaftRadius : flange;
+        const above = p.kind === 'pointmass' ? r + 0.55 * p.shaftRadius
+            : p.kind === 'bearing' ? bearing.top * p.shaftRadius : flange;
         min[0] = Math.min(min[0], o.x - across); max[0] = Math.max(max[0], o.x + across);
         min[1] = Math.min(min[1], o.y - below); max[1] = Math.max(max[1], o.y + above);
         min[2] = Math.min(min[2], o.z + Math.min(p.z0, p.z1)); max[2] = Math.max(max[2], o.z + Math.max(p.z0, p.z1));
