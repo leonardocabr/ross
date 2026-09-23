@@ -255,11 +255,20 @@ def test_plot_orbit_of_a_modal_answers_an_empty_chart_instead_of_refusing():
     )
     modal = rotor.run_modal(speed=0, num_modes=12)
 
-    assert len(modal.plot_orbit(0).data) == 0, (
+    # A mode that has an orbit, and not simply mode 0: at this rotor's lowest
+    # frequency the rigid-body lateral, torsional and axial modes are one
+    # degenerate eigenvalue, and which of them the solver puts in that slot
+    # differs from machine to machine (measured: Lateral on Windows, Torsional
+    # on macOS, Axial on Ubuntu). A non-lateral mode has no orbit by right, and
+    # would answer every assertion below with zero for a reason that has
+    # nothing to do with the premise being pinned here.
+    mode = next(i for i, shape in enumerate(modal.shapes) if shape.orbits is not None)
+
+    assert len(modal.plot_orbit(mode).data) == 0, (
         "ROSS now draws something for nodes=None -- check whether "
         "ModalRunner.orbit_nodes still needs to fill the field in"
     )
-    assert len(modal.plot_orbit(0, nodes=[99]).data) == 0, (
+    assert len(modal.plot_orbit(mode, nodes=[99]).data) == 0, (
         "ROSS now refuses or draws for a node that does not exist -- check "
         "whether ModalRunner.orbit_nodes still needs to refuse it"
     )
@@ -267,5 +276,5 @@ def test_plot_orbit_of_a_modal_answers_an_empty_chart_instead_of_refusing():
     # The control, and it is what makes the two above mean something: asking for
     # nodes that DO exist draws curves, so an empty answer is about the argument
     # and not about this rotor having no orbits.
-    assert len(modal.plot_orbit(0, nodes=[3]).data) == 2
-    assert len(modal.plot_orbit(0, nodes=list(rotor.nodes)).data) == 14
+    assert len(modal.plot_orbit(mode, nodes=[3]).data) == 2
+    assert len(modal.plot_orbit(mode, nodes=list(rotor.nodes)).data) == 14
