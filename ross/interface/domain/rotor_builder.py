@@ -22,7 +22,7 @@ from ross.units import Q_
 from .cache import ELEMENT_CACHE
 from .element_registry import ross_class_name
 from .legacy import migrate_element
-from .material_names import material_key, ross_material_name
+from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes, validate_node_topology
 from .units import INT_PARAMETERS, UNITS_MAPPING
 from ross.interface.services.expressions import safe_math_eval
@@ -119,6 +119,12 @@ def extract_kwargs(d, mat_dict, element_type, ignore_keys=["element_type", "n"])
 
 
 def build_rotor_from_ui(data):
+    # Before anything is built: an element naming a material this rotor does
+    # not have used to be answered with the first material of the list, in
+    # silence (domain/material_names.py). A MultiRotor is checked half by half,
+    # through this same call.
+    validate_materials(data)
+
     if data.get("isMultiRotor"):
         driving = build_rotor_from_ui(data["driving_rotor"])
         driven = build_rotor_from_ui(data["driven_rotor"])

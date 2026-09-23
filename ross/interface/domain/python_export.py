@@ -19,7 +19,7 @@ from decimal import Decimal
 
 from .element_registry import ross_class_name
 from .legacy import migrate_element
-from .material_names import material_key, ross_material_name
+from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes
 import textwrap
 
@@ -982,6 +982,17 @@ def build_script(project, analyses=(), conversion_type=""):
     cards, each with its analysis type and the parameters its dashboard used.
     """
     project = project or {}
+    # The same refusal the builder makes (domain/material_names.py). The
+    # generated script asks the dictionary with `.get(name, default_mat)`, so a
+    # name nothing carries would come out as a script that runs, draws a rotor
+    # and is made of the wrong metal -- and this one leaves the screen on a
+    # file, where nobody would see it happen.
+    if project.get("isMultiRotor"):
+        validate_materials(project.get("driving_rotor") or {})
+        validate_materials(project.get("driven_rotor") or {})
+    else:
+        validate_materials(project)
+
     py = _compatibility_warning(analyses, conversion_type)
     py += "import ross as rs\nimport numpy as np\nfrom ross.units import Q_\n"
     py += "\n# ==========================================\n# Modeling \n# ==========================================\n"

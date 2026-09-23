@@ -20,7 +20,7 @@ globalThis.fetch = async path => {
 };
 globalThis.dispatchEvent = () => true;
 
-const { materialKey, renameMaterial, rossMaterialName } =
+const { elementsUsing, materialKey, renameMaterial, rossMaterialName } =
     await import('../../frontend/core/material_names.js');
 const { state, openProjectHistory } = await import('../../frontend/core/state.js');
 const { schemaReady } = await import('../../frontend/core/schema.js');
@@ -98,6 +98,67 @@ const project = { materials: [{ name: 'A' }], shafts: [{ material: 'A' }, { mate
 check('renaming says how many elements moved', renameMaterial(project, 'A', 'C') === 1);
 check('and a name that did not change moves nothing', renameMaterial(project, 'C', 'C') === 0);
 check('and neither does a material that had no name', renameMaterial(project, undefined, 'D') === 0);
+check('counting the elements of a material walks every category',
+    elementsUsing({ materials: [{ name: 'A' }], shafts: [{ material: 'A' }, { material: 'a' }],
+                    gears: [{ material: 'A' }], disks: [{ material: 'B' }] }, 'A') === 3);
+check('and a material nothing is made of counts zero',
+    elementsUsing({ materials: [{ name: 'A' }], shafts: [{ material: 'B' }] }, 'A') === 0);
+
+// --- deleting a material that elements still use ---------------------------------------------
+//
+// The server refuses to build a rotor whose shaft names a material it does not
+// have (domain/material_names.py). That refusal arrives later and names
+// elements the person is no longer looking at, so the screen asks first -- and
+// says how many elements are made of it.
+const { closeCustomConfirm } = await import('../../frontend/components/modals.js');
+const { deleteItem, deleteSelected } = await import('../../frontend/features/modeling.js');
+const { pick } = await import('../../frontend/core/selection.js');
+const { listContext } = await import('../../frontend/core/state.js');
+
+function asking() {
+    return node('custom-confirm-overlay').style.display === 'flex';
+}
+async function answer(deleting, yes) {
+    await new Promise(done => setTimeout(done, 0));
+    closeCustomConfirm(yes);
+    await deleting;
+}
+
+rotor = openRotor([{ name: 'Used' }, { name: 'Spare' }], [{ material: 'Used' }, { material: 'used' }]);
+node('custom-confirm-message').innerText = '';
+let deleting = deleteItem(0);
+await new Promise(done => setTimeout(done, 0));
+check('deleting a material in use asks first', asking());
+check('and the question counts the elements', /2/.test(node('custom-confirm-message').innerText));
+await answer(deleting, false);
+check('answered no, the material stays', rotor.materials.map(m => m.name).join('|') === 'Used|Spare');
+
+deleting = deleteItem(0);
+await answer(deleting, true);
+check('answered yes, it goes', rotor.materials.map(m => m.name).join('|') === 'Spare');
+
+// One element, one sentence -- and the unused material goes with no question.
+rotor = openRotor([{ name: 'Used' }, { name: 'Spare' }], [{ material: 'Used' }]);
+deleting = deleteItem(0);
+await new Promise(done => setTimeout(done, 0));
+check('one element asks in the singular', /1 element\b/.test(node('custom-confirm-message').innerText));
+await answer(deleting, false);
+
+node('custom-confirm-overlay').style.display = 'none';
+rotor = openRotor([{ name: 'Used' }, { name: 'Spare' }], [{ material: 'Used' }]);
+await deleteItem(1);
+check('an unused material goes with no question',
+    !asking() && rotor.materials.map(m => m.name).join('|') === 'Used');
+
+// The same for the bulk delete, which is a different path.
+rotor = openRotor([{ name: 'Used' }, { name: 'Spare' }], [{ material: 'Used' }, { material: 'Used' }]);
+pick(listContext(), 0);
+pick(listContext(), 1);
+deleting = deleteSelected();
+await new Promise(done => setTimeout(done, 0));
+check('deleting several materials asks once, for all of them', asking());
+await answer(deleting, false);
+check('and "no" keeps every one of them', rotor.materials.length === 2);
 
 // --- the names in the shaft form are escaped ------------------------------------------------
 //

@@ -20,6 +20,23 @@ export function materialKey(name) {
     return rossMaterialName(name).toLowerCase();
 }
 
+// How many elements name this material. What it is for: deleting a material
+// that shafts still use leaves those shafts naming one that no longer exists,
+// and the server refuses to build the rotor (domain/material_names.py). The
+// screen says how many before the material goes, not after.
+export function elementsUsing(project, name) {
+    if (name === undefined || name === null) return 0;
+    const key = materialKey(name);
+    let count = 0;
+    Object.keys(project).forEach(category => {
+        if (category === 'materials' || !Array.isArray(project[category])) return;
+        project[category].forEach(element => {
+            if (element && element.material !== undefined && materialKey(element.material) === key) count++;
+        });
+    });
+    return count;
+}
+
 // Points the elements that named a material at its new name, and says how
 // many moved. Shafts and gears name their material by text; before this, an
 // edited name left them naming one that no longer existed, and the server

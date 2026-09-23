@@ -3,14 +3,14 @@
 import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } from '../components/form.js';
 import { getEffectiveNodes, positionFormBox, renderList } from '../components/list.js';
 import { reapplyHelp } from '../components/help.js';
-import { openCustomAlert } from '../components/modals.js';
+import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
 import { busySpinner, escapeHtml } from '../core/dom.js';
 import { listContext, projectChanged, state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
 import { pick, pickAll, picked } from '../core/selection.js';
 import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
 import { afterInsertion, afterRemoval } from '../core/editing.js';
-import { renameMaterial, rossMaterialName } from '../core/material_names.js';
+import { elementsUsing, renameMaterial, rossMaterialName } from '../core/material_names.js';
 import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
@@ -467,9 +467,21 @@ export function copyItem(index) {
 
 // Delete function for the element
 
+// The question, when there is one, is the only reason this is not the plain
+// call it used to be: an `await` suspends even when the answer is already
+// known, and the batteries -- like the screen -- expect a delete with nothing
+// to ask about to have happened by the time the call returns. So the promise
+// is only in the path that has a question.
 export function deleteItem(index) {
     const activeData = getActiveData();
-    activeData[state.currentTab].splice(index, 1);    
+    const asking = askBeforeMaterialGoes(activeData, [index]);
+    if (asking) return asking.then(yes => { if (yes) removeItem(activeData, index); });
+    removeItem(activeData, index);
+    return undefined;
+}
+
+function removeItem(activeData, index) {
+    activeData[state.currentTab].splice(index, 1);
     const editing = afterRemoval(state.editingIndex, index);
     if (editing === null) closeForm();
     else state.editingIndex = editing;
@@ -563,11 +575,30 @@ export function toggleSelectAll() {
     renderList();
 }
 
+// Deleting a material that elements still use: the rotor stops building, and
+// the message comes from the server, later, naming elements the person is no
+// longer looking at. So the question is asked here, with the count, before it
+// happens. `null` when there is nothing to ask.
+function askBeforeMaterialGoes(project, positions) {
+    if (state.currentTab !== 'materials') return null;
+    const using = positions.reduce(
+        (total, index) => total + elementsUsing(project, (project.materials[index] || {}).name), 0);
+    if (!using) return null;
+    const question = using === 1 ? t('deleteMaterialInUseOne') : t('deleteMaterialInUse');
+    return openCustomConfirm(question.replace('%1', using));
+}
+
 export function deleteSelected() {
     const chosen = picked(listContext());
-    if (!chosen.length) return;
+    if (!chosen.length) return undefined;
     const activeData = getActiveData();
+    const asking = askBeforeMaterialGoes(activeData, chosen);
+    if (asking) return asking.then(yes => { if (yes) removeSelected(activeData, chosen); });
+    removeSelected(activeData, chosen);
+    return undefined;
+}
 
+function removeSelected(activeData, chosen) {
     // Backwards, because deleting position 2 makes every later position mean
     // something else. Going forwards would delete the wrong elements and give
     // no sign of it -- the list would simply be shorter.
