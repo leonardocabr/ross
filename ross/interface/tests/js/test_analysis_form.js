@@ -84,7 +84,9 @@ const withoutDepsSource = html => html.replace(/ data-deps-de="[^"]*"/g, '');
 // (`matched_whirl`, a fixed `speed`, a fixed `frequency`) reached the forms.
 // `unbalance`, `time_response`, `misalignment`, `rubbing` and `crack` lost the
 // `probe_units` selector when ROSS 3.0 removed the keyword from the response
-// plots along with the probe tuples it applied to.
+// plots along with the probe tuples it applied to. `freq_response` and
+// `unbalance` then gained `speed_steps`: their sweep had a hard-coded 50
+// points that the form did not offer.
 const CHANGED_ON_PURPOSE = ['clearance', 'ucs', 'campbell', 'freq_response', 'modes',
     'unbalance', 'time_response', 'misalignment', 'rubbing', 'crack'];
 
@@ -103,10 +105,10 @@ const REBUILT = {
     campbell: html => html.includes('input-matched_whirl-'),
     // No `unit-...` selector here: the fake DOM serves no unit alternatives,
     // so the selector beside a field is a real-schema thing, not a panel thing.
-    freq_response: html => html.includes('input-speed-'),
+    freq_response: html => html.includes('input-speed-') && html.includes('input-speed_steps-'),
     modes: html =>
         html.includes('input-frequency-') && html.includes('input-matched_whirl-'),
-    unbalance: html => !html.includes('probe_units'),
+    unbalance: html => !html.includes('probe_units') && html.includes('input-speed_steps-'),
     time_response: html => !html.includes('probe_units'),
     misalignment: html => !html.includes('probe_units'),
     rubbing: html => !html.includes('probe_units'),

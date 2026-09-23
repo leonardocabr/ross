@@ -414,6 +414,82 @@ def test_mode_shape_and_default_now_share_a_cache_entry():
     assert default_spec == mode_shape
 
 
+# --- how many points a speed sweep has ---------------------------------------
+#
+# `freq_response` and `unbalance` swept `np.linspace(min, max, 50)` with the 50
+# written into the runner: the form did not offer the number and no value the
+# user typed could change it, while `campbell` and `clearance` had asked for it
+# since the port. A user reported it.
+
+SWEEPS = ["campbell", "clearance", "freq_response", "unbalance"]
+
+
+@pytest.mark.parametrize("name", SWEEPS)
+def test_a_sweep_takes_the_number_of_steps_the_form_asks_for(name):
+    spec = REGISTRY[name].spec(dict(PARAMS[name], speed_steps="137"), ROTOR_REQUEST)
+    assert spec["steps"] == 137
+
+
+@pytest.mark.parametrize("name", SWEEPS)
+@pytest.mark.parametrize("typed", ["1", "0", "-3"])
+def test_a_sweep_of_fewer_than_two_points_is_refused_by_name(name, typed):
+    """`np.linspace(min, max, 1)` gives back the minimum and drops the maximum
+    without a word; 0 gives an empty plot. ROSS raises on neither (measured),
+    so the refusal is ours -- and it names the field."""
+    with pytest.raises(ValueError) as error:
+        REGISTRY[name].spec(dict(PARAMS[name], speed_steps=typed), ROTOR_REQUEST)
+    assert "speed_steps" in str(error.value)
+
+
+@pytest.mark.parametrize("name", SWEEPS)
+def test_every_analysis_that_sweeps_a_speed_offers_the_number_of_steps(name):
+    """The other half of the defect: the runner reading a field the form never
+    shows leaves the user with the default and no way out."""
+    assert any(field["id"] == "speed_steps" for field in ANALYSES[name]), (
+        "%s sweeps a speed range and its form does not offer speed_steps" % name
+    )
+
+
+def test_no_runner_writes_the_length_of_a_sweep_into_its_own_source():
+    """The ratchet for the defect itself, read off the source.
+
+    A literal third argument to the `linspace` of a speed range is a resolution
+    the screen cannot reach. Time grids are not swept here: their field
+    (`t_steps`, `steps`) is already on the form of every analysis that has one."""
+    folder = os.path.join(ROOT, "services", "analysis")
+    written = []
+    for file_name in sorted(os.listdir(folder)):
+        if not file_name.endswith(".py"):
+            continue
+        with io.open(os.path.join(folder, file_name), encoding="utf-8") as handle:
+            for number, line in enumerate(handle, 1):
+                if re.search(
+                    r"linspace\(\s*spec\[[^]]*speed[^]]*\][^)]*,\s*\d+\s*\)", line
+                ):
+                    written.append("%s:%d" % (file_name, number))
+    assert written == [], "a sweep length written into the code: %s" % written
+
+
+@pytest.mark.parametrize("name", ["freq_response", "unbalance"])
+def test_the_sweep_that_reaches_ross_has_that_many_points(name):
+    """The spec carrying the number is half of it; `compute` has to use it."""
+    seen = {}
+
+    class Rotor:
+        def run_freq_response(self, speeds, **kwargs):
+            seen["points"] = len(speeds)
+            return object()
+
+        def run_unbalance_response(self, speed_range=None, **kwargs):
+            seen["points"] = len(speed_range)
+            return object()
+
+    runner = REGISTRY[name]
+    spec = runner.spec(dict(PARAMS[name], speed_steps="7"), ROTOR_REQUEST)
+    runner.compute(Rotor(), spec)
+    assert seen["points"] == 7
+
+
 # --- reading the parameters --------------------------------------------------
 
 
@@ -426,6 +502,8 @@ def test_mode_shape_and_default_now_share_a_cache_entry():
         ("ucs", "num_modes", ("num_modes", 4)),
         ("harmonic_balance", "n_harmonics", ("n_harmonics", 1)),
         ("clearance", "speed_steps", ("steps", 101)),
+        ("freq_response", "speed_steps", ("steps", 50)),
+        ("unbalance", "speed_steps", ("steps", 50)),
         ("clearance", "num_modes", ("num_modes", 12)),
         ("clearance", "mode", ("mode", 0)),
     ],

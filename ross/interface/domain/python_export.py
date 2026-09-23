@@ -658,9 +658,10 @@ def _analysis_block(position, analysis):
             )
 
     elif kind == "unbalance":
-        py += "speed_rads = np.linspace(%s, %s, 50)\n" % (
+        py += "speed_rads = np.linspace(%s, %s, %s)\n" % (
             _py_val(p, "speed_min", "rad/s"),
             _py_val(p, "speed_max", "rad/s"),
+            _js_str(_or(p.get("speed_steps"), 50)),
         )
         nodes, mags, phases = _unbalance_columns(p)
         modes = ", modes=%s" % _js_str(p["modes"]) if _js_truthy(p.get("modes")) else ""

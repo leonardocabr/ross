@@ -291,6 +291,14 @@ ANALYSES = {
             default_unit="rad/s",
         ),
         A(
+            "speed_steps",
+            "Steps",
+            "Passos",
+            "number",
+            50,
+            "compute",
+        ),
+        A(
             "plot_type",
             "Plot Type",
             "Tipo de Gráfico",
@@ -586,6 +594,14 @@ ANALYSES = {
             400,
             "compute",
             default_unit="rad/s",
+        ),
+        A(
+            "speed_steps",
+            "Steps",
+            "Passos",
+            "number",
+            50,
+            "compute",
         ),
         A(
             "plot_type",

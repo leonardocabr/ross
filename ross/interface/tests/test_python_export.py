@@ -159,6 +159,22 @@ def test_material_name_with_a_quote_no_longer_breaks_the_script():
     assert "o'brien_\\_steel" in literals
 
 
+@pytest.mark.parametrize("kind", ["freq_response", "unbalance"])
+def test_the_exported_sweep_has_the_steps_the_form_asked_for(kind):
+    """The screen and the script have to sweep the same speeds.
+
+    `unbalance` wrote `np.linspace(min, max, 50)` with the 50 in the generator,
+    so a script exported from a form asking for 400 points drew a different
+    curve from the one on screen. Absent (every analysis saved before the field
+    existed), it is still 50."""
+    project = {"shafts": [{"L": "100", "idl": "0", "odl": "50"}]}
+    analysis = {"type": kind, "params": {"speed_min": "0", "speed_max": "1000"}}
+    with_steps = {"type": kind, "params": dict(analysis["params"], speed_steps="137")}
+
+    assert "np.linspace(0, 1000, 137)" in build_script(project, [with_steps])
+    assert "np.linspace(0, 1000, 50)" in build_script(project, [analysis])
+
+
 def test_an_empty_project_still_produces_a_runnable_script():
     script = build_script({})
     ast.parse(script)

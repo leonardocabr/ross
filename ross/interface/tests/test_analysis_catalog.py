@@ -512,7 +512,9 @@ CHANGED_ON_PURPOSE = {
     ),
     "freq_response": (
         "gained `speed`, the fixed rotor speed: with it, Start/End Speed sweeps "
-        "the excitation frequency instead of the synchronous point."
+        "the excitation frequency instead of the synchronous point. And "
+        "`speed_steps`: the sweep had a hard-coded 50 points, which the form "
+        "did not offer and the user could not change."
     ),
     "modes": (
         "gained `frequency` (a fixed whirl frequency for the coefficients) and "
@@ -528,6 +530,12 @@ CHANGED_ON_PURPOSE = {
         "lost `probe_units`: ROSS 3.0 removed the keyword from the response "
         "plots together with the probe tuples it converted; `Probe` objects "
         "carry their own angle unit.",
+    ),
+    "unbalance": (
+        "lost `probe_units` with the other response plots (ROSS 3.0 removed "
+        "the keyword together with the probe tuples it converted) and gained "
+        "`speed_steps`: the sweep had a hard-coded 50 points, which the form "
+        "did not offer and the user could not change."
     ),
 }
 

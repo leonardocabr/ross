@@ -236,6 +236,13 @@
     "default_unit": "rad/s"
    },
    {
+    "id": "speed_steps",
+    "label": "Steps",
+    "type": "number",
+    "val": 50,
+    "role": "compute"
+   },
+   {
     "id": "plot_type",
     "label": "Plot Type",
     "type": "select",
@@ -599,6 +606,13 @@
     "val": 400,
     "role": "compute",
     "default_unit": "rad/s"
+   },
+   {
+    "id": "speed_steps",
+    "label": "Steps",
+    "type": "number",
+    "val": 50,
+    "role": "compute"
    },
    {
     "id": "plot_type",
