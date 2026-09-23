@@ -364,6 +364,76 @@ def test_a_part_on_a_link_node_sits_under_the_node_that_links_to_it():
     assert scene["bearings"][0]["n_link"] == 4
 
 
+# --- a gear described by its dimensions (GearElement.from_geometry) ---------------
+
+
+def geometry_gear(**extra):
+    """The example of ROSS's own docstring: 70 mm face, 280 mm pitch, 50 mm bore."""
+    return dict(
+        {
+            "element_type": "Geometry",
+            "n": "1",
+            "width": "70",
+            "o_d": "280",
+            "i_d": "50",
+            "n_teeth": "50",
+            "material": "Steel",
+        },
+        **extra,
+    )
+
+
+def test_a_gear_from_its_dimensions_is_the_one_rosss_from_geometry_builds():
+    """GearElement.from_geometry does not convert units (element_registry.
+    takes_units): given quantities, it computes a mass in m^3 and fails. The
+    builder hands it plain SI numbers -- the angle included, typed in degrees."""
+    row = geometry_gear(pr_angle="22.5", pr_angle_unit="deg")
+    assembled, _ = scene_of(project(gears=[row]))
+    built = assembled.placed["gears"][0]
+    material = ross.Material(name="Steel", rho=7810, E=211e9, G_s=81.2e9)
+    real = ross.GearElement.from_geometry(
+        1, material, 0.07, 0.05, 0.28, 50, pr_angle=math.radians(22.5)
+    )
+    assert type(built) is ross.GearElement
+    for name in ("m", "Ip", "Id", "pr_angle", "base_radius", "pitch_diameter"):
+        assert float(getattr(built, name)) == pytest.approx(
+            float(getattr(real, name)), rel=1e-12
+        ), name
+
+
+def test_an_angle_saved_without_its_unit_is_read_in_the_forms_degrees():
+    """A row from a file may carry `pr_angle` without `pr_angle_unit`. The
+    form shows degrees, the exported script writes degrees, and the rotor has
+    to read degrees too -- not radians, which is what a plain number means to
+    ROSS."""
+    assembled, _ = scene_of(project(gears=[geometry_gear(pr_angle="22.5")]))
+    built = assembled.placed["gears"][0]
+    assert float(built.pr_angle) == pytest.approx(math.radians(22.5))
+
+
+def test_a_gear_from_its_dimensions_is_drawn_with_them():
+    """ROSS keeps a gear's pitch diameter and bore, and works its width back
+    out of the mass: nothing is equivalent in this one."""
+    _, scene = scene_of(project(gears=[geometry_gear()]))
+    gear = scene["gears"][0]
+    assert gear["pitch_radius"] == pytest.approx(0.14)
+    assert gear["bore_radius"] == pytest.approx(0.025)
+    assert gear["width"] == pytest.approx(0.07)
+    assert gear["width_is_equivalent"] is False
+    assert gear["teeth"] == 50
+
+
+@pytest.mark.parametrize("row", [{"i_d": "300"}, {"width": "0"}, {"o_d": ""}])
+def test_a_gear_geometry_that_makes_no_gear_is_refused(row):
+    with pytest.raises(ValueError, match="gear"):
+        assemble_rotor(project(gears=[geometry_gear(**row)]))
+
+
+def test_a_bore_larger_than_the_pitch_diameter_is_named_as_such():
+    with pytest.raises(ValueError, match="pitch diameter larger than the bore"):
+        assemble_rotor(project(gears=[geometry_gear(i_d="300")]))
+
+
 # --- MultiRotor ------------------------------------------------------------------------
 
 
@@ -405,6 +475,24 @@ def test_a_multirotor_is_two_lines_each_in_its_own_coordinates():
     # The driven line's parts keep their own numbering: ROSS renumbers the
     # driven rotor inside the MultiRotor, and the rows on screen do not.
     assert scene["driven"]["gears"][0]["n"] == 1
+
+
+def test_a_multirotor_meshes_two_gears_made_from_their_dimensions():
+    """The mesh needs each gear's base radius, which ROSS works out from the
+    pitch diameter from_geometry was given."""
+    driving = project(gears=[geometry_gear(n="2")])
+    driven = project(gears=[geometry_gear(n="1", o_d="140", n_teeth="25")])
+    built = {
+        "isMultiRotor": True,
+        "driving_rotor": driving,
+        "driven_rotor": driven,
+        "multi_params": {"coupled_nodes": "2, 1", "gear_mesh_stiffness": "1e8"},
+    }
+    assembled, scene = scene_of(built)
+    assert scene["kind"] == "multirotor"
+    assert scene["driving"]["gears"][0]["pitch_radius"] == pytest.approx(0.14)
+    assert scene["driven"]["gears"][0]["pitch_radius"] == pytest.approx(0.07)
+    assert scene["driven_offset"] == pytest.approx(float(assembled.rotor.dz_pos))
 
 
 def test_each_half_of_a_multirotor_keeps_the_dimensions_of_its_own_disks():

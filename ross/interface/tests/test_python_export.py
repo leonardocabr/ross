@@ -232,6 +232,68 @@ def test_a_disk_from_its_dimensions_is_exported_as_the_call_that_built_it():
             ), name
 
 
+def test_a_gear_from_its_dimensions_is_exported_with_numbers_in_si():
+    """GearElement.from_geometry does not convert units, so the script hands
+    it the number in SI while still showing what was typed -- and the gears
+    the script builds are the ones the screen built."""
+    from ross.interface.domain.rotor_builder import assemble_rotor
+
+    project = {
+        "materials": [{"name": "Steel", "rho": "7810", "E": "211e9", "G_s": "81.2e9"}],
+        "shafts": [
+            {"L": "250", "idl": "0", "odl": "50", "material": "Steel"} for _ in range(3)
+        ],
+        "gears": [
+            {
+                "element_type": "Geometry",
+                "n": "1",
+                "width": "70",
+                "o_d": "280",
+                "i_d": "50",
+                "n_teeth": "50",
+                "pr_angle": "22.5",
+                "pr_angle_unit": "deg",
+                "material": "Steel",
+            },
+            {
+                "element_type": "BASIC",
+                "n": "2",
+                "m": "5",
+                "Ip": "0.04",
+                "Id": "0.02",
+                "n_teeth": "30",
+                "pitch_diameter": "200",
+            },
+        ],
+        "bearings": [
+            {"element_type": "BASIC", "n": "0", "kxx": "1e6", "cxx": "0"},
+            {"element_type": "BASIC", "n": "3", "kxx": "1e6", "cxx": "0"},
+        ],
+    }
+    script = build_script(project)
+    assert (
+        "(rs.GearElement.from_geometry, dict(n=1, "
+        "width=Q_(70, 'mm').m_as('meter'), o_d=Q_(280, 'mm').m_as('meter'), "
+        "i_d=Q_(50, 'mm').m_as('meter'), n_teeth=50, "
+        "pr_angle=Q_(22.5, 'deg').m_as('radian'), "
+        "material=materials_dict.get('steel', default_mat))),"
+    ) in script
+    # The class that does convert keeps its quantities as they were.
+    assert "pitch_diameter=Q_(200, 'mm'), " in script
+
+    modelling = script.split('print("Rotor Successfully Modeled!")')[0]
+    namespace = {}
+    exec(modelling, namespace)
+    exported = namespace["gears"]
+    built = assemble_rotor(project).placed["gears"]
+    for mine, theirs in zip(exported, built, strict=True):
+        assert type(mine) is type(theirs)
+        for name in ("n", "m", "Ip", "Id", "pr_angle", "pitch_diameter"):
+            assert float(getattr(mine, name)) == pytest.approx(
+                float(getattr(theirs, name)), rel=1e-12
+            ), name
+
+
 def test_analyses_are_optional_and_never_half_written():
     """A card with no parameters stays out: it became a truncated block in the script."""
     script = build_script({}, [{"type": "campbell"}, {"params": {"speed": "1"}}])

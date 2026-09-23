@@ -17,7 +17,9 @@ in DEVIATIONS.
 import re
 from decimal import Decimal
 
-from .element_registry import ross_class_name, ross_constructor
+from ross.units import Q_
+
+from .element_registry import ross_class_name, ross_constructor, takes_units
 from .legacy import migrate_element
 from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes
@@ -138,11 +140,16 @@ def _py_string(value):
     return "'" + _js_str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _format_kwargs(obj, exclude_keys=(), class_name=""):
+def _format_kwargs(obj, exclude_keys=(), class_name="", in_si=False):
     """Build `key=value, ...` from what the form returned.
 
     The unit map comes from the schema, inherited units already resolved: a
     BallBearingElement's cxx is declared on BearingElement.
+
+    `in_si` is for a call ROSS does not convert units for
+    (`element_registry.takes_units`): the quantity is still written in the
+    unit it was typed in, and handed over as its number in SI --
+    `Q_(70, 'mm').m_as('meter')`.
     """
     items = []
     unit_map = unit_map_by_class().get(class_name or "", {})
@@ -171,11 +178,20 @@ def _format_kwargs(obj, exclude_keys=(), class_name=""):
             final = _js_str(val)
             if is_text and rendered.startswith("[") and _js_truthy(unit):
                 final = "np.array(%s)" % _js_str(val)
-            if _js_truthy(unit):
+            if _js_truthy(unit) and in_si:
+                items.append(
+                    "%s=Q_(%s, '%s').m_as('%s')" % (key, final, unit, _base_unit(unit))
+                )
+            elif _js_truthy(unit):
                 items.append("%s=Q_(%s, '%s')" % (key, final, unit))
             else:
                 items.append("%s=%s" % (key, final))
     return ", ".join(items)
+
+
+def _base_unit(unit):
+    """The SI unit a quantity typed in `unit` is handed over in: 'meter' for mm."""
+    return str(Q_(1, unit).to_base_units().units)
 
 
 def _with_node_arg(element, args, effective_node):
@@ -251,7 +267,10 @@ def _build_rotor_block(r_data, suffix):
         make = ross_constructor("disks", disk.get("element_type"))
         from_geometry = "." in make
         args = _format_kwargs(
-            disk, ["element_type"] + (["material"] if from_geometry else []), make
+            disk,
+            ["element_type"] + (["material"] if from_geometry else []),
+            make,
+            in_si=not takes_units(make),
         )
         args = _with_node_arg(disk, args, nodes[position])
         if from_geometry:
@@ -265,8 +284,10 @@ def _build_rotor_block(r_data, suffix):
     py += "gears_data%s = [\n" % suffix
     nodes = effective_nodes(r_data.get("gears") or [])
     for position, gear in enumerate(r_data.get("gears") or []):
-        klass = ross_class_name("gears", gear.get("element_type"))
-        args = _format_kwargs(gear, ["element_type", "material"], klass)
+        klass = ross_constructor("gears", gear.get("element_type"))
+        args = _format_kwargs(
+            gear, ["element_type", "material"], klass, in_si=not takes_units(klass)
+        )
         args = _with_node_arg(gear, args, nodes[position])
         material = _material_expression(gear, suffix)
         full_args = (

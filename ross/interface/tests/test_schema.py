@@ -192,6 +192,23 @@ def test_the_geometry_disk_form_is_from_geometry_in_millimetres():
     assert "m" not in fields and "Ip" not in fields
 
 
+def test_the_geometry_gear_form_names_rosss_diameters_for_what_they_are():
+    """GearElement.from_geometry calls its o_d the pitch diameter and its i_d
+    the bore; the form says so, and the angles keep their degrees."""
+    definition = build_schema("en")["categories"]["gears"]["Geometry"]
+    assert definition["ross_class"] == "GearElement.from_geometry"
+    assert definition["exists"] and definition["not_in_form"] == []
+    fields = {f["name"]: f for f in definition["fields"]}
+    assert fields["o_d"]["label"] == "Pitch Diameter"
+    assert fields["i_d"]["label"] == "Bore Diameter"
+    for name in ("width", "o_d", "i_d"):
+        assert (fields[name]["unit"], fields[name]["group"]) == ("mm", "main")
+    for name in ("pr_angle", "helix_angle"):
+        assert (fields[name]["unit"], fields[name]["group"]) == ("deg", "advanced")
+    assert fields["n_teeth"]["known_to_ross"]
+    assert "m" not in fields and "pitch_diameter" not in fields
+
+
 def test_material_fields_use_the_dynamic_control():
     for _, _, _, field in _every_field():
         if field["name"] == "material":

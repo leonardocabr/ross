@@ -144,6 +144,21 @@ FIELDS = {
             F("tag", "Tag", "Identificador", group="advanced"),
             F("color", "Hex Color", "Cor (hex)", group="advanced"),
         ],
+        # GearElement.from_geometry: face width, pitch diameter and bore, and
+        # the material; ROSS works out m, Ip and Id as for a disk.
+        "Geometry": [
+            F("n", "Node #", "Nó", optional=True),
+            F("width", "Face Width", "Largura da Face"),
+            F("o_d", "Pitch Diameter", "Diâmetro Primitivo"),
+            F("i_d", "Bore Diameter", "Diâmetro do Furo"),
+            F("n_teeth", "Number of Teeth", "Número de Dentes"),
+            F("material", "Material Name", "Material", control="material_ref"),
+            F("pr_angle", "Pressure Angle", "Ângulo de Pressão", group="advanced"),
+            F("helix_angle", "Helix Angle", "Ângulo de Hélice", group="advanced"),
+            F("scale_factor", "Scale Factor", "Fator de Escala", group="advanced"),
+            F("tag", "Tag", "Identificador", group="advanced"),
+            F("color", "Hex Color", "Cor (hex)", group="advanced"),
+        ],
         "TVMS": [
             F("n", "Node #", "Nó", optional=True),
             F("material", "Material Name", "Material", control="material_ref"),

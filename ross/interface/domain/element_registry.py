@@ -8,7 +8,8 @@ like 'BASIC_bearings'). Adding one type meant editing all four.
 Each entry names what ROSS is called with to build the element: a class
 (`"GearElement"`) or one of its alternative constructors
 (`"DiskElement.from_geometry"`, a classmethod that takes the disk's dimensions
-and works out the mass and inertias). The element either way is an instance
+and works out the mass and inertias; `"GearElement.from_geometry"`, the same for
+a gear). The element either way is an instance
 of the class; only the form and the call differ.
 """
 
@@ -24,6 +25,7 @@ ELEMENTS = {
     },
     "gears": {
         "BASIC": "GearElement",
+        "Geometry": "GearElement.from_geometry",
         "TVMS": "GearElementTVMS",
     },
     "couplings": {"BASIC": "CouplingElement"},
@@ -96,6 +98,22 @@ def resolve_constructor(constructor):
         if target is None:
             return None
     return target
+
+
+def takes_units(constructor):
+    """Whether ROSS converts pint quantities for this call.
+
+    ROSS's `@check_units` turns a `Q_(70, 'mm')` into 0.07 before the call
+    runs. Most constructors have it; `GearElement.from_geometry` does not -- it
+    computes rho * w * d^2 with whatever it is given, and a quantity comes out
+    in m^3 where the gear expects kg. A call without it has to get plain
+    numbers in SI. The decorator is recognised by what `functools.wraps` leaves
+    behind, `__wrapped__`.
+    """
+    target = resolve_constructor(constructor)
+    if isinstance(target, type):
+        target = target.__init__
+    return hasattr(target, "__wrapped__")
 
 
 def ui_type_for_ross_class(ross_class):
