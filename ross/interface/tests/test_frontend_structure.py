@@ -481,6 +481,8 @@ def test_only_browser_apis_are_read_off_the_window():
         "Sortable",
         "matchMedia",
         "requestAnimationFrame",
+        # the screen's pixel density, read once by the 3D view's renderer
+        "devicePixelRatio",
     }
     found_items = []
     for module, number, line in code_lines():

@@ -40,6 +40,18 @@ def build_rotor():
     payload = ROTOR_REQUEST.read(request.get_json(silent=True))
     assembled = assemble_rotor(payload["project"])
     rotor = assembled.rotor
+    answer = {
+        "status": "success",
+        "mass": float(rotor.m),
+        "ip": float(rotor.Ip),
+        # What the 3D view draws (domain/rotor_scene.py): the same rotor,
+        # from the same build, so the two views cannot disagree.
+        "scene": describe_scene(assembled),
+    }
+    # With the 3D view on screen, the 2D figure is not asked for.
+    if not payload["figure"]:
+        return jsonify(answer)
+
     fig = rotor.plot_rotor()
 
     fig_json_str = fig.to_json()
@@ -85,17 +97,8 @@ def build_rotor():
     # case that does not exist and, if it ever did, would show zero mass on
     # screen as though it were measured. That is BE-05's shape: a wrong number
     # in place of an error.
-    return jsonify(
-        {
-            "status": "success",
-            "plot_json": json.dumps(fig_dict),
-            "mass": float(rotor.m),
-            "ip": float(rotor.Ip),
-            # What the 3D view draws (domain/rotor_scene.py): the same rotor,
-            # from the same build, so the two views cannot disagree.
-            "scene": describe_scene(assembled),
-        }
-    )
+    answer["plot_json"] = json.dumps(fig_dict)
+    return jsonify(answer)
 
 
 @rotor_api.route("/load_ross_file", methods=["POST"])

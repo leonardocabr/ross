@@ -534,6 +534,74 @@ def test_the_scene_is_plain_json():
     json.dumps(scene, allow_nan=False)
 
 
+def test_without_the_figure_the_route_answers_the_scene_alone():
+    """With the 3D view on screen the figure is not asked for: `plot_rotor` is
+    the slow half of the route. The scene, the mass and Ip still come."""
+    from ross.interface.api.security import SESSION_TOKEN
+    from ross.interface.app import app
+
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        response = client.post(
+            "/build_rotor",
+            json={"project": project(), "figure": False},
+            headers={"X-ROSS-Token": SESSION_TOKEN},
+        )
+    assert response.status_code == 200
+    body = response.get_json()
+    assert "plot_json" not in body
+    assert body["scene"]["kind"] == "rotor" and len(body["scene"]["shafts"]) == 3
+    assert body["mass"] > 0 and body["ip"] > 0
+
+
+def test_every_part_carries_the_colour_ross_paints_it_with():
+    """The 2D figure paints each element in its `color`; the 3D view reads the
+    same, so a colour changed in the form changes both."""
+    assembled, scene = scene_of(
+        project(
+            disks=[{"n": "1", "m": "10", "Ip": "0.1", "Id": "0.05", "color": "Teal"}]
+        )
+    )
+    assert scene["disks"][0]["color"] == "Teal"
+    assert scene["shafts"][0]["color"] == assembled.placed["shafts"][0].color
+    assert scene["bearings"][0]["color"] == assembled.placed["bearings"][0].color
+
+
+# --- the scenes the 3D view's own tests read ---------------------------------------
+
+GOLDEN_SCENES = os.path.join(ROOT, "tests", "golden", "rotor_scenes.json")
+
+
+def _same(stored, built, where="scene"):
+    """Equal as JSON, with floats compared to 1e-9 relative: the last digit of
+    a float may differ between the systems CI runs on."""
+    if isinstance(stored, dict):
+        assert isinstance(built, dict) and set(stored) == set(built), where
+        for key in stored:
+            _same(stored[key], built[key], "%s.%s" % (where, key))
+    elif isinstance(stored, list):
+        assert isinstance(built, list) and len(stored) == len(built), where
+        for position, (a, b) in enumerate(zip(stored, built, strict=True)):
+            _same(a, b, "%s[%d]" % (where, position))
+    elif isinstance(stored, float) or isinstance(built, float):
+        assert built == pytest.approx(stored, rel=1e-9, abs=1e-12), where
+    else:
+        assert stored == built, where
+
+
+@pytest.mark.parametrize(
+    "name", sorted(json.load(open(GOLDEN_SCENES, encoding="utf-8")))
+)
+def test_the_scenes_the_3d_tests_read_are_the_ones_ross_builds(name):
+    """tests/js/test_rotor3d.js checks the 3D view against these scenes, in node,
+    without ROSS. This keeps them ROSS's: each project is built again and has to
+    give the stored scene back. A change to the scene lands here first -- and
+    then the file is regenerated on purpose, not left to drift."""
+    with open(GOLDEN_SCENES, encoding="utf-8") as handle:
+        case = json.load(handle)[name]
+    _same(case["scene"], describe_scene(assemble_rotor(case["project"])))
+
+
 def test_the_route_answers_the_scene_with_the_figure():
     from ross.interface.api.security import SESSION_TOKEN
     from ross.interface.app import app

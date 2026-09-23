@@ -25,7 +25,11 @@ Most elements have no shape in ROSS. A disk is a mass and two inertias; a
 bearing is stiffness and damping at a node. Decided with Leonardo: a disk is
 drawn as the **equivalent steel disk** -- the one with the same mass and polar
 inertia, bored to the shaft it sits on -- so its size on screen means something
-physical, and it is flagged as equivalent. A disk the project describes by its
+physical, and it is flagged as equivalent.
+
+Every part carries the colour ROSS gives the element (`color`: a CSS colour,
+'#525252' or 'Firebrick'), the one its 2D figure paints it with and the one
+the form's colour field changes. A disk the project describes by its
 dimensions (the "Geometry" form, `DiskElement.from_geometry`) is drawn with
 those, and flagged as exact. Bearings, seals and point masses are drawn in
 proportion to the shaft, as ROSS's 2D figure does, and carry no dimensions here.
@@ -48,6 +52,12 @@ def _f(value):
         return None
     number = float(value)
     return number if math.isfinite(number) else None
+
+
+def _color(element):
+    """The colour ROSS paints the element with, as text, or None."""
+    color = getattr(element, "color", None)
+    return str(color) if color else None
 
 
 def _node_z(rotor, placed):
@@ -171,6 +181,7 @@ def _describe(rotor, placed, geometry=None):
                 "idr": _f(s.idr),
                 "odr": _f(s.odr),
                 "tag": s.tag,
+                "color": _color(s),
             }
         )
 
@@ -184,6 +195,7 @@ def _describe(rotor, placed, geometry=None):
                 "z1": z.get(n + 1),
                 "outer_diameter": _f(getattr(c, "o_d", None)),
                 "tag": c.tag,
+                "color": _color(c),
             }
         )
 
@@ -198,6 +210,7 @@ def _describe(rotor, placed, geometry=None):
                 "Ip": _f(d.Ip),
                 "Id": _f(d.Id),
                 "tag": d.tag,
+                "color": _color(d),
                 "shape": (
                     exact_disk(dimensions)
                     if dimensions
@@ -223,6 +236,7 @@ def _describe(rotor, placed, geometry=None):
                 "m": _f(g.m),
                 "Ip": _f(g.Ip),
                 "tag": g.tag,
+                "color": _color(g),
                 "teeth": int(g.n_teeth) if getattr(g, "n_teeth", None) else None,
                 "pitch_radius": pitch / 2 if pitch else None,
                 "outer_radius": outer,
@@ -242,12 +256,19 @@ def _describe(rotor, placed, geometry=None):
                     "n_link": int(link) if link is not None else None,
                     "kind": type(b).__name__,
                     "tag": b.tag,
+                    "color": _color(b),
                 }
             )
 
     for index, p in enumerate(placed["pointmasses"]):
         scene["pointmasses"].append(
-            {"index": index, **at(p), "m": _f(p.m), "tag": p.tag}
+            {
+                "index": index,
+                **at(p),
+                "m": _f(p.m),
+                "tag": p.tag,
+                "color": _color(p),
+            }
         )
 
     return scene

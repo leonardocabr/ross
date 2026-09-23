@@ -16,11 +16,12 @@ This is a web-based graphical interface for the **ROSS** library, designed to si
     - Static Analysis.
 - **Python Script Generation:** Automatically export your model and analysis settings into a ready-to-run Python script using native ROSS syntax.
 - **Data Portability:** Save and load your rotor models and analysis configurations using JSON files.
+- **3D View of the Rotor:** The 2D/3D buttons above the figure switch between ROSS's 2D figure and an interactive 3D view of the same build (drag to turn, scroll to zoom, hover a part to see what it is). Disks and gears described by their dimensions are drawn with them; the others as the steel disk with their mass and polar inertia.
 - **Light and Dark Themes:** The button in every top bar switches the theme; with no choice made, the interface follows the system. The figures follow it too.
 
 ## 🛠️ Technologies
 
-- **Frontend:** HTML5, CSS3, JavaScript (using Plotly.js for charting and Sortable.js for list management).
+- **Frontend:** HTML5, CSS3, JavaScript (using Plotly.js for charting, Sortable.js for list management and three.js, MIT-licensed and shipped in `frontend/vendor/three/`, for the 3D view of the rotor).
 - **Backend:** Python 3, Flask (Web Server), ROSS-rotordynamics (Calculation Engine).
 
 ## 📂 Project Structure

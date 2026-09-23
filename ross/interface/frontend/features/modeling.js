@@ -19,6 +19,7 @@ import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
 import { splitProject } from './split.js';
+import { hideRotor3d, showRotor3d } from './rotor3d.js';
 
 // How the rotor figure settles into the panel. This used to be done in the
 // backend (BE-12): margin, background, size and legend position assembled on top
@@ -142,6 +143,88 @@ export function startRotorFigureFollowsWidth() {
         clearTimeout(widthTimer);
         widthTimer = setTimeout(redrawAtNewWidth, 120);
     });
+}
+
+// --- 2D or 3D ------------------------------------------------------------------
+//
+// The panel shows one of two views of the same build: ROSS's 2D figure or the
+// 3D view (features/rotor3d.js). The server sends the 3D scene with every
+// build -- it costs a millisecond -- but draws the 2D figure only when it is
+// the one on screen: `plot_rotor` is the slow half of the request, about a
+// second on a 200-element rotor, and nobody would see it.
+//
+// So the 2D figure can be behind the project while the 3D view is up.
+// `figureIsCurrent` says whether it is; coming back to 2D asks for it then.
+// The choice is remembered like the language and the theme.
+const ROTOR_VIEW_KEY = 'ross-rotor-view';
+let rotorView = '2d';
+let figureIsCurrent = false;
+let lastScene = null;
+
+function rememberedRotorView() {
+    try {
+        return localStorage.getItem(ROTOR_VIEW_KEY) === '3d' ? '3d' : '2d';
+    } catch (e) {
+        return '2d';   // storage blocked: the page opens on the 2D figure
+    }
+}
+
+export function startRotorViewToggle() {
+    rotorView = rememberedRotorView();
+    showChosenRotorView();
+}
+
+export function setRotorView(view) {
+    rotorView = view === '3d' ? '3d' : '2d';
+    try {
+        localStorage.setItem(ROTOR_VIEW_KEY, rotorView);
+    } catch (e) { /* a preference: without storage it lasts until the page closes */ }
+    showChosenRotorView();
+    if (rotorView === '3d') {
+        if (lastScene) drawScene();
+        return;
+    }
+    hideRotor3d();
+    // Built while the 3D view was up, the rotor has no 2D figure yet; one that
+    // is current may still have been drawn at a width the panel no longer has.
+    if (figureIsCurrent) redrawAtNewWidth();
+    else if (lastScene) _fetchRotorLive();
+}
+
+function showChosenRotorView() {
+    const flat = document.getElementById('plot-rotor');
+    const solid = document.getElementById('rotor-3d');
+    const scale = document.getElementById('rotor-scale');
+    if (flat) flat.hidden = rotorView !== '2d';
+    if (solid) solid.hidden = rotorView !== '3d';
+    if (scale) scale.hidden = rotorView !== '2d';
+    document.querySelectorAll('[data-action="set-rotor-view"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.dataset.view === rotorView));
+    });
+}
+
+// A line in place of the 3D view: no shaft yet, three.js still loading, a
+// browser without WebGL, or the rotor ROSS would not build.
+function say3d(text) {
+    const note = document.getElementById('rotor-3d-message');
+    if (!note) return;
+    note.textContent = text || '';
+    note.hidden = !text;
+}
+
+function drawScene() {
+    const box = document.getElementById('rotor-3d');
+    if (!box || !lastScene) return;
+    // Loading three.js the first time takes a moment; the line only shows if
+    // it does.
+    const slow = setTimeout(() => say3d(t('rotor3dLoading')), 150);
+    showRotor3d(box, lastScene)
+        .then(() => say3d(''))
+        .catch(error => {
+            console.error('3D view:', error);
+            say3d(t('rotor3dUnavailable'));
+        })
+        .finally(() => clearTimeout(slow));
 }
 
 function redrawAtNewWidth() {
@@ -737,6 +820,10 @@ async function _fetchRotorLive() {
     const plotContainer = document.getElementById('plot-rotor');
     const infoContainer = document.getElementById('rotor-info');    
     if (!state.projectData.isMultiRotor && (!state.projectData.shafts || state.projectData.shafts.length === 0)) {
+        figureIsCurrent = false;
+        lastScene = null;
+        hideRotor3d();
+        say3d(t('addOneShaft'));
         showInsteadOfFigure(plotContainer,
             `<div style="display: flex; height: 100%; min-height: 400px; align-items: center; justify-content: center;">`
             + `<p class="placeholder-text">${escapeHtml(t('addOneShaft'))}</p></div>`);
@@ -744,10 +831,14 @@ async function _fetchRotorLive() {
         return;
     }    
     rotorUpdateActive = true;
-    plotContainer.style.opacity = '0.4';
-    plotContainer.style.pointerEvents = 'none';
+    const in3d = rotorView === '3d';
+    // The view on screen dims while the rotor is rebuilt. Only the 2D figure is
+    // swapped for the spinner: the 3D view keeps its canvas and its camera.
+    const shown = in3d ? document.getElementById('rotor-3d') : plotContainer;
+    shown.style.opacity = '0.4';
+    shown.style.pointerEvents = 'none';
     let loadingTimer = setTimeout(() => {
-        if(rotorUpdateActive) {
+        if(rotorUpdateActive && !in3d) {
             plotContainer.style.opacity = '1';
             showInsteadOfFigure(plotContainer, `
                 <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; min-height:400px; color: var(--text-main);">
@@ -760,17 +851,26 @@ async function _fetchRotorLive() {
     try {
         const response = await apiFetchLatest('rotor', '/build_rotor', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ project: projectForServer(state.projectData) })
+            body: JSON.stringify({ project: projectForServer(state.projectData), figure: !in3d })
         });
         const data = await response.json();        
         rotorUpdateActive = false;
         clearTimeout(loadingTimer);
-        plotContainer.style.opacity = '1';
-        plotContainer.style.pointerEvents = 'auto';        
+        shown.style.opacity = '1';
+        shown.style.pointerEvents = 'auto';        
         if(data.status === "success") {
-            plotContainer.innerHTML = ""; 
-            drawRotorFigure(JSON.parse(data.plot_json));
-            renderVerticalScalePicker();
+            if (data.plot_json) {
+                plotContainer.innerHTML = "";
+                drawRotorFigure(JSON.parse(data.plot_json));
+                renderVerticalScalePicker();
+                figureIsCurrent = true;
+            } else {
+                figureIsCurrent = false;
+            }
+            lastScene = data.scene || null;
+            // Read again, not `in3d`: the view may have been switched while
+            // the rotor was being built.
+            if (rotorView === '3d') drawScene();
             if(infoContainer) {
                 document.getElementById('info-mass').innerText = data.mass.toFixed(4);
                 document.getElementById('info-ip').innerText = data.ip.toFixed(4);
@@ -780,6 +880,10 @@ async function _fetchRotorLive() {
             // `data.message` is escaped like everything else: it quotes what the
             // user typed back ("could not read 'abc'"), and a tag typed into a
             // field would otherwise be drawn as a tag.
+            figureIsCurrent = false;
+            lastScene = null;
+            hideRotor3d();
+            say3d(`${t('modelingError')} ${data.message || ''}`);
             showInsteadOfFigure(plotContainer, `<div class="analysis-error"><i class="fas fa-exclamation-triangle fa-2x"></i><br><b>${escapeHtml(t('modelingError'))}</b><br>${escapeHtml(data.message)}</div>`);
             if(infoContainer) infoContainer.style.opacity = '0';
         }
@@ -787,7 +891,9 @@ async function _fetchRotorLive() {
         if (wasCancelled(e)) return;   // a newer request has taken over
         rotorUpdateActive = false; 
         clearTimeout(loadingTimer); 
-        plotContainer.style.opacity = '1';
+        shown.style.opacity = '1';
+        shown.style.pointerEvents = 'auto';
+        say3d(t('serverConnectionError'));
         showInsteadOfFigure(plotContainer, `<p class="analysis-error analysis-error-tall">`
             + `${escapeHtml(t('serverConnectionError'))}</p>`);
         if(infoContainer) infoContainer.style.opacity = '0';

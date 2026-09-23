@@ -15,7 +15,9 @@ import { schemaReady } from './core/schema.js';
 import { onProjectChanged } from './core/state.js';
 import { fillAnalysisTypes } from './features/analysis.js';
 import { renderRotorHub } from './features/hub.js';
-import { buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth } from './features/modeling.js';
+import {
+    buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth, startRotorViewToggle,
+} from './features/modeling.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { startWorkBar } from './features/progress.js';
 import { startTheme } from './core/theme.js';
@@ -64,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startHistoryShortcuts();
     // The rotor figure follows the width without losing ROSS's height.
     startRotorFigureFollowsWidth();
+    // 2D or 3D, as the person left it.
+    startRotorViewToggle();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));

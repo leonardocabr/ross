@@ -19,7 +19,7 @@ the validation layer would be the only one reaching the user unverified.
 
 from .cache import STRUCTURAL_KEYS
 
-TYPE_NAMES = {dict: "an object", list: "a list", str: "a string"}
+TYPE_NAMES = {dict: "an object", list: "a list", str: "a string", bool: "true or false"}
 
 
 class Field:
@@ -108,9 +108,14 @@ class Envelope:
         )
 
 
+# `figure` is whether to draw ROSS's 2D figure. The 3D view asks for the scene
+# alone: `plot_rotor` is the slow half of this route (about a second on a
+# 200-element rotor, against a millisecond for the scene), and a figure nobody
+# is looking at would be drawn on every keystroke.
 ROTOR_REQUEST = Envelope(
     "/build_rotor",
     Field("project", dict, default={}),
+    Field("figure", bool, default=True),
 )
 
 # `key` names the subject a request belongs to -- one card on the screen. The

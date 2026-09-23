@@ -12,10 +12,11 @@ import { fillDefault, handleUnitChange, toggleAdvanced } from '../components/for
 import { openSectionHelp } from '../components/help.js';
 import {
     addElementFromNodeHub, closeForm, closeNodeHub, copyItem, copySelected, deleteItem,
-    deleteSelected, editItem, openForm, pickTab, saveItem, selectSubType, setVerticalScale,
-    splitItem, toggleSelectAll, toggleSelected,
+    deleteSelected, editItem, openForm, pickTab, saveItem, selectSubType, setRotorView,
+    setVerticalScale, splitItem, toggleSelectAll, toggleSelected,
 } from './modeling.js';
 import { switchMultiRotorTarget } from './multirotor.js';
+import { frameRotor } from './rotor3d.js';
 
 function position(element) {
     return Number(element.dataset.index);
@@ -52,4 +53,6 @@ export const MODELING_ACTIONS = {
 
     // the figure
     'set-vertical-scale': element => setVerticalScale(element.value),
+    'set-rotor-view': element => setRotorView(element.dataset.view),
+    'frame-rotor': () => frameRotor(),
 };

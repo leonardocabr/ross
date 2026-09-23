@@ -28,6 +28,13 @@
     <!-- Served by Flask from the installed plotly.py: the same version as fig.show(). -->
     <script src="lib/plotly.min.js"></script>
     <script src="vendor/sortable-1.15.6.min.js"></script>
+    <!-- three.js for the 3D view, by name: features/rotor3d.js imports 'three' and
+         the OrbitControls addon imports 'three' too, and this map sends both to
+         the one copy in vendor/three. Nothing is downloaded until the 3D view is
+         first opened. -->
+    <script type="importmap">
+    {"imports": {"three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/"}}
+    </script>
 </head>
 <body>
 
@@ -144,12 +151,22 @@
                     <span><span data-i18n="totalMass">Total Mass:</span> <span id="info-mass" class="info-value">-</span> kg</span>
                     <span><span data-i18n="polarInertia">Polar Inertia (Ip):</span> <span id="info-ip" class="info-value">-</span> kg.m²</span>
                     <span id="rotor-scale" class="rotor-scale"></span>
+                    <span class="rotor-view" role="group">
+                        <button type="button" class="rotor-view-btn" data-action="set-rotor-view" data-view="2d" aria-pressed="true" title="ROSS's 2D figure" data-i18n-title="rotorView2d">2D</button>
+                        <button type="button" class="rotor-view-btn" data-action="set-rotor-view" data-view="3d" aria-pressed="false" title="The rotor in 3D" data-i18n-title="rotorView3d">3D</button>
+                    </span>
                 </div>
 
                 <div id="plot-rotor" class="live-plot-area">
                     <div style="display: flex; height: 100%; min-height: 400px; align-items: center; justify-content: center;">
                         <p class="placeholder-text" data-i18n="rotorWillAppear">The rotor model will appear here...</p>
                     </div>
+                </div>
+
+                <!-- The 3D view (features/rotor3d.js puts its canvas here). -->
+                <div id="rotor-3d" class="live-plot-area rotor3d-view" hidden>
+                    <p id="rotor-3d-message" class="rotor3d-message" hidden></p>
+                    <button type="button" class="rotor3d-frame" data-action="frame-rotor" title="Show the whole rotor" data-i18n-title="rotor3dFrame"><i class="fas fa-expand"></i></button>
                 </div>
             </div>
         </div>
