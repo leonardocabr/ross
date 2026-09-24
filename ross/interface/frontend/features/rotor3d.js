@@ -28,7 +28,7 @@ import {
 import { renderList } from '../components/list.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
 import { buildTriad } from '../components/rotor3d_triad.js';
-import { SHAPE_FIELD, shapeOf } from '../core/shapes3d.js';
+import { SHAPE_FIELD, drawnShape, shapeOf } from '../core/shapes3d.js';
 import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
 
 const FOV = 35;
@@ -406,10 +406,11 @@ function buildModel() {
     renderLegend();
 }
 
-// The shape of the geometry bank an element was given in its form, or null.
-function shapeForElement(half, category, index) {
+// The shape of the geometry bank an element is drawn with: the one given in
+// its form, or what its model says (`entry`, the scene's), or null.
+function shapeForElement(half, category, index, entry) {
     const element = elementOf({ half, category, index });
-    return shapeOf(category, element && element[SHAPE_FIELD]);
+    return drawnShape(category, element && element[SHAPE_FIELD], entry);
 }
 
 // The project's element a part was drawn from.
@@ -783,10 +784,16 @@ function describePart(part) {
         rows.push(line(t('rotor3dModel'), e.kind || ''));
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dNoSize'))}</div>`);
     }
-    // A shape from the geometry bank: what it is, and that it is only drawn.
+    // A shape from the geometry bank: what it is, whether the form chose it or
+    // the model says it, and that it is only drawn. The category's own
+    // drawing, when the model says it, goes without saying.
     const drawnAs = shapeOf(part.category, part.shape);
-    if (drawnAs) {
-        rows.push(line(t('rotor3dShape'), drawnAs.name()));
+    const element = elementOf(part);
+    const chosen = !!shapeOf(part.category, element && element[SHAPE_FIELD]);
+    if (drawnAs && (chosen || !drawnAs.plain)) {
+        rows.push(line(t('rotor3dShape'), chosen ? drawnAs.name() : `${drawnAs.name()} ${t('rotor3dShapeByModel')}`));
+        if (part.helix) rows.push(line(t('rotor3dHelix'), `${(Math.abs(part.helix) * 180 / Math.PI).toFixed(1)}°`));
+        if (part.helixAssumed) rows.push(note(t('rotor3dHelixAssumed')));
         rows.push(note(t('rotor3dShapeOnlyPicture')));
     }
     if (part.hanging) rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dLinkNode'))}</div>`);

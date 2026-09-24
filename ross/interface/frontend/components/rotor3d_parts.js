@@ -31,6 +31,7 @@ import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
 import {
     EDGE_ANGLE, SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, own, revolve, ring, steel,
 } from './rotor3d_solids.js';
+import { motorPieces } from './rotor3d_motor.js';
 import { SHAPE_BUILDERS } from './rotor3d_shapes.js';
 
 // A gear with more teeth than this is drawn with this many: past it the teeth
@@ -183,7 +184,35 @@ function boreWithKeyway(THREE, radius) {
     return path;
 }
 
-// A spur gear. A small one is solid; a large one is a toothed rim on a thin
+// The toothed piece of a helical gear: each section along the face turned
+// about the axis by as much as the helix advances there -- tan(helix) / pitch
+// radius per unit of length -- so a tooth winds round the gear. The extrusion
+// is cut in `steps` along the face for the turn to have somewhere to bend;
+// enough that no step turns a tooth by more than a few hundredths of a
+// radian. The turn fades in from the piece's inner edge `inner` to the root of
+// the teeth, so a bore and its keyway stay straight.
+function helicalSteps(part) {
+    const turn = Math.abs(part.faceWidth * Math.tan(part.helix) / part.gear.pitch);
+    return Math.min(Math.max(Math.ceil(turn / 0.03), 2), 16);
+}
+
+function twist(geometry, part, centre, inner) {
+    const rate = Math.tan(part.helix) / part.gear.pitch;
+    const root = part.gear.root;
+    const p = geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i);
+        const y = p.getY(i);
+        const reach = root > inner ? Math.min(Math.max((Math.hypot(x, y) - inner) / (root - inner), 0), 1) : 1;
+        const a = (p.getZ(i) - centre) * rate * reach;
+        p.setXY(i, x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a));
+    }
+    return geometry;
+}
+
+// A spur gear -- or, when the layout gives it a helix angle (the geometry
+// bank's helical gear), a helical one: the same gear with its teeth wound
+// (`twist`). A small one is solid; a large one is a toothed rim on a thin
 // web with lightening holes, around a hub that stands proud of the faces. A
 // pinion cut on its shaft (see `gearDrawing`) has no bore of its own.
 function gearPieces(THREE, part, edges) {
@@ -191,10 +220,14 @@ function gearPieces(THREE, part, edges) {
     const z = (part.z0 + part.z1) / 2;
     const w = part.faceWidth;
     const hubHalf = Math.abs(part.z1 - part.z0) / 2;
-    const extrude = (shape, depth, at) => {
-        const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 20 });
+    // `inner`: for a toothed piece, where its teeth's turn starts (`twist`).
+    const extrude = (shape, depth, at, inner = null) => {
+        const helical = inner !== null && part.helix;
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+            depth, bevelEnabled: false, curveSegments: 20, steps: helical ? helicalSteps(part) : 1,
+        });
         geometry.translate(0, 0, at - depth / 2);
-        return faceted(THREE, geometry, edges);
+        return faceted(THREE, helical ? twist(geometry, part, at, inner) : geometry, edges);
     };
     const pieces = [];
     if (g.onShaft) {
@@ -203,7 +236,7 @@ function gearPieces(THREE, part, edges) {
         const hole = new THREE.Path();
         hole.absarc(0, 0, g.root * 0.999, 0, Math.PI * 2, true);
         shape.holes.push(hole);
-        pieces.push(own(extrude(shape, w, z)));
+        pieces.push(own(extrude(shape, w, z, g.root * 0.999)));
         return pieces;
     }
     const rHub = Math.min(g.bore + (g.root - g.bore) * 0.32, g.bore * 1.8);
@@ -212,7 +245,7 @@ function gearPieces(THREE, part, edges) {
     const outline = toothOutline(THREE, g);
     if (!webbed) {
         outline.holes.push(boreWithKeyway(THREE, g.bore));
-        pieces.push(own(extrude(outline, w, z)));
+        pieces.push(own(extrude(outline, w, z, g.bore)));
         pieces.push(own(ring(THREE, g.bore, Math.max(rHub, g.bore * 1.25), z - hubHalf, z - w / 2, edges)));
         pieces.push(own(ring(THREE, g.bore, Math.max(rHub, g.bore * 1.25), z + w / 2, z + hubHalf, edges)));
         return pieces;
@@ -221,7 +254,7 @@ function gearPieces(THREE, part, edges) {
     const inner = new THREE.Path();
     inner.absarc(0, 0, rimInner, 0, Math.PI * 2, true);
     outline.holes.push(inner);
-    pieces.push(own(extrude(outline, w, z)));
+    pieces.push(own(extrude(outline, w, z, rimInner)));
     // The web, thinner, with lightening holes.
     const web = new THREE.Shape();
     web.absarc(0, 0, rimInner * 1.001, 0, Math.PI * 2, false);
@@ -502,9 +535,10 @@ function ringLines(THREE, rings, segments = 40) {
 }
 
 // The test bench (`benchLayout`): the bed plate with its T-slots, the legs,
-// and a pedestal with a foot plate under each bearing. Painted, in the greys of
-// a workshop; built and freed apart from the rotor, since it comes and goes
-// with a button.
+// a pedestal with a foot plate under each bearing, and the motor that drives
+// the rotor (rotor3d_motor.js). Painted, in the greys of a workshop, but for
+// the motor's shaft and coupling; built and freed apart from the rotor, since
+// it comes and goes with a button.
 const BENCH = { plate: 0x7d8894, slot: 0x2c343d, leg: 0x3b4450, pedestal: 0x5a6571, rubber: 0x1c1f23, mount: 0x9aa4ae };
 
 export function buildBench(THREE, bench) {
@@ -515,7 +549,7 @@ export function buildBench(THREE, bench) {
     const block = (sx, sy, sz, x, y, z, hex) => {
         const geometry = new THREE.BoxGeometry(sx, sy, sz);
         geometry.translate(x, y, z);
-        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex) });
+        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex), finish: 'paint' });
     };
     const { plate } = bench;
     const plateWidth = plate.x1 - plate.x0;
@@ -532,7 +566,7 @@ export function buildBench(THREE, bench) {
     const disc = (radius, height, x, y, z, hex) => {
         const geometry = new THREE.CylinderGeometry(radius, radius, height, 28);
         geometry.translate(x, y, z);
-        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex) });
+        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex), finish: 'paint' });
     };
     for (const leg of bench.legs) {
         const foot = plate.bottom - bench.legHeight;
@@ -550,25 +584,37 @@ export function buildBench(THREE, bench) {
         const foot = Math.max(0.012 * plateWidth, 0.1 * p.width);
         block(1.05 * p.width, foot, 1.2 * p.depth, p.x, p.y0 + foot / 2, p.z, BENCH.pedestal);
     }
-    const geometry = mergeColoured(THREE, pieces);
-    const material = new THREE.MeshStandardMaterial({ vertexColors: true, ...FINISHES.paint });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.name = 'bench';
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    if (bench.motor) {
+        // Its circles are marked about the motor's axis; they move with it.
+        const motorEdges = [];
+        for (const piece of motorPieces(THREE, bench.motor, motorEdges)) pieces.push({ ...piece, color: tone(piece.color) });
+        motorEdges.forEach(mark => edges.push(mark.circle ? { ...mark, dx: bench.motor.x, dy: bench.motor.y, dz: 0 } : mark));
+    }
+    // Before merging, which frees the pieces the outlines are read from.
     const outline = outlineLines(THREE, edges);
+    const group = new THREE.Group();
+    const made = [];
+    for (const finish of ['paint', 'metal']) {
+        const ofFinish = pieces.filter(piece => piece.finish === finish);
+        if (!ofFinish.length) continue;
+        const geometry = mergeColoured(THREE, ofFinish);
+        const material = new THREE.MeshStandardMaterial({ vertexColors: true, ...FINISHES[finish] });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = finish === 'paint' ? 'bench' : 'bench-metal';
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        made.push(geometry, material);
+    }
     const lineMaterial = new THREE.LineBasicMaterial({ color: 'black', transparent: true, opacity: 0.3, depthWrite: false });
     const lines = new THREE.LineSegments(outline, lineMaterial);
     lines.name = 'bench-outlines';
-    const group = new THREE.Group();
-    group.add(mesh, lines);
+    group.add(lines);
+    made.push(outline, lineMaterial);
     return {
         object: group,
         dispose: () => {
-            geometry.dispose();
-            material.dispose();
-            outline.dispose();
-            lineMaterial.dispose();
+            made.forEach(thing => thing.dispose());
             group.clear();
         },
     };

@@ -338,6 +338,18 @@ def test_a_gear_keeps_its_own_teeth_and_diameter():
     assert gear["width"] * ring * STEEL_DENSITY == pytest.approx(5.0)
 
 
+def test_a_gear_says_its_helix_angle_in_radians_and_a_spur_gear_zero():
+    """The 3D view draws a gear with a helix angle as a helical gear. The
+    angle is typed in degrees; ROSS keeps it in radians, and so does the
+    scene."""
+    gear = {"n": "1", "m": "5", "Ip": "0.04", "Id": "0.02", "n_teeth": "30"}
+    gear["pitch_diameter"] = "200"
+    _, helical = scene_of(project(gears=[dict(gear, helix_angle="15")]))
+    _, spur = scene_of(project(gears=[gear]))
+    assert helical["gears"][0]["helix_angle"] == pytest.approx(math.radians(15))
+    assert spur["gears"][0]["helix_angle"] == 0.0
+
+
 # --- link nodes ----------------------------------------------------------------------
 
 

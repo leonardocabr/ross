@@ -247,6 +247,9 @@ def _describe(rotor, placed, geometry=None):
                 "bore_radius": bore_radius,
                 "width": width if width else ring_width(g.m, outer, bore_radius),
                 "width_is_equivalent": not width,
+                # In radians, as ROSS keeps it: the 3D view draws a gear with
+                # one as a helical gear.
+                "helix_angle": _f(getattr(g, "helix_angle", 0)) or 0.0,
             }
         )
 

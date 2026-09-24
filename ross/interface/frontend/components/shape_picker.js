@@ -18,12 +18,31 @@ const around = (count, draw) => Array.from({ length: count }, (_, i) => draw((i 
 const stroke = (d, width = 1.5) => `<path d="${d}" fill="none" stroke="currentColor" stroke-width="${width}"/>`;
 const box = (x, y, w, h, width = 1.3) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="currentColor" stroke-width="${width}"/>`;
 
-// By category, then by key: each category's default has its own drawing.
+const dot = (x, y, r = 1.1) => `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${r}" fill="currentColor"/>`;
+
+// A hexagon of side s round (x, y), pointy up.
+const hexagon = (x, y, side) => stroke(`M ${Array.from({ length: 6 }, (_, i) => {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    return `${(x + side * Math.cos(a)).toFixed(2)} ${(y + side * Math.sin(a)).toFixed(2)}`;
+}).join(' L ')} Z`, 1);
+
+// A gear seen from the side: its face, and the teeth across it -- straight,
+// or leaning by `lean` over the face for a helical one.
+const gearSide = lean => box(9, 4, 14, 24) + box(5, 11, 4, 10, 1) + box(23, 11, 4, 10, 1)
+    + Array.from({ length: 6 }, (_, i) => stroke(`M ${(10.5 + 2.2 * i).toFixed(2)} 4.5 L ${(10.5 + 2.2 * i + lean).toFixed(2)} 27.5`, 1)).join('');
+
+// By category, then by key: each category's own drawing is under its plain
+// key (the empty one where nothing chosen means the category's own drawing).
+// Where nothing chosen means "as the model says" (`automatic`), its tile is the
+// category's own drawing, smaller, in a dashed circle: whatever it will be.
 const DRAWINGS = {
     disks: {
         '': () => circle(13, 2) + circle(9.5, 1) + circle(4),
         impeller: () => circle(13.5) + circle(4) + around(9, a =>
             stroke(`M ${polar(4, a)} Q ${polar(9.5, a + 0.25)} ${polar(13.5, a + 0.95)}`)),
+        // Face on: the shroud, and the blades through the eye in it.
+        closed_impeller: () => circle(14.5, 2) + circle(12.5, 1) + circle(7.5) + circle(3.5) + around(11, a =>
+            stroke(`M ${polar(3.5, a)} Q ${polar(5.5, a + 0.2)} ${polar(7.5, a + 0.55)}`, 1.1)),
         axial: () => circle(7.5) + circle(3) + around(22, a => stroke(`M ${polar(8.5, a)} L ${polar(14, a + 0.12)}`, 1.3)),
         turbine: () => circle(14.5) + circle(7) + circle(3) + around(16, a => stroke(`M ${polar(8, a)} L ${polar(13.5, a + 0.18)}`)),
         fan: () => circle(4.5) + around(6, a =>
@@ -33,14 +52,27 @@ const DRAWINGS = {
         pulley: () => stroke('M 11 3 L 21 3 L 21 6 L 19.5 8 L 21 10 L 19.5 12 L 21 14 L 21 18 L 19.5 20 L 21 22 L 19.5 24 L 21 26 L 21 29 L 11 29 L 11 26 L 12.5 24 L 11 22 L 12.5 20 L 11 18 L 11 14 L 12.5 12 L 11 10 L 12.5 8 L 11 6 Z')
             + stroke('M 11 14 L 21 14 M 11 18 L 21 18', 1),
     },
+    gears: {
+        spur: () => gearSide(0),
+        helical: () => gearSide(-5),
+    },
     bearings: {
-        '': () => stroke('M 4 28 L 28 28 L 28 24 L 25 24 L 25 16 A 9 9 0 0 0 7 16 L 7 24 L 4 24 Z') + circle(4.5),
+        pillow: () => stroke('M 4 28 L 28 28 L 28 24 L 25 24 L 25 16 A 9 9 0 0 0 7 16 L 7 24 L 4 24 Z') + circle(4.5),
         rolling: () => circle(14) + circle(5) + around(10, a => `<circle cx="${polar(9.5, a).split(' ')[0]}" cy="${polar(9.5, a).split(' ')[1]}" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/>`),
         tilting_pad: () => circle(14) + circle(4) + around(5, a => stroke(`M ${polar(6, a - 0.45)} A 6 6 0 0 1 ${polar(6, a + 0.45)} L ${polar(9, a + 0.45)} A 9 9 0 0 0 ${polar(9, a - 0.45)} Z`, 1.2)),
         magnetic: () => circle(14) + circle(4.5) + around(8, a => stroke(`M ${polar(6.5, a)} L ${polar(11.5, a)}`, 3)),
     },
     seals: {
-        '': () => stroke('M 5 26 L 5 8 L 8 8 L 8 12 L 11 12 L 11 8 L 14 8 L 14 12 L 17 12 L 17 8 L 20 8 L 20 12 L 23 12 L 23 5 L 27 5 L 27 26 Z'),
+        labyrinth: () => stroke('M 5 26 L 5 8 L 8 8 L 8 12 L 11 12 L 11 8 L 14 8 L 14 12 L 17 12 L 17 8 L 20 8 L 20 12 L 23 12 L 23 5 L 27 5 L 27 26 Z'),
+        // The bore laid flat: its holes, or its cells.
+        hole_pattern: () => box(4, 6, 24, 20) + [0, 1, 2, 3].map(row => [0, 1, 2, 3, 4].map(col => {
+            const x = 7.5 + 4.2 * col + (row % 2 ? 2.1 : 0);
+            return x < 27 ? dot(x, 9.5 + 4.3 * row) : '';
+        }).join('')).join(''),
+        honeycomb: () => box(4, 6, 24, 20) + [0, 1, 2].map(row => [0, 1, 2, 3].map(col => {
+            const x = 8.5 + 5.2 * col + (row % 2 ? 2.6 : 0);
+            return x < 27 ? hexagon(x, 10 + 4.5 * row, 3) : '';
+        }).join('')).join(''),
         brush: () => circle(14) + circle(5) + around(28, a => stroke(`M ${polar(5.5, a)} L ${polar(12, a + 0.35)}`, 1)),
     },
     pointmasses: {
@@ -58,9 +90,16 @@ const DRAWINGS = {
 };
 
 function drawing(category, key) {
+    const shapes = shapesFor(category);
     const drawings = DRAWINGS[category] || DRAWINGS.disks;
-    const draw = drawings[key] || drawings[''];
-    return `<svg class="shape-drawing" viewBox="0 0 32 32" aria-hidden="true">${draw()}</svg>`;
+    const plain = (shapes.find(shape => shape.plain) || { key: '' }).key;
+    const draw = drawings[key] || drawings[plain];
+    const automatic = key === '' && shapes.length && shapes[0].automatic;
+    const inside = automatic
+        ? `<circle cx="${C}" cy="${C}" r="15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 2.4"/>`
+            + `<g transform="translate(${C} ${C}) scale(0.62) translate(${-C} ${-C})">${draw()}</g>`
+        : draw();
+    return `<svg class="shape-drawing" viewBox="0 0 32 32" aria-hidden="true">${inside}</svg>`;
 }
 
 // The picker for a category's form, or nothing when the bank has no shapes

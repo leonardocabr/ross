@@ -10,7 +10,7 @@
 import {
     SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, loft, own, revolve, ring, steel,
 } from './rotor3d_solids.js';
-import { SYMBOL } from '../core/rotor3d_layout.js';
+import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
 
 // The frame every shape is built in: z along the shaft, the part's middle at
 // `mid`.
@@ -76,6 +76,97 @@ function impeller(THREE, part, edges) {
         pieces.push(own(blade(0, phase)));
         pieces.push(own(blade(0.45, phase + Math.PI / blades)));
     }
+    return pieces;
+}
+
+// A profile in (r, z), turned to go counter-clockwise, as `revolve` needs:
+// the shoelace sign says which way it goes.
+function counterClockwise(profile) {
+    let area = 0;
+    for (let i = 0; i + 1 < profile.length; i++) {
+        area += profile[i][0] * profile[i + 1][1] - profile[i + 1][0] * profile[i][1];
+    }
+    return area >= 0 ? profile : profile.slice().reverse();
+}
+
+// --- closed (shrouded) impeller ------------------------------------------------------
+//
+// The impeller of a multistage centrifugal compressor: the blades run between
+// the hub and a cover disk, the shroud, so what shows from outside is the
+// shroud, the eye in it with its seal teeth, and the blades in the passages at
+// the rim. The eye faces node 0 (-z), as the open impeller's does.
+function closedImpeller(THREE, part, edges) {
+    const { R, w, mid, bore } = frame(part);
+    const front = mid - w / 2;
+    const back = mid + w / 2;
+    const plate = 0.1 * w;
+    const recess = 0.12 * w;
+    const nose = Math.max(bore * 1.3, 0.3 * R);
+    const eye = nose + 0.5 * (R - nose);
+    const lip = 0.16 * w;
+    const exit = 0.2 * (w - plate - recess);
+    const cover = 0.045 * R;
+    const exitZ = back - plate - exit;
+    const hubAt = th => [R - (R - nose) * Math.cos(th), front + recess + (back - plate - front - recess) * Math.sin(th)];
+    const shroudAt = th => [R - (R - eye) * Math.cos(th), front + lip + (exitZ - front - lip) * Math.sin(th)];
+
+    // The hub and its back plate.
+    const hub = [[bore, front + recess], [nose, front + recess]];
+    for (let i = 1; i <= 14; i++) hub.push(hubAt((i / 14) * (Math.PI / 2)));
+    hub.push([R, back], [bore, back], [bore, front + recess]);
+    const pieces = [own(revolve(THREE, counterClockwise(hub), SEGMENTS.part, edges))];
+
+    // The shroud: its inner face from the eye to the rim, and its outer face
+    // `cover` further out along the normal, back to the eye.
+    const inner = [[eye, front]];
+    const outer = [[eye + cover, front]];
+    const samples = 14;
+    for (let i = 0; i <= samples; i++) {
+        const th = (i / samples) * (Math.PI / 2);
+        const [r, z] = shroudAt(th);
+        const tr = (R - eye) * Math.sin(th);
+        const tz = (exitZ - front - lip) * Math.cos(th);
+        const length = Math.hypot(tr, tz) || 1;
+        inner.push([r, z]);
+        outer.push([Math.min(r + (cover * tz) / length, R), z - (cover * tr) / length]);
+    }
+    const shroud = inner.concat(outer.reverse());
+    shroud.push(inner[0]);
+    pieces.push(own(revolve(THREE, counterClockwise(shroud), SEGMENTS.part, edges)));
+    // The eye seal's teeth round the shroud's lip.
+    for (let k = 0; k < 3; k++) {
+        const z = front + (0.2 + 0.3 * k) * lip;
+        pieces.push(own(ring(THREE, eye + 0.9 * cover, eye + cover + 0.035 * R, z, z + 0.12 * lip, edges)));
+    }
+
+    // Full-length blades, swept back, reaching a little into the hub and the
+    // shroud so no seam shows between them.
+    const blades = 11;
+    const thick = 0.022 * R;
+    const along = 20;
+    const blade = phase => {
+        const sections = [];
+        for (const s of [-0.03, 0.5, 1.03]) {
+            const sideA = [];
+            const sideB = [];
+            for (let i = 0; i <= along; i++) {
+                const t = i / along;
+                const th = t * (Math.PI / 2);
+                const [rh, zh] = hubAt(th);
+                const [rs, zs] = shroudAt(th);
+                const r = Math.min(rh + (rs - rh) * s, R);
+                const z = zh + (zs - zh) * s;
+                const lead = (1 - t) * (1 - t);
+                const a = phase + 0.45 * lead - 0.45 * t * t;
+                const half = (0.5 * thick) / Math.max(r, 1e-9);
+                sideA.push(at(r, a + half, z));
+                sideB.unshift(at(r, a - half, z));
+            }
+            sections.push(sideA.concat(sideB));
+        }
+        return loft(THREE, sections, edges);
+    };
+    for (let i = 0; i < blades; i++) pieces.push(own(blade((i / blades) * Math.PI * 2)));
     return pieces;
 }
 
@@ -249,6 +340,7 @@ const COPPER = 0xb8733d;
 const RACE = 0xc9ced4;
 const BRISTLE = 0x9b8f78;
 const ELASTOMER = 0x2f3236;
+const HOLE = 0x16191c;
 
 // The frame of a part that sits on a node: the shaft's radius there, the
 // part's own, its width and middle.
@@ -283,13 +375,16 @@ function radialBox(THREE, inner, outer, a, across, depth, z, edges, lay = 0) {
     return faceted(THREE, box, edges);
 }
 
-// What every other support stands on: a base like the pillow block's, from
-// under the casing down to where SYMBOL.bearing puts the base, bolted at each
-// end -- so a bearing drawn otherwise still stands on the bench's pedestal.
+// What every other support stands on: a base like the pillow block's, down to
+// where SYMBOL.bearing puts it, bolted at each end -- so a bearing drawn
+// otherwise still stands on the bench's pedestal. Its top touches the casing
+// from below, at the casing's outer radius: the first version rose to cut
+// through the casing, and hid the bottom of the ring and what is inside it
+// (Leonardo asked for the whole ring to show).
 function bearingFoot(THREE, part, depth, edges) {
-    const { r, mid } = onNode(part);
+    const { r, R, mid } = onNode(part);
     const { feet, base } = SYMBOL.bearing;
-    const top = -0.95 * r;
+    const top = -R;
     const bottom = -base * r;
     const block = new THREE.BoxGeometry(2 * (feet - 0.05) * r, top - bottom, depth);
     block.translate(0, (top + bottom) / 2, mid);
@@ -378,6 +473,134 @@ function brushSeal(THREE, part, edges) {
         pieces.push({ geometry: radialBox(THREE, 1.005 * r, 0.97 * R, a, 0.035 * r, 0.4 * w, mid - 0.1 * w, null, Math.PI / 4.5),
             color: BRISTLE, finish: 'metal' });
     }
+    return pieces;
+}
+
+// Hole-pattern and honeycomb seals: what makes them what they are is on the
+// bore, facing the shaft across a clearance of a few per cent of its radius,
+// where no view of the assembled rotor reaches -- measured: through a window
+// cut in the stator, the shaft hides the bore. They are drawn as a drawing
+// shows them, cut away: a quarter of the stator is left out, the one facing
+// the camera as the view opens (x < 0, y > 0; `viewDirection` in
+// core/rotor3d_layout.js), and the two faces of the cut show the section --
+// the holes as dark pockets, the honeycomb as the comb of its cell walls. A
+// flange on the face towards the rotor's end, as the labyrinth's, bolted.
+const CUT = { from: Math.PI, to: 2.5 * Math.PI };
+
+// Marks on both faces of the cut, one per z in `zs`: a thin plate in the
+// face, `radial` long from `from`, `along` wide along the shaft, standing
+// just proud of the face so it shows on it. Local x runs against the angle
+// (see `radialBox`), so the side proud of each face is the window's.
+function onCutFaces(THREE, from, radial, along, zs, thickness) {
+    const marks = [];
+    for (const [a, side] of [[CUT.from, 1], [CUT.to, -1]]) {
+        for (const z of zs) {
+            const mark = new THREE.BoxGeometry(thickness, radial, along);
+            mark.translate((side * thickness) / 2, from + radial / 2, 0);
+            mark.rotateZ(a - Math.PI / 2);
+            mark.translate(0, 0, z);
+            marks.push(faceted(THREE, mark, null));
+        }
+    }
+    return marks;
+}
+
+// The rows of cells, along the shaft (`cellCentres`).
+function cellRows(centres) {
+    return Array.from(new Set(centres.map(([, z]) => z)));
+}
+
+function cutAwayStator(THREE, part, edges, inner) {
+    const { r, R, w, mid } = onNode(part);
+    const flangeFrom = mid + 0.3 * w;
+    const pieces = [
+        own(sector(THREE, inner, R, CUT.from, CUT.to, flangeFrom - (mid - w / 2), (mid - w / 2 + flangeFrom) / 2, edges)),
+        own(sector(THREE, 1.02 * r, SEAL_FLANGE * R, CUT.from, CUT.to, mid + w / 2 - flangeFrom, (flangeFrom + mid + w / 2) / 2, edges)),
+    ];
+    const bolts = 6;
+    for (let i = 0; i < bolts; i++) {
+        const a = CUT.from + ((i + 0.5) / bolts) * (CUT.to - CUT.from);
+        const rb = ((1 + SEAL_FLANGE) / 2) * R;
+        pieces.push(steel(boltHead(THREE, 0.06 * R, 0.05 * R, 'z', rb * Math.cos(a), rb * Math.sin(a), mid + w / 2 + 0.025 * R, edges)));
+    }
+    return pieces;
+}
+
+// Where the cells go: round the bore within the cut (`CUT`, less a margin at
+// each cut face) and along the stator short of its flange -- `pitch` apart,
+// every other row moved by half a pitch and the rows sin 60 degrees of a pitch
+// apart, so each cell has six neighbours at the same distance.
+function cellCentres(part, radius, pitch) {
+    const { w, mid } = onNode(part);
+    const z0 = mid - w / 2 + 0.6 * pitch;
+    const z1 = mid + 0.3 * w - 0.6 * pitch;
+    const spacing = (Math.sqrt(3) / 2) * pitch;
+    const rows = Math.max(1, Math.floor((z1 - z0) / spacing) + 1);
+    const first = (z0 + z1) / 2 - ((rows - 1) * spacing) / 2;
+    const step = pitch / radius;
+    const margin = 0.6 * step;
+    const centres = [];
+    for (let k = 0; k < rows; k++) {
+        const z = first + k * spacing;
+        for (let a = CUT.from + margin + (k % 2 ? step / 2 : 0); a <= CUT.to - margin; a += step) centres.push([a, z]);
+    }
+    return centres;
+}
+
+// A hole-pattern (damper) seal: a smooth stator whose bore is drilled with a
+// close pattern of round holes. Each hole is a dark disk on the bore.
+function holePatternSeal(THREE, part, edges) {
+    const { r } = onNode(part);
+    const bore = 1.04 * r;
+    const pieces = cutAwayStator(THREE, part, edges, bore);
+    const hole = 0.045 * r;
+    const centres = cellCentres(part, bore, 0.14 * r);
+    for (const [a, z] of centres) {
+        const disk = new THREE.CylinderGeometry(hole, hole, 0.004 * r, 12);
+        disk.translate(0, bore - 0.003 * r, 0);
+        disk.rotateZ(a - Math.PI / 2);
+        disk.translate(0, 0, z);
+        pieces.push({ geometry: faceted(THREE, disk, null), color: HOLE, finish: 'paint' });
+    }
+    // In section, each row a pocket drilled from the bore.
+    onCutFaces(THREE, bore, 0.09 * r, 2 * hole, cellRows(centres), 0.004 * r)
+        .forEach(geometry => pieces.push({ geometry, color: HOLE, finish: 'paint' }));
+    return pieces;
+}
+
+// A honeycomb seal: the stator's bore lined with hexagonal cells of thin
+// foil, their walls standing from the backing to the bore.
+function honeycombSeal(THREE, part, edges) {
+    const { r } = onNode(part);
+    const bore = 1.04 * r;
+    const depth = 0.1 * r;
+    const pieces = cutAwayStator(THREE, part, edges, bore + depth);
+    const size = 0.075 * r;
+    const foil = 0.01 * r;
+    const middle = bore + depth / 2;
+    // Three walls of each cell, the ones towards its neighbours at 0, 60 and
+    // 120 degrees: every wall inside the pattern is drawn once.
+    const walls = [0, 1, 2].map(k => (k * Math.PI) / 3);
+    const centres = cellCentres(part, middle, Math.sqrt(3) * size);
+    for (const [a, z] of centres) {
+        for (const toward of walls) {
+            const mx = Math.cos(toward) * size * 0.866;
+            const mz = Math.sin(toward) * size * 0.866;
+            const wall = new THREE.BoxGeometry(size, depth, foil);
+            wall.rotateY(-(toward + Math.PI / 2));
+            wall.translate(mx, middle, mz);
+            wall.rotateZ(a - Math.PI / 2);
+            wall.translate(0, 0, z);
+            pieces.push(steel(faceted(THREE, wall, null)));
+        }
+    }
+    // In section: the cell layer is open between the bore and the backing,
+    // the walls crossing it a comb, a wall between each two rows and one on
+    // each row.
+    const rows = cellRows(centres);
+    const between = rows.slice(1).map((z, k) => (z + rows[k]) / 2);
+    onCutFaces(THREE, bore, depth, 2 * foil, rows.concat(between), 0.03 * r)
+        .forEach(geometry => pieces.push(steel(geometry)));
     return pieces;
 }
 
@@ -494,6 +717,7 @@ function rigidCoupling(THREE, part, edges) {
 // categories; the layout only hands a part a key its own category offers.
 export const SHAPE_BUILDERS = {
     impeller,
+    closed_impeller: closedImpeller,
     axial: axialStage,
     turbine,
     fan,
@@ -503,6 +727,8 @@ export const SHAPE_BUILDERS = {
     tilting_pad: tiltingPad,
     magnetic: magneticBearing,
     brush: brushSeal,
+    hole_pattern: holePatternSeal,
+    honeycomb: honeycombSeal,
     balance_weight: balanceWeight,
     nut: lockNut,
     gear_coupling: gearCoupling,

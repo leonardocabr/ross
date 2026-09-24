@@ -17,6 +17,7 @@ const { SYMBOL, benchLayout, drivenPlacement, framing, layoutScene, pickPart, sh
     await import('../../frontend/core/rotor3d_layout.js');
 const { MAX_DRAWN_TEETH, buildBench, buildRotorModel, mergeColoured } =
     await import('../../frontend/components/rotor3d_parts.js');
+const { motorPieces } = await import('../../frontend/components/rotor3d_motor.js');
 
 const CASES = JSON.parse(fs.readFileSync(new URL('../golden/rotor_scenes.json', import.meta.url)));
 const near = (a, b, tolerance = 1e-9) => Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(a), Math.abs(b));
@@ -211,12 +212,16 @@ for (const [name, { scene }] of Object.entries(CASES)) {
     const layout = layoutScene(scene);
     const bench = benchLayout(layout);
     const bearingsHere = layout.parts.filter(p => p.kind === 'bearing');
-    check(`${name}: the bench top is below every part of the rotor`, bench.plate.top < layout.bounds.min[1]);
+    const motor = bench.motor;
+    check(`${name}: the bench top is below every part of the rotor, and the motor stands on it`,
+        bench.plate.top < layout.bounds.min[1] && bench.plate.top <= motor.feet + 1e-12);
     check(`${name}: the plate is under the whole rotor`,
         bench.plate.x0 < layout.bounds.min[0] && bench.plate.x1 > layout.bounds.max[0]
         && bench.plate.z0 < layout.bounds.min[2] && bench.plate.z1 > layout.bounds.max[2]);
+    const underBearings = bench.pedestals.filter(p => p.key !== 'motor');
+    const underMotor = bench.pedestals.filter(p => p.key === 'motor');
     check(`${name}: a pedestal under every bearing, from the plate to the bearing's base`,
-        bench.pedestals.length === bearingsHere.length && bench.pedestals.every(p => {
+        underBearings.length === bearingsHere.length && underBearings.every(p => {
             const b = bearingsHere.find(x => x.key === p.key);
             return near(p.y0, bench.plate.top) && near(p.y1, b.offset.y - SYMBOL.bearing.base * b.shaftRadius) && p.y1 > p.y0;
         }));
@@ -226,18 +231,45 @@ for (const [name, { scene }] of Object.entries(CASES)) {
     check(`${name}: legs from the plate to the floor, and the camera takes the whole bench in`,
         bench.legs.length >= 4 && bench.floor < bench.plate.bottom
         && bench.bounds.min[1] === bench.floor && bench.bounds.min[0] <= layout.bounds.min[0]
-        && bench.bounds.max[1] === layout.bounds.max[1]);
+        && bench.bounds.max[1] === Math.max(layout.bounds.max[1], motor.top));
+    // The motor: at node 0's end of the line it drives, before all that is
+    // drawn, on that line's axis, its shaft reaching the first shaft element
+    // and the coupling in between; on the plate, or on a pedestal when the
+    // plate is lower than its feet.
+    const driven = layout.parts.filter(p => p.kind === 'shaft' && p.half !== 'driven');
+    const start = Math.min(...driven.map(p => p.offset.z + Math.min(p.z0, p.z1)));
+    check(`${name}: a motor at the start of the rotor, on its axis, joined to its first shaft element`,
+        motor.z0 < motor.z1 && motor.z1 < layout.bounds.min[2] && near(motor.shaftTo, start)
+        && motor.x === driven[0].offset.x && motor.y === driven[0].offset.y
+        && motor.coupling[0] > motor.z1 && motor.coupling[1] < Math.min(layout.bounds.min[2], start)
+        && motor.radius > motor.shaftRadius);
+    check(`${name}: the motor on the plate, or on a pedestal reaching it`,
+        underMotor.length === 0 ? near(motor.feet, bench.plate.top)
+            : underMotor.length === 1 && near(underMotor[0].y0, bench.plate.top) && near(underMotor[0].y1, motor.feet));
+    check(`${name}: and on the bench, in the box the camera frames`,
+        bench.plate.z0 < motor.z0 && bench.bounds.min[2] <= motor.z0 && bench.plate.x0 < motor.x - motor.across
+        && bench.plate.x1 > motor.x + motor.across);
+    const motorBox = new THREE.Box3();
+    motorPieces(THREE, motor, []).forEach(({ geometry }) => { geometry.computeBoundingBox(); motorBox.union(geometry.boundingBox); geometry.dispose(); });
+    const give = 1e-6;   // the geometry is kept in float32
+    check(`${name}: the motor drawn is the size the layout gives it`,
+        motorBox.min.x >= motor.x - motor.across - give && motorBox.max.x <= motor.x + motor.across + give
+        && motorBox.min.y >= motor.feet - give && motorBox.max.y <= motor.top + give
+        && motorBox.min.z >= motor.z0 - give && motorBox.max.z <= motor.shaftTo + give
+        && Math.abs(motorBox.min.y - motor.feet) < give && Math.abs(motorBox.max.z - motor.shaftTo) < give);
     const built = buildBench(THREE, bench);
     const benchBox = new THREE.Box3().setFromObject(built.object);
     check(`${name}: the bench drawn fits the box the camera frames`,
         benchBox.min.y >= bench.bounds.min[1] - 1e-6 && benchBox.min.x >= bench.bounds.min[0] - 1e-6
-        && benchBox.max.x <= bench.bounds.max[0] + 1e-6 && benchBox.max.z <= bench.bounds.max[2] + 1e-6);
+        && benchBox.max.x <= bench.bounds.max[0] + 1e-6 && benchBox.max.z <= bench.bounds.max[2] + 1e-6
+        && benchBox.min.z >= bench.bounds.min[2] - 1e-6 && benchBox.max.y <= bench.bounds.max[1] + 1e-6);
     const held = [];
     built.object.traverse(o => { if (o.geometry) held.push(o.geometry, o.material); });
     const gone = new Set();
     held.forEach(o => o.addEventListener('dispose', () => gone.add(o)));
     built.dispose();
-    check(`${name}: taking the bench away frees it`, held.length === 4 && held.every(o => gone.has(o)));
+    check(`${name}: taking the bench away frees it -- painted, bare metal, outlines`,
+        held.length === 6 && held.every(o => gone.has(o)));
 }
 
 // --- the pointer ----------------------------------------------------------------------

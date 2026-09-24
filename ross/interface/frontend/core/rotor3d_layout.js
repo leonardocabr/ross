@@ -83,6 +83,22 @@ export function gearDrawing(g, shaftRadius) {
     };
 }
 
+// The helix angle a helical gear is drawn with: ROSS's (the scene gives it in
+// radians), or HELIX_DRAWN for a gear ROSS has as spur and the form asks to be
+// drawn helical -- `assumed` says so, for the tooltip. Past HELIX_MAX the teeth
+// would read as a screw. The driven line of a MultiRotor turns the other way:
+// two external gears in mesh have opposite hands, and so their teeth meet.
+export const HELIX_DRAWN = (20 * Math.PI) / 180;
+export const HELIX_MAX = (45 * Math.PI) / 180;
+
+function helixDrawn(g, half) {
+    const own = Number(g.helix_angle) || 0;
+    const assumed = Math.abs(own) <= 1e-6;
+    const size = Math.min(assumed ? HELIX_DRAWN : Math.abs(own), HELIX_MAX);
+    const hand = (own < 0 ? -1 : 1) * (half === 'driven' ? -1 : 1);
+    return { angle: hand * size, assumed };
+}
+
 // When a node has no shaft element at all (a link node, or an empty rotor),
 // symbols need some radius: the median of the shaft radii keeps them in scale
 // with the rest of the rotor.
@@ -118,8 +134,8 @@ function partsOfLine(line, half, offset, shapeFor) {
     const key = (category, index) => (half ? `${half}:${category}:${index}` : `${category}:${index}`);
     const base = { half, offset };
     // The key of the geometry-bank shape an element is drawn with, '' for its
-    // default.
-    const shapeKey = (category, index) => ((shapeFor && shapeFor(half, category, index)) || {}).key || '';
+    // category's own drawing.
+    const shapeKey = (category, index, entry) => ((shapeFor && shapeFor(half, category, index, entry)) || {}).key || '';
 
     // A coupling occupies its span like a shaft element (ROSS lumps its two
     // halves at the two nodes, m_l and m_r). It is drawn at a coupling's own
@@ -158,7 +174,7 @@ function partsOfLine(line, half, offset, shapeFor) {
             gap: [body[0] + hub, body[1] - hub],
             stubs: [!covered((z0 + body[0]) / 2), !covered((body[1] + z1) / 2)],
             stubColor: shaftColor,
-            shape: shapeKey('couplings', c.index),
+            shape: shapeKey('couplings', c.index, c),
             // A shaft element over the same span is a second, parallel stiffness
             // in ROSS; the tooltip says so.
             overlapsShaft: across.length > 0,
@@ -196,7 +212,7 @@ function partsOfLine(line, half, offset, shapeFor) {
         // A shape from the bank, drawn in the disk's envelope -- widened to the
         // depth the shape needs to read as itself. A disk with no size in ROSS
         // stays the plain ring that says so.
-        const drawnAs = shape && shapeFor ? shapeFor(half, 'disks', d.index) : null;
+        const drawnAs = shape && shapeFor ? shapeFor(half, 'disks', d.index, d) : null;
         if (drawnAs) width = Math.max(width, drawnAs.minWidth * outer);
         parts.push({
             ...base, key: key('disks', d.index), category: 'disks', index: d.index, kind: 'disk',
@@ -209,12 +225,17 @@ function partsOfLine(line, half, offset, shapeFor) {
     for (const g of line.gears || []) {
         if (g.z == null) continue;
         const drawn = gearDrawing(g, radiusAt(g.z));
+        const drawnAs = shapeFor ? shapeFor(half, 'gears', g.index, g) : null;
+        const helix = drawnAs && drawnAs.key === 'helical' ? helixDrawn(g, half) : null;
         // The hub stands proud of the teeth on both faces (GEAR_HUB of the width).
         parts.push({
             ...base, key: key('gears', g.index), category: 'gears', index: g.index, kind: 'gear',
             entry: g, color: g.color, z0: g.z - GEAR_HUB * drawn.width, z1: g.z + GEAR_HUB * drawn.width,
             radius: drawn.tip, bore: drawn.bore, faceWidth: drawn.width, shaftRadius: radiusAt(g.z),
             gear: drawn,
+            shape: drawnAs ? drawnAs.key : '',
+            helix: helix ? helix.angle : 0,
+            helixAssumed: !!helix && helix.assumed,
         });
     }
 
@@ -239,7 +260,7 @@ function partsOfLine(line, half, offset, shapeFor) {
                 radius: size.radius * r, bore: r, shaftRadius: r,
                 offset: { x: offset.x, y: offset.y - levels * SYMBOL.link * r, z: offset.z },
                 hanging: levels,
-                shape: shapeKey(category, e.index),
+                shape: shapeKey(category, e.index, e),
             });
         }
     }
@@ -296,11 +317,12 @@ export function drivenPlacement(scene) {
 
 // Every part of the scene, in world coordinates, plus the node rings and the
 // box that holds them. This is the one reading of the scene the 3D view makes.
-// `shapeFor(half, category, index)`, when given, answers the shape of the
-// geometry bank (core/shapes3d.js) an element is drawn with -- `{ key,
-// minWidth }` or null for the default. The scene comes from ROSS and knows
-// nothing of it; the project does. Handed in, so this module stays a function
-// of what it is given.
+// `shapeFor(half, category, index, entry)`, when given, answers the shape of
+// the geometry bank (core/shapes3d.js) an element is drawn with -- `{ key,
+// minWidth }`, or null for its category's own drawing. `entry` is the scene's
+// entry for the element, which says its ROSS class and helix angle; the choice
+// made in the form is the project's, which the scene knows nothing of. Handed
+// in, so this module stays a function of what it is given.
 export function layoutScene(scene, shapeFor) {
     const lines = [];
     if (scene && scene.kind === 'multirotor') {
@@ -348,22 +370,69 @@ function boundsOf(parts) {
     return { min, max };
 }
 
+// The motor that drives the rotor, shown with the bench and, like it, only a
+// picture (Leonardo: "totalmente estético, assim como a bancada"). It stands
+// at the start of the rotor -- node 0's end, the left of the view -- on the
+// axis of the line it drives (a MultiRotor's driving line), before everything
+// drawn, and a shaft of its own runs through a coupling to the rotor's first
+// shaft element.
+//
+// Its size follows the shaft it drives: `radius` in radii of that shaft end,
+// `length` of the frame in motor radii, `gap` between its face and the rotor
+// in shaft radii (room for the coupling), `drop` from the axis to the bottom
+// of its feet in motor radii.
+export const MOTOR = { radius: 3.2, length: 2.6, gap: 3.2, drop: 1.15 };
+
+export function motorLayout(layout) {
+    const shafts = layout.parts.filter(p => p.kind === 'shaft' && p.half !== 'driven' && p.profile);
+    if (!shafts.length) return null;
+    const startOf = p => p.offset.z + Math.min(p.z0, p.z1);
+    const first = shafts.reduce((best, p) => (startOf(p) < startOf(best) ? p : best));
+    const start = startOf(first);
+    const end = first.z0 <= first.z1 ? first.profile.odl : first.profile.odr;
+    const r = Math.max(end / 2, 1e-4);
+    const radius = MOTOR.radius * r;
+    const face = Math.min(layout.bounds.min[2], start) - MOTOR.gap * r;
+    const length = MOTOR.length * radius;
+    return {
+        x: first.offset.x, y: first.offset.y, shaftRadius: r, radius,
+        // The frame from its back (the fan cover) to its face; the shaft from
+        // the face to the rotor; the coupling in the gap, clear of both.
+        z0: face - length, z1: face, shaftTo: start,
+        coupling: [face + 0.35 * r, face + (MOTOR.gap - 0.9) * r],
+        feet: first.offset.y - MOTOR.drop * radius,
+        top: first.offset.y + 1.3 * radius,
+        across: radius,
+    };
+}
+
 // The test bench the rotor can be shown on, as in Leonardo's prototype: a
 // slotted bed plate on legs, and a pedestal under every bearing reaching down
-// to it. It is not in the model -- ROSS knows no bench -- and it is drawn only
-// when asked for. Every size is in proportion to the rotor, so a 1 m rotor and
-// an 11 m one both stand on a bench that fits them.
+// to it -- and the motor (`motorLayout`), on a pedestal of its own when the
+// plate is further down than its feet. It is not in the model -- ROSS knows no
+// bench -- and it is drawn only when asked for. Every size is in proportion to
+// the rotor, so a 1 m rotor and an 11 m one both stand on a bench that fits
+// them.
 //
-// The plate's top sits below the lowest point of the rotor, so a large disk
-// clears it; the pedestals make up the difference under each bearing.
+// The plate's top sits below the lowest point of the rotor and of the motor's
+// feet, so a large disk clears it; the pedestals make up the difference under
+// each bearing.
 export function benchLayout(layout) {
-    const { min, max } = layout.bounds;
+    const motor = motorLayout(layout);
+    const min = layout.bounds.min.slice();
+    const max = layout.bounds.max.slice();
     const length = max[2] - min[2];
-    const width = max[0] - min[0];
     const height = max[1] - min[1];
+    if (motor) {
+        min[0] = Math.min(min[0], motor.x - motor.across);
+        max[0] = Math.max(max[0], motor.x + motor.across);
+        max[1] = Math.max(max[1], motor.top);
+        min[2] = Math.min(min[2], motor.z0);
+    }
+    const width = max[0] - min[0];
     const margin = Math.max(0.06 * length, 0.25 * width);
     const thickness = Math.min(Math.max(0.1 * width, 0.015 * length), 0.03 * length);
-    const top = min[1] - Math.max(0.08 * height, 0.01 * length);
+    const top = Math.min(min[1] - Math.max(0.08 * height, 0.01 * length), motor ? motor.feet : Infinity);
     const plate = {
         x0: min[0] - margin, x1: max[0] + margin, z0: min[2] - margin, z1: max[2] + margin,
         top, bottom: top - thickness,
@@ -382,6 +451,12 @@ export function benchLayout(layout) {
             width: 1.5 * SYMBOL.bearing.feet * r, depth: 0.8 * Math.abs(p.z1 - p.z0),
         };
     });
+    if (motor && motor.feet > top + 1e-9) {
+        pedestals.push({
+            key: 'motor', x: motor.x, z: (motor.z0 + motor.z1) / 2, y0: top, y1: motor.feet,
+            width: 2.4 * motor.radius, depth: 0.95 * (motor.z1 - motor.z0),
+        });
+    }
     // Legs at the corners, and more along a long bench, about three plate
     // widths apart.
     const along = Math.max(2, Math.ceil((plate.z1 - plate.z0) / (3 * (plate.x1 - plate.x0))) + 1);
@@ -391,7 +466,7 @@ export function benchLayout(layout) {
         for (const x of [plate.x0 + legSize, plate.x1 - legSize]) legs.push({ x, z, size: legSize, mount });
     }
     return {
-        plate, pedestals, legs, floor, legHeight,
+        plate, pedestals, legs, floor, legHeight, motor,
         bounds: {
             min: [Math.min(min[0], plate.x0), floor, Math.min(min[2], plate.z0)],
             max: [Math.max(max[0], plate.x1), max[1], Math.max(max[2], plate.z1)],
