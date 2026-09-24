@@ -593,3 +593,63 @@ def test_a_whirl_option_left_at_its_default_is_not_repeated(kind, base, blank):
     assert with_blank == without
     assert "matched_whirl" not in with_blank
     assert "frequency=" not in with_blank
+
+
+def test_the_shape_drawn_in_3d_never_reaches_ross_nor_the_script():
+    """The geometry bank's `shape3d` is only a picture (VIEW_FIELDS).
+
+    Handed to ROSS it would be an unexpected keyword -- `DiskElement` takes
+    none of that name -- and the rotor would stop building the moment someone
+    chose an impeller. In the script it would be the same error, one step
+    later. The same project with and without it has to build the same disks
+    and write the same script."""
+    from ross.interface.domain.rotor_builder import assemble_rotor
+
+    def project(shape):
+        disks = [
+            # Values of this test's own: the element cache must not answer
+            # with a disk another test built, or the builder is never asked.
+            {
+                "element_type": "BASIC",
+                "n": "1",
+                "m": "10.25",
+                "Ip": "0.1",
+                "Id": "0.05",
+            },
+            {
+                "element_type": "Geometry",
+                "n": "2",
+                "width": "70.5",
+                "o_d": "280",
+                "i_d": "50",
+                "material": "Steel",
+            },
+        ]
+        if shape:
+            for disk in disks:
+                disk["shape3d"] = shape
+        return {
+            "materials": [
+                {"name": "Steel", "rho": "7810", "E": "211e9", "G_s": "81.2e9"}
+            ],
+            "shafts": [
+                {"L": "250", "idl": "0", "odl": "50", "material": "Steel"}
+                for _ in range(3)
+            ],
+            "disks": disks,
+            "bearings": [
+                {"element_type": "BASIC", "n": "0", "kxx": "1e6", "cxx": "0"},
+                {"element_type": "BASIC", "n": "3", "kxx": "1e6", "cxx": "0"},
+            ],
+        }
+
+    # The shaped one first: the cache leaves the shape out of its key, so built
+    # second it would be answered from the plain one's elements.
+    shaped = assemble_rotor(project("impeller")).placed["disks"]
+    plain = assemble_rotor(project(None)).placed["disks"]
+    for mine, theirs in zip(shaped, plain, strict=True):
+        for name in ("n", "m", "Ip", "Id"):
+            assert float(getattr(mine, name)) == float(getattr(theirs, name)), name
+    script = build_script(project("impeller"))
+    assert "shape3d" not in script and "impeller" not in script
+    assert script == build_script(project(None))

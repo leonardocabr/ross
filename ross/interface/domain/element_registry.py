@@ -15,6 +15,14 @@ of the class; only the form and the call differ.
 
 import ross as rs
 
+# Fields the screen keeps on an element for its own drawing, which ROSS never
+# sees: the shape the 3D view draws the element with, from the geometry bank
+# (frontend/core/shapes3d.js). Only a picture, by Leonardo's decision -- ROSS
+# computes with the form's own values -- so the builder leaves these out of
+# the constructor's arguments, the element cache leaves them out of its key,
+# and the exported script leaves them out of the code.
+VIEW_FIELDS = frozenset({"shape3d"})
+
 # UI category -> { element type -> ROSS constructor: "Class" or "Class.method" }
 ELEMENTS = {
     "materials": {"BASIC": "Material"},

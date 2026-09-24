@@ -10,6 +10,7 @@
 
 import { fillDefault, handleUnitChange, toggleAdvanced } from '../components/form.js';
 import { openSectionHelp } from '../components/help.js';
+import { pickShape } from '../components/shape_picker.js';
 import {
     addElementFromNodeHub, closeForm, closeNodeHub, copyItem, copySelected, deleteItem,
     deleteSelected, editItem, openForm, pickTab, saveItem, selectSubType, setRotorView,
@@ -51,6 +52,7 @@ export const MODELING_ACTIONS = {
     'close-form': () => closeForm(),
     'pick-subtype': element => selectSubType(element.dataset.subtype),
     'fill-default': () => fillDefault(),
+    'pick-shape': element => pickShape(element.dataset.shape),
     'toggle-advanced': element => toggleAdvanced(element),
     'change-unit': element => handleUnitChange(element),
 

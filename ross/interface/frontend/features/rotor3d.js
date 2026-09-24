@@ -28,6 +28,7 @@ import {
 import { renderList } from '../components/list.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
 import { buildTriad } from '../components/rotor3d_triad.js';
+import { SHAPE_FIELD, shapeOf } from '../core/shapes3d.js';
 import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
 
 const FOV = 35;
@@ -378,7 +379,7 @@ export async function showRotor3d(container, scene) {
         framedFor = null;
     }
     fitCanvas(stage);
-    layout = layoutScene(scene);
+    layout = layoutScene(scene, shapeForElement);
     direction = viewDirection(scene);
     buildModel();
     placeBench();
@@ -403,6 +404,12 @@ function buildModel() {
     // A hidden part takes its shadow with it.
     stage.renderer.shadowMap.needsUpdate = true;
     renderLegend();
+}
+
+// The shape of the geometry bank an element was given in its form, or null.
+function shapeForElement(half, category, index) {
+    const element = elementOf({ half, category, index });
+    return shapeOf(category, element && element[SHAPE_FIELD]);
 }
 
 // The project's element a part was drawn from.
@@ -754,6 +761,11 @@ function describePart(part) {
         }
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(
             !e.shape ? t('rotor3dNoSize') : e.shape.exact ? t('rotor3dExactDisk') : t('rotor3dEquivalentDisk'))}</div>`);
+        const drawnAs = shapeOf('disks', part.shape);
+        if (drawnAs) {
+            rows.push(line(t('rotor3dShape'), drawnAs.name()));
+            rows.push(note(t('rotor3dShapeOnlyPicture')));
+        }
     } else if (part.kind === 'gear') {
         rows.push(line(t('rotor3dMass'), `${number(e.m)} kg`));
         if (e.teeth) rows.push(line(t('rotor3dTeeth'), String(e.teeth)));

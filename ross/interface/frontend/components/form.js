@@ -5,6 +5,7 @@ import { escapeHtml } from '../core/dom.js';
 import { state } from '../core/state.js';
 import { t } from '../core/i18n.js';
 import { schemaFor } from '../core/schema.js';
+import { shapePickerHTML, syncShapePicker } from './shape_picker.js';
 function sectionHeaderHTML(title) {
     return '<div style="grid-column: 1 / -1; margin-top: 10px; border-bottom: 1px solid var(--border-color);">' +
         '<b style="font-size:12px; color:var(--text-muted);">' + escapeHtml(title).toUpperCase() + '</b></div>';
@@ -51,12 +52,20 @@ function batchBannerHTML() {
         '<i class="fas fa-layer-group"></i> <b>' + t('batchTitle') + '</b> ' + t('batchBody') + '</div>';
 }
 
+// The form of a model: its fields, and -- for a category the geometry bank
+// covers -- the shape the 3D view draws it with (components/shape_picker.js).
+// Not in the LIST form, which types each field as a list of values.
 export function buildFormHTML(category, subtype) {
     if (subtype === 'LIST') {
         return batchBannerHTML() +
-            buildFormHTML(category, 'BASIC').replace(
+            fieldsHTML(category, 'BASIC').replace(
                 /id="inp-n"/g, 'id="inp-n" placeholder="e.g. 0, 1, 2"');
     }
+    const fields = fieldsHTML(category, subtype);
+    return schemaFor(category, subtype) ? fields + shapePickerHTML(category) : fields;
+}
+
+function fieldsHTML(category, subtype) {
 
     const definition = schemaFor(category, subtype);
     if (!definition) return '<p class="empty-message">' + t('unavailable') + '</p>';
@@ -106,6 +115,7 @@ export function restoreFormValues(stored) {
         const button = document.querySelector('#form-fields .btn-advanced');
         if (button) toggleAdvanced(button);
     }
+    syncShapePicker();
 }
 
 // Engineering defaults library

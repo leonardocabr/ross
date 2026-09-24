@@ -19,7 +19,12 @@ from decimal import Decimal
 
 from ross.units import Q_
 
-from .element_registry import ross_class_name, ross_constructor, takes_units
+from .element_registry import (
+    VIEW_FIELDS,
+    ross_class_name,
+    ross_constructor,
+    takes_units,
+)
 from .legacy import migrate_element
 from .material_names import material_key, ross_material_name, validate_materials
 from .node_resolver import effective_nodes
@@ -154,7 +159,7 @@ def _format_kwargs(obj, exclude_keys=(), class_name="", in_si=False):
     items = []
     unit_map = unit_map_by_class().get(class_name or "", {})
     for key, val in obj.items():
-        if key in exclude_keys or key.endswith("_unit"):
+        if key in exclude_keys or key in VIEW_FIELDS or key.endswith("_unit"):
             continue
         if val is None or (isinstance(val, str) and val == ""):
             continue

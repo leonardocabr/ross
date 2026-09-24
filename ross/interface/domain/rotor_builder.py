@@ -22,6 +22,7 @@ from ross.units import Q_
 
 from .cache import ELEMENT_CACHE
 from .element_registry import (
+    VIEW_FIELDS,
     resolve_constructor,
     ross_class_name,
     ross_constructor,
@@ -40,7 +41,7 @@ def extract_kwargs(d, mat_dict, element_type, ignore_keys=["element_type", "n"])
     unit_map = UNITS_MAPPING.get(element_type, {})
 
     for k, v in d.items():
-        if k in ignore_keys or k.endswith("_unit"):
+        if k in ignore_keys or k in VIEW_FIELDS or k.endswith("_unit"):
             continue
         if v is None:
             continue
@@ -288,7 +289,13 @@ def assemble_rotor(data):
         created_materials[material_key(name)] = rs.Material(name=name, **kwargs)
 
     def instantiate_with_cache(category, el_dict, n_val, builder_func, auto_tag):
-        hash_data = {k: v for k, v in el_dict.items() if str(v).strip() != ""}
+        # A view field changes the picture, not the element: a new shape must
+        # not cost a new ROSS element.
+        hash_data = {
+            k: v
+            for k, v in el_dict.items()
+            if str(v).strip() != "" and k not in VIEW_FIELDS
+        }
         hash_data["__cat"] = category
         hash_data["__n_calc"] = n_val
         hash_data["__tag"] = el_dict.get("tag", auto_tag)

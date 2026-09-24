@@ -21,15 +21,17 @@
 //   pillow blocks with their bolts and grease nipple, ribbed seal glands,
 //   couplings as a flanged hub on each node with a disc pack and a spacer.
 //
-// Solids of revolution are built here by `revolve` rather than three.js's
+// Solids of revolution are built by `revolve` (rotor3d_solids.js) rather than three.js's
 // LatheGeometry: Lathe smooths the normal across every corner of the profile,
 // so a shaft's end face and its side shaded as one rounded surface. Here each
 // segment of the profile keeps its own normal -- smooth around the axis, sharp
 // at the corners -- and the corners are where the outlines are drawn.
 
 import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
-
-const SEGMENTS = { shaft: 40, part: 56, small: 12 };
+import {
+    EDGE_ANGLE, SEGMENTS, boltCircle, boltHead, faceted, own, revolve, ring, steel,
+} from './rotor3d_solids.js';
+import { SHAPE_BUILDERS } from './rotor3d_shapes.js';
 
 // A gear with more teeth than this is drawn with this many: past it the teeth
 // are finer than a pixel at any sensible zoom, and each one costs vertices.
@@ -38,116 +40,12 @@ export const MAX_DRAWN_TEETH = 160;
 // Colours of what ROSS does not colour: bolts, the bearing's bushing, a
 // coupling's disc pack. As numbers: the page's own colours are CSS tokens, and
 // these are materials, not interface.
-const STEEL = 0xb4bcc4;
 const BRASS = 0xc39a45;
 const DISC_PACK = 0x8e98a2;
 
-// Where the outline is drawn: between two faces more than this apart.
-const EDGE_ANGLE = 28;
-
-// --- building blocks ------------------------------------------------------------
-
-// A solid of revolution around the z axis, from an (r, z) profile. The profile
-// goes around the section counter-clockwise (r across, z up), as every profile
-// in this file does, so the normals point out of the solid.
-function revolve(THREE, profile, segments, edges) {
-    const bands = profile.length - 1;
-    const position = new Float32Array(bands * segments * 18);
-    const normal = new Float32Array(bands * segments * 18);
-    const cos = [];
-    const sin = [];
-    for (let j = 0; j <= segments; j++) {
-        const a = (j / segments) * Math.PI * 2;
-        cos.push(Math.cos(a));
-        sin.push(Math.sin(a));
-    }
-    const normals = [];
-    let k = 0;
-    for (let i = 0; i < bands; i++) {
-        const [ra, za] = profile[i];
-        const [rb, zb] = profile[i + 1];
-        const length = Math.hypot(rb - ra, zb - za) || 1;
-        const nr = (zb - za) / length;
-        const nz = -(rb - ra) / length;
-        normals.push([nr, nz]);
-        for (let j = 0; j < segments; j++) {
-            // Counter-clockwise seen from where the normal points: along the
-            // profile t and around the axis s, t x s points into the solid, so
-            // each triangle goes the other way round.
-            const quad = [[ra, za, j], [rb, zb, j + 1], [rb, zb, j], [ra, za, j], [ra, za, j + 1], [rb, zb, j + 1]];
-            for (const [r, z, m] of quad) {
-                position[k] = r * cos[m]; position[k + 1] = r * sin[m]; position[k + 2] = z;
-                normal[k] = nr * cos[m]; normal[k + 1] = nr * sin[m]; normal[k + 2] = nz;
-                k += 3;
-            }
-        }
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
-    if (edges) {
-        // A circle wherever two neighbouring segments of the profile meet at
-        // an angle, and at the two ends of an open profile.
-        const limit = Math.cos((EDGE_ANGLE * Math.PI) / 180);
-        for (let i = 0; i < profile.length; i++) {
-            const before = normals[i - 1];
-            const after = normals[i];
-            const corner = !before || !after || before[0] * after[0] + before[1] * after[1] < limit;
-            if (corner && profile[i][0] > 1e-9) edges.push({ circle: profile[i], segments });
-        }
-    }
-    return geometry;
-}
-
-// A closed ring (or disk, with rIn 0) between two radii, from z0 to z1, with
-// its edges broken by a chamfer `c` on the outside.
-function ring(THREE, rIn, rOut, z0, z1, edges, segments = SEGMENTS.part, c = 0) {
-    const ch = Math.min(c, (rOut - rIn) / 3, Math.abs(z1 - z0) / 3);
-    const profile = [[rIn, z0], [rOut - ch, z0]];
-    if (ch > 0) profile.push([rOut, z0 + ch], [rOut, z1 - ch]); else profile.push([rOut, z1]);
-    profile.push([rOut - ch, z1]);
-    if (ch <= 0) profile.pop();
-    profile.push([rIn, z1], [rIn, z0]);
-    return revolve(THREE, profile, segments, edges);
-}
-
-// Plain three.js geometry, made flat-shaded and outline-ready. Everything that
-// is not a solid of revolution goes through here.
-function faceted(THREE, geometry, edges) {
-    const flat = geometry.index ? geometry.toNonIndexed() : geometry;
-    if (flat !== geometry) geometry.dispose();
-    flat.deleteAttribute('uv');
-    flat.computeVertexNormals();
-    if (edges) edges.push({ geometry: flat });
-    return flat;
-}
-
-// A hex bolt head, its axis along `axis` ('x', 'y' or 'z'), centred at (x, y, z).
-function boltHead(THREE, size, height, axis, x, y, z, edges) {
-    const head = new THREE.CylinderGeometry(size, size, height, 6);
-    if (axis === 'z') head.rotateX(Math.PI / 2);
-    if (axis === 'x') head.rotateZ(Math.PI / 2);
-    head.translate(x, y, z);
-    return faceted(THREE, head, edges);
-}
-
-// Bolt heads on a circle of radius `radius` around the axis, on the face at z.
-function boltCircle(THREE, count, radius, size, height, z, edges, phase = 0) {
-    const heads = [];
-    for (let i = 0; i < count; i++) {
-        const a = phase + (i / count) * Math.PI * 2;
-        heads.push(boltHead(THREE, size, height, 'z', Math.cos(a) * radius, Math.sin(a) * radius, z, edges));
-    }
-    return heads;
-}
-
 // --- one builder per kind -------------------------------------------------------
 //
-// Each returns a list of { geometry, color, finish } in the part's own frame,
-// with `color` null for "the element's own colour".
-
-const own = (geometry, finish = 'metal') => ({ geometry, color: null, finish });
-const steel = geometry => ({ geometry, color: STEEL, finish: 'metal' });
+// Each returns a list of { geometry, color, finish } (rotor3d_solids.js).
 
 // One stretch of shaft from za to zb, radii read off the element's taper, its
 // ends chamfered where `chamfered` says.
@@ -194,7 +92,12 @@ function shaftPieces(THREE, part, edges) {
 // A wheel: hub the full width, a web that thins from hub to rim, the rim, and
 // a circle of bolts on both faces of the web. A symbolic disk (no size in
 // ROSS) is a plain thin ring.
+//
+// A disk given a shape from the geometry bank (core/shapes3d.js) is drawn as
+// that shape instead, in the same envelope (rotor3d_shapes.js).
 function diskPieces(THREE, part, edges) {
+    const shaped = !part.symbolic && part.shape && SHAPE_BUILDERS[part.shape];
+    if (shaped) return shaped(THREE, part, edges);
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
     const ri = Math.min(part.bore, part.radius * 0.9);

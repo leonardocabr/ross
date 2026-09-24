@@ -110,7 +110,7 @@ export function shaftRadiusAt(shafts, z, fallback) {
 }
 
 // The parts of one shaft line, in its own coordinates, moved by `offset`.
-function partsOfLine(line, half, offset) {
+function partsOfLine(line, half, offset, shapeFor) {
     const shafts = line.shafts || [];
     const typical = typicalRadius(shafts);
     const radiusAt = z => shaftRadiusAt(shafts, z, typical);
@@ -188,11 +188,17 @@ function partsOfLine(line, half, offset) {
         const r = radiusAt(d.z);
         const shape = d.shape;
         const outer = shape ? shape.outer_radius : SYMBOL.disk.radius * r;
-        const width = shape && shape.width ? shape.width : SYMBOL.disk.width * r;
+        let width = shape && shape.width ? shape.width : SYMBOL.disk.width * r;
+        // A shape from the bank, drawn in the disk's envelope -- widened to the
+        // depth the shape needs to read as itself. A disk with no size in ROSS
+        // stays the plain ring that says so.
+        const drawnAs = shape && shapeFor ? shapeFor(half, 'disks', d.index) : null;
+        if (drawnAs) width = Math.max(width, drawnAs.minWidth * outer);
         parts.push({
             ...base, key: key('disks', d.index), category: 'disks', index: d.index, kind: 'disk',
             entry: d, color: d.color, z0: d.z - width / 2, z1: d.z + width / 2,
             radius: outer, bore: shape ? shape.inner_radius : r, symbolic: !shape,
+            shape: drawnAs ? drawnAs.key : '', shaftRadius: r,
         });
     }
 
@@ -285,7 +291,12 @@ export function drivenPlacement(scene) {
 
 // Every part of the scene, in world coordinates, plus the node rings and the
 // box that holds them. This is the one reading of the scene the 3D view makes.
-export function layoutScene(scene) {
+// `shapeFor(half, category, index)`, when given, answers the shape of the
+// geometry bank (core/shapes3d.js) an element is drawn with -- `{ key,
+// minWidth }` or null for the default. The scene comes from ROSS and knows
+// nothing of it; the project does. Handed in, so this module stays a function
+// of what it is given.
+export function layoutScene(scene, shapeFor) {
     const lines = [];
     if (scene && scene.kind === 'multirotor') {
         lines.push(['driving', scene.driving, { x: 0, y: 0, z: 0 }]);
@@ -297,7 +308,7 @@ export function layoutScene(scene) {
     const parts = [];
     const rings = [];
     for (const [half, line, offset] of lines) {
-        const ofThisLine = partsOfLine(line, half, offset);
+        const ofThisLine = partsOfLine(line, half, offset, shapeFor);
         parts.push(...ofThisLine);
         const shafts = line.shafts || [];
         const typical = typicalRadius(shafts);

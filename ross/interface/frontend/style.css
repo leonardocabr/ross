@@ -775,6 +775,60 @@ button {
     box-shadow: var(--shadow-focus);
 }
 
+/* The geometry bank's picker (components/shape_picker.js): a tile per shape,
+   the one chosen lit. */
+.shape-picker {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px dashed var(--border-default);
+}
+.shape-picker > label {
+    display: block;
+    margin-bottom: 6px;
+    font: var(--type-eyebrow);
+    letter-spacing: var(--ls-eyebrow);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+.shape-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 6px;
+}
+.shape-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-page);
+    color: var(--text-muted);
+    font-size: var(--fs-micro);
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+}
+.shape-tile:hover {
+    border-color: var(--accent);
+    color: var(--text-body);
+}
+.shape-tile[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--surface-tint);
+    color: var(--accent);
+}
+.shape-drawing {
+    width: 32px;
+    height: 32px;
+}
+.shape-hint {
+    margin: 6px 0 0;
+    color: var(--text-subtle);
+    font-size: var(--fs-micro);
+}
+
 .form-actions {
     display: flex;
     justify-content: flex-end;

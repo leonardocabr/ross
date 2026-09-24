@@ -1,6 +1,7 @@
 // The modeling screen: the element tabs, the form, the rotor figure that redraws
 // itself on every change, and the node hub over the figure.
 import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } from '../components/form.js';
+import { syncShapePicker } from '../components/shape_picker.js';
 import { categoryName, getEffectiveNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
 import { placeFormWindow } from '../components/floating_form.js';
 import { setThreeDShown, threeDShown } from '../core/visibility.js';
@@ -475,6 +476,9 @@ export function selectSubType(type) {
             if(advBtn) toggleAdvanced(advBtn);
         }
     }
+
+    // The shape tiles show the shape the element was restored with.
+    syncShapePicker();
 
     if (nodeHubTarget !== undefined && nodeHubTarget !== null) {
         let nInput = document.getElementById('inp-n');
