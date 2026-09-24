@@ -442,6 +442,23 @@ function normalized(v) {
     return length > 0 ? v.map(x => x / length) : [0, 0, 1];
 }
 
+// The node of a shaft line closest to `z` (world coordinates), for adding an
+// element there from the 3D view. `half` is the MultiRotor line, null for a
+// single rotor. Null when the line has no node.
+export function nearestNode(rings, half, z) {
+    let best = null;
+    for (const ring of rings) {
+        if (ring.half !== half) continue;
+        if (best === null || Math.abs(ring.z - z) < Math.abs(best.z - z)) best = ring;
+    }
+    return best ? best.n : null;
+}
+
+// Where a ray meets the part it picked: the point the pointer is on.
+export function hitPoint(origin, direction, distance) {
+    return [0, 1, 2].map(i => origin[i] + direction[i] * distance);
+}
+
 // The part under a ray, or null. Every part is picked as the cylinder that
 // holds it -- the prototype cast its ray at every tooth of every gear, which
 // cost 80 ms per mouse move on a large rotor. A coaxial cylinder is a few

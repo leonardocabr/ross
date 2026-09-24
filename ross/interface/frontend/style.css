@@ -816,6 +816,20 @@ button {
 .rotor3d-tip-label {
     color: var(--text-muted);
 }
+.rotor3d-tip-hint {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-default);
+    color: var(--text-muted);
+    font-size: var(--fs-micro);
+}
+.rotor3d-canvas:focus {
+    outline: none;
+}
+/* The row of the part the pointer is on in the 3D view. */
+.list-item.is-pointed {
+    background: var(--surface-tint);
+}
 .rotor3d-tip-note {
     margin-top: 4px;
     color: var(--text-muted);

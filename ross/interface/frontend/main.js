@@ -18,6 +18,7 @@ import { renderRotorHub } from './features/hub.js';
 import {
     buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth, startRotorViewToggle,
 } from './features/modeling.js';
+import { startRotor3dListLink } from './features/rotor3d.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { startWorkBar } from './features/progress.js';
 import { startTheme } from './core/theme.js';
@@ -68,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startRotorFigureFollowsWidth();
     // 2D or 3D, as the person left it.
     startRotorViewToggle();
+    // A row of the element list lights its part in the 3D view.
+    startRotor3dListLink();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));

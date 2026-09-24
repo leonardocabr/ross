@@ -20,8 +20,10 @@
 //   lifetime, where browsers allow only a handful before they drop the oldest.
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { benchLayout, framing, layoutScene, pickPart, viewDirection } from '../core/rotor3d_layout.js';
+import { benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection } from '../core/rotor3d_layout.js';
+import { state } from '../core/state.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
+import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
 
 const FOV = 35;
 
@@ -49,7 +51,21 @@ function rememberedBench() {
         return false;   // storage blocked: no bench until asked for
     }
 }
+
 let pointer = null;
+
+// Editing from the 3D view (slice 3). `chosen` is the key of the part last
+// clicked -- its row's form is open -- and `listPointed` the part of the row
+// the pointer is on in the element list.
+let chosen = null;
+let listPointed = null;
+let clickTimer = null;
+
+// How far a pointer may move between press and release and still be a click:
+// more is the camera being turned.
+const CLICK_SLOP = 5;
+// A click waits this long to see whether it is the first of a double click.
+const DOUBLE_CLICK = 250;
 
 // `import()` of the bare name 'three' goes through the import map in
 // index.html, which points it at `vendor/three/`. The OrbitControls addon
@@ -156,6 +172,13 @@ function makeStage(container) {
     }));
     sleeve.visible = false;
     scene.add(sleeve);
+    // The part whose form is open wears a fainter one.
+    const mark = new THREE.Mesh(sleeveGeometry, new THREE.MeshBasicMaterial({
+        color: themeColor('--accent', 'steelblue'), transparent: true, opacity: 0.16,
+        depthWrite: false, side: THREE.DoubleSide,
+    }));
+    mark.visible = false;
+    scene.add(mark);
 
     const tip = document.createElement('div');
     tip.className = 'rotor3d-tip';
@@ -174,8 +197,41 @@ function makeStage(container) {
         requestFrame();
     });
 
+    // A click edits the part (its row's form, as the list's pencil opens it);
+    // a double click adds an element at the nearest node (the node hub, as the
+    // 2D figure's "+" opens it); the Delete key removes the part last clicked.
+    // The canvas takes the keyboard focus on a click, so Delete typed in the
+    // form is never read here.
+    renderer.domElement.tabIndex = 0;
+    let pressed = null;
+    renderer.domElement.addEventListener('pointerdown', event => {
+        pressed = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+    });
+    renderer.domElement.addEventListener('pointerup', event => {
+        if (!pressed || Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > CLICK_SLOP) return;
+        const hit = pickAt(event);
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => { if (hit) editPart(hit.part); }, DOUBLE_CLICK);
+    });
+    renderer.domElement.addEventListener('dblclick', event => {
+        clearTimeout(clickTimer);
+        const hit = pickAt(event);
+        if (!hit) return;
+        const node = nodeUnder(hit);
+        if (node !== null) addFrom3d(node, hit.part.half);
+    });
+    renderer.domElement.addEventListener('keydown', event => {
+        if (event.key !== 'Delete') return;
+        const part = chosenPart();
+        if (!part) return;
+        event.preventDefault();
+        chosen = null;
+        deleteFrom3d(part.category, part.index, part.half);
+        requestFrame();
+    });
+
     const fresh = {
-        container, renderer, scene, camera, controls, sleeve, tip, sun, floor,
+        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor,
         raycaster: new THREE.Raycaster(), hovered: null,
     };
     if (typeof ResizeObserver === 'function') {
@@ -296,10 +352,95 @@ export function toggleBench() {
 // rotor, and only stops reacting to a pointer it can no longer see.
 export function hideRotor3d() {
     pointer = null;
+    markRow(null);
     if (stage) {
         stage.tip.hidden = true;
         stage.sleeve.visible = false;
     }
+}
+
+// The part under a pointer event, with where the ray met it.
+function pickAt(event) {
+    if (!stage || !layout) return null;
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    if (!box.width || !box.height) return null;
+    const ndc = {
+        x: ((event.clientX - box.left) / box.width) * 2 - 1,
+        y: -((event.clientY - box.top) / box.height) * 2 + 1,
+    };
+    stage.raycaster.setFromCamera(ndc, stage.camera);
+    const { origin, direction } = stage.raycaster.ray;
+    const from = [origin.x, origin.y, origin.z];
+    const toward = [direction.x, direction.y, direction.z];
+    const hit = pickPart(layout.parts, from, toward);
+    return hit ? { ...hit, point: hitPoint(from, toward, hit.distance) } : null;
+}
+
+// The node nearest to where the pointer is on a part, in that part's line.
+function nodeUnder(hit) {
+    return nearestNode(layout.rings, hit.part.half, hit.point[2]);
+}
+
+// The part last clicked, while its row's form is still the one open: once
+// the form is saved or closed, or another row is edited, nothing is chosen.
+function chosenPart() {
+    const part = chosen && layout ? layout.parts.find(p => p.key === chosen) : null;
+    const halfOpen = !(state.projectData && state.projectData.isMultiRotor) || state.multiRotorEditTarget === (part && part.half);
+    if (part && state.currentTab === part.category && state.editingIndex === part.index && halfOpen) return part;
+    chosen = null;
+    return null;
+}
+
+function editPart(part) {
+    chosen = part.key;
+    editFrom3d(part.category, part.index, part.half);
+    requestFrame();
+}
+
+// The row of a part, when the list is showing it: same tab, same MultiRotor half.
+function rowOf(part) {
+    if (!part || state.currentTab !== part.category) return null;
+    if (state.projectData && state.projectData.isMultiRotor && state.multiRotorEditTarget !== part.half) return null;
+    const rows = document.querySelectorAll('#element-list .list-item');
+    return rows[part.index] || null;
+}
+
+let pointedRow = null;
+
+// The list row of the part under the pointer is marked in the list.
+function markRow(part) {
+    const row = rowOf(part);
+    if (row === pointedRow) return;
+    if (pointedRow) pointedRow.classList.remove('is-pointed');
+    if (row) row.classList.add('is-pointed');
+    pointedRow = row;
+}
+
+// The other way: the pointer on a row of the element list marks its part in
+// the 3D view. Delegated from the document, since the list is rebuilt on
+// every change.
+export function startRotor3dListLink() {
+    document.addEventListener('mouseover', event => {
+        const row = event.target && event.target.closest ? event.target.closest('#element-list .list-item') : null;
+        const found = row ? row.querySelector('[data-index]') : null;
+        let key = null;
+        if (found && state.currentTab) {
+            const half = state.projectData && state.projectData.isMultiRotor ? state.multiRotorEditTarget : null;
+            key = (half ? `${half}:` : '') + `${state.currentTab}:${found.dataset.index}`;
+        }
+        if (key !== listPointed) {
+            listPointed = key;
+            requestFrame();
+        }
+    });
+}
+
+function placeSleeve(sleeve, part, grow) {
+    const o = part.offset;
+    const length = Math.abs(part.z1 - part.z0);
+    sleeve.position.set(o.x, o.y, o.z + (part.z0 + part.z1) / 2);
+    sleeve.scale.set(part.radius * grow, part.radius * grow, length + part.radius * 0.08);
+    sleeve.visible = true;
 }
 
 function requestFrame() {
@@ -325,20 +466,28 @@ function showWhatIsUnderThePointer() {
         hit = pickPart(layout.parts, [origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z]);
     }
     const part = hit ? hit.part : null;
+    const find = key => (key && layout ? layout.parts.find(p => p.key === key) : null);
+    const marked = chosenPart();
+    if (marked) placeSleeve(stage.mark, marked, 1.14); else stage.mark.visible = false;
+    markRow(part);
     if (!part) {
-        sleeve.visible = false;
         tip.hidden = true;
         stage.hovered = null;
+        // Nothing under the pointer here: the part of the list row under it,
+        // if any, is the one lit.
+        const fromList = find(listPointed);
+        if (fromList) placeSleeve(sleeve, fromList, 1.08); else sleeve.visible = false;
         return;
     }
-    const o = part.offset;
-    const length = Math.abs(part.z1 - part.z0);
-    sleeve.position.set(o.x, o.y, o.z + (part.z0 + part.z1) / 2);
-    sleeve.scale.set(part.radius * 1.08, part.radius * 1.08, length + part.radius * 0.08);
-    sleeve.visible = true;
-    if (stage.hovered !== part.key) {
-        tip.innerHTML = describePart(part);
-        stage.hovered = part.key;
+    placeSleeve(sleeve, part, 1.08);
+    const { origin, direction } = raycaster.ray;
+    const at = hitPoint([origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z], hit.distance);
+    const node = nodeUnder({ part, point: at });
+    const tipKey = `${part.key}@${node}`;
+    if (stage.hovered !== tipKey) {
+        tip.innerHTML = describePart(part)
+            + `<div class="rotor3d-tip-hint">${escapeHtml(t('rotor3dHint').replace('%1', node))}</div>`;
+        stage.hovered = tipKey;
     }
     tip.hidden = false;
     // Beside the pointer, and turned back inside when it would leave the view.

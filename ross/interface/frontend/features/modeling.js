@@ -1091,6 +1091,41 @@ function openNodeHub(nodeIndex) {
     document.getElementById('node-hub-target').innerText = nodeIndex;
 }
 
+// --- from the 3D view -----------------------------------------------------------
+//
+// The 3D view edits through the paths the list uses -- the row's own form, the
+// list's delete (with its question about a material in use), the node hub --
+// so undo, the rules of each form and the material checks hold there with
+// nothing added. What it needs from here is getting to the row: the right half
+// of a MultiRotor, the right tab, and the list in view.
+function reachRow(category, half) {
+    const otherHalf = state.projectData.isMultiRotor && half && state.multiRotorEditTarget !== half;
+    if (otherHalf) state.multiRotorEditTarget = half;
+    showListPanel(true);
+    if (otherHalf || state.currentTab !== category) openTab(category);
+}
+
+export function editFrom3d(category, index, half) {
+    reachRow(category, half);
+    editItem(index);
+}
+
+export function deleteFrom3d(category, index, half) {
+    reachRow(category, half);
+    return deleteItem(index);
+}
+
+// The node hub, as the 2D figure's "+" opens it -- on a MultiRotor too, where
+// the 2D figure offers none: the half is chosen first, so the element goes to
+// the line the node belongs to.
+export function addFrom3d(node, half) {
+    if (state.projectData.isMultiRotor && half && state.multiRotorEditTarget !== half) {
+        state.multiRotorEditTarget = half;
+        if (state.currentTab) openTab(state.currentTab);
+    }
+    openNodeHub(node);
+}
+
 export function closeNodeHub() {
     document.getElementById('node-hub-overlay').style.display = 'none';
 }
