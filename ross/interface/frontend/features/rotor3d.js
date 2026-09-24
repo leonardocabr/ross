@@ -761,11 +761,6 @@ function describePart(part) {
         }
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(
             !e.shape ? t('rotor3dNoSize') : e.shape.exact ? t('rotor3dExactDisk') : t('rotor3dEquivalentDisk'))}</div>`);
-        const drawnAs = shapeOf('disks', part.shape);
-        if (drawnAs) {
-            rows.push(line(t('rotor3dShape'), drawnAs.name()));
-            rows.push(note(t('rotor3dShapeOnlyPicture')));
-        }
     } else if (part.kind === 'gear') {
         rows.push(line(t('rotor3dMass'), `${number(e.m)} kg`));
         if (e.teeth) rows.push(line(t('rotor3dTeeth'), String(e.teeth)));
@@ -787,6 +782,12 @@ function describePart(part) {
     } else {
         rows.push(line(t('rotor3dModel'), e.kind || ''));
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dNoSize'))}</div>`);
+    }
+    // A shape from the geometry bank: what it is, and that it is only drawn.
+    const drawnAs = shapeOf(part.category, part.shape);
+    if (drawnAs) {
+        rows.push(line(t('rotor3dShape'), drawnAs.name()));
+        rows.push(note(t('rotor3dShapeOnlyPicture')));
     }
     if (part.hanging) rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dLinkNode'))}</div>`);
     return `<div class="rotor3d-tip-title">${escapeHtml(title)}</div>${rows.join('')}`;

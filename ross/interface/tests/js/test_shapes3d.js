@@ -32,14 +32,19 @@ const CASES = JSON.parse(fs.readFileSync(new URL('../golden/rotor_scenes.json', 
 console.log('\nThe catalogue');
 
 const disks = shapesFor('disks');
-check('the default comes first, as the empty key', disks[0].key === '' && shapeOf('disks', '') === null);
-check('every shape has a builder', disks.slice(1).every(s => typeof SHAPE_BUILDERS[s.key] === 'function'));
+const COVERED = ['disks', 'bearings', 'seals', 'pointmasses', 'couplings'];
+const everyShape = COVERED.flatMap(category => shapesFor(category).slice(1).map(shape => ({ category, shape })));
+check('each category covered has its default first, as the empty key',
+    COVERED.every(c => shapesFor(c)[0].key === '' && shapesFor(c).length > 1) && shapeOf('disks', '') === null);
+check('every shape has a builder', everyShape.every(({ shape }) => typeof SHAPE_BUILDERS[shape.key] === 'function'));
 check('and every builder a shape to choose it by',
-    Object.keys(SHAPE_BUILDERS).every(key => disks.some(s => s.key === key)));
-check('each has a name', disks.every(s => typeof s.name() === 'string' && s.name().length > 0));
+    Object.keys(SHAPE_BUILDERS).every(key => everyShape.some(({ shape }) => shape.key === key)));
+check('no key is offered by two categories: the builders are found by key alone',
+    new Set(everyShape.map(({ shape }) => shape.key)).size === everyShape.length);
+check('each has a name', COVERED.every(c => shapesFor(c).every(s => typeof s.name() === 'string' && s.name().length > 0)));
 check('a key the catalogue does not know is the default, not an error',
     shapeOf('disks', 'warp-drive') === null && shapeOf('bearings', 'impeller') === null);
-check('a category the bank does not cover yet offers nothing', shapesFor('bearings').length === 0);
+check('a category the bank does not cover offers nothing', shapesFor('shafts').length === 0 && shapesFor('gears').length === 0);
 
 // --- the layout --------------------------------------------------------------------------
 console.log('\nThe layout: the shape in the disk\'s envelope');
@@ -52,7 +57,7 @@ const shaped = layoutScene(every, (half, category, index) => {
     return index === 0 ? shapeOf('disks', 'impeller') : null;
 }).parts.filter(p => p.kind === 'disk');
 check('the layout asks for each disk by its line, category and position',
-    asked.length === plain.length && asked.every(([h, c]) => h === null && c === 'disks'));
+    asked.filter(([, c]) => c === 'disks').length === plain.length && asked.every(([h]) => h === null));
 check('the disk given a shape carries its key; the others none', shaped[0].shape === 'impeller' && shaped[1].shape === '');
 check('without the question, nothing changes', plain.every(p => p.shape === ''));
 const impeller = shapeOf('disks', 'impeller');
@@ -145,6 +150,36 @@ const vertices = shape => {
 };
 const counts = disks.map(s => vertices(s.key));
 check('each shape is drawn as itself, not as the default disk', new Set(counts).size === counts.length);
+
+// Every other category, in the scene it belongs to: what is drawn stays in
+// the box the camera frames (which knows a support's base and feet, a seal's
+// flange), and faces out.
+const SCENES = { bearings: 'every_element', seals: 'every_element', pointmasses: 'every_element', couplings: 'coupling' };
+for (const { category, shape } of everyShape.filter(e => e.category !== 'disks')) {
+    const scene = CASES[SCENES[category]].scene;
+    const layout = layoutScene(scene, (half, c) => (c === category ? shape : null));
+    const drawnParts = layout.parts.filter(p => p.category === category);
+    const model = buildRotorModel(THREE, layout);
+    const meshes = model.object.children.filter(o => o.isMesh);
+    const box = new THREE.Box3();
+    meshes.forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); });
+    const size = Math.max(...[0, 1, 2].map(i => layout.bounds.max[i] - layout.bounds.min[i]));
+    const inside = ['x', 'y', 'z'].every((axis, i) => box.min[axis] >= layout.bounds.min[i] - 1e-3 * size
+        && box.max[axis] <= layout.bounds.max[i] + 1e-3 * size);
+    check(`${category} ${shape.key}: every part given it, and inside the box the camera frames`,
+        drawnParts.length > 0 && drawnParts.every(p => p.shape === shape.key) && inside);
+    check(`${category} ${shape.key}: every face turned the way it is lit`, meshes.every(m => facingOut(m.geometry) > 0.995));
+    const plainOne = buildRotorModel(THREE, { parts: [{ ...drawnParts[0], shape: '' }], rings: [] });
+    const shapedOne = buildRotorModel(THREE, { parts: [drawnParts[0]], rings: [] });
+    check(`${category} ${shape.key}: drawn as itself, not as the default`, plainOne.vertices !== shapedOne.vertices);
+    const pieces = SHAPE_BUILDERS[shape.key](THREE, drawnParts[0], []);
+    check(`${category} ${shape.key}: some of it in the element's own colour`, pieces.some(p => p.color === null));
+    pieces.forEach(p => p.geometry.dispose());
+    plainOne.dispose();
+    shapedOne.dispose();
+    model.dispose();
+}
+
 const plainModel = buildRotorModel(THREE, { parts: [{ ...base, shape: 'warp-drive' }], rings: [] });
 const defaultModel = buildRotorModel(THREE, { parts: [base], rings: [] });
 check('an unknown key draws the default disk', plainModel.vertices === defaultModel.vertices);
@@ -160,7 +195,7 @@ check('a tile per shape, the default pressed', (html.match(/class="shape-tile"/g
 check('the choice rides in a hidden field the form saves like any other',
     html.includes(`<input type="hidden" id="inp-${SHAPE_FIELD}" value="">`));
 check('no drawing carries a colour of its own', !/#[0-9a-f]{3,6}\b/i.test(html) && html.includes('currentColor'));
-check('no picker for a category the bank does not cover', shapePickerHTML('bearings') === '');
+check('no picker for a category the bank does not cover', shapePickerHTML('shafts') === '');
 
 const tiles = disks.map(s => { const tile = node('tile:' + s.key); tile.dataset.shape = s.key; return tile; });
 registerSelector('#form-fields .shape-tile', tiles);
@@ -192,7 +227,8 @@ const { buildFormHTML, restoreFormValues } = await import('../../frontend/compon
 await schemaReady();
 check('the disk form ends with the picker', buildFormHTML('disks', 'BASIC').includes('class="shape-picker"'));
 check('the LIST form has none', !buildFormHTML('disks', 'LIST').includes('shape-picker'));
-check('nor the form of a category the bank does not cover', !buildFormHTML('bearings', 'BASIC').includes('shape-picker'));
+check('nor the form of a category the bank does not cover', !buildFormHTML('shafts', 'BASIC').includes('shape-picker'));
+check('a bearing\'s form offers its own shapes', (shapePickerHTML('bearings').match(/class="shape-tile"/g) || []).length === shapesFor('bearings').length);
 restoreFormValues({ values: { [`inp-${SHAPE_FIELD}`]: 'turbine' }, advancedOpen: false });
 check('a restore lights the tile of what it put back',
     tiles.filter(t => t.getAttribute('aria-pressed') === 'true').map(t => t.dataset.shape).join() === 'turbine');

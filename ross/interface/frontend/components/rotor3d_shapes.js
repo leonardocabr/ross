@@ -7,7 +7,10 @@
 //
 // three.js is handed in, not imported (see rotor3d_parts.js). Each builder
 // returns pieces as rotor3d_solids.js describes them.
-import { SEGMENTS, faceted, loft, own, revolve, ring } from './rotor3d_solids.js';
+import {
+    SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, loft, own, revolve, ring, steel,
+} from './rotor3d_solids.js';
+import { SYMBOL } from '../core/rotor3d_layout.js';
 
 // The frame every shape is built in: z along the shaft, the part's middle at
 // `mid`.
@@ -237,7 +240,258 @@ function pulley(THREE, part, edges) {
     return [own(revolve(THREE, profile, SEGMENTS.part, edges))];
 }
 
-// By key, as core/shapes3d.js names them.
+// --- supports: bearings --------------------------------------------------------------
+//
+// Materials, as numbers like the other ones ROSS does not colour (see
+// rotor3d_parts.js): the bearing's white metal, a magnet's copper windings.
+const WHITE_METAL = 0xc9c2a8;
+const COPPER = 0xb8733d;
+const RACE = 0xc9ced4;
+const BRISTLE = 0x9b8f78;
+const ELASTOMER = 0x2f3236;
+
+// The frame of a part that sits on a node: the shaft's radius there, the
+// part's own, its width and middle.
+function onNode(part) {
+    const w = Math.abs(part.z1 - part.z0);
+    return { r: part.shaftRadius, R: part.radius, w, mid: (part.z0 + part.z1) / 2 };
+}
+
+// An annular sector -- a pad, a jaw, a weight -- from angle a0 to a1, between
+// two radii, `depth` long along the shaft and centred at z.
+function sector(THREE, inner, outer, a0, a1, depth, z, edges) {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, outer, a0, a1, false);
+    shape.absarc(0, 0, inner, a1, a0, true);
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 16 });
+    geometry.translate(0, 0, z - depth / 2);
+    return faceted(THREE, geometry, edges);
+}
+
+// A box from `inner` outwards along the direction at angle a, `across` wide
+// and `depth` long along the shaft: a magnet's pole, a tuft of bristles. `lay`
+// leans it off the radius about its inner end, as a brush seal's bristles
+// lean with the rotation; leaning, it reaches less far than `outer`.
+function radialBox(THREE, inner, outer, a, across, depth, z, edges, lay = 0) {
+    const box = new THREE.BoxGeometry(across, outer - inner, depth);
+    box.translate(0, (outer - inner) / 2, 0);
+    if (lay) box.rotateZ(lay);
+    box.translate(0, inner, 0);
+    box.rotateZ(a - Math.PI / 2);
+    box.translate(0, 0, z);
+    return faceted(THREE, box, edges);
+}
+
+// What every other support stands on: a base like the pillow block's, from
+// under the casing down to where SYMBOL.bearing puts the base, bolted at each
+// end -- so a bearing drawn otherwise still stands on the bench's pedestal.
+function bearingFoot(THREE, part, depth, edges) {
+    const { r, mid } = onNode(part);
+    const { feet, base } = SYMBOL.bearing;
+    const top = -0.95 * r;
+    const bottom = -base * r;
+    const block = new THREE.BoxGeometry(2 * (feet - 0.05) * r, top - bottom, depth);
+    block.translate(0, (top + bottom) / 2, mid);
+    const pieces = [own(faceted(THREE, block, edges), 'paint')];
+    for (const x of [-(feet - 0.45) * r, (feet - 0.45) * r]) {
+        pieces.push(steel(boltHead(THREE, 0.16 * r, 0.25 * r, 'y', x, top + 0.12 * r, mid, edges)));
+    }
+    return pieces;
+}
+
+// A double-row ball bearing in a round housing: inner race on the shaft, the
+// balls, the outer race.
+function rollingBearing(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const depth = 0.86 * w;
+    const pieces = bearingFoot(THREE, part, depth, edges);
+    pieces.push(own(ring(THREE, 1.42 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    pieces.push({ geometry: ring(THREE, 1.34 * r, 1.42 * r, mid - 0.4 * w, mid + 0.4 * w, edges), color: RACE, finish: 'metal' });
+    pieces.push({ geometry: ring(THREE, 1.02 * r, 1.16 * r, mid - 0.42 * w, mid + 0.42 * w, edges), color: RACE, finish: 'metal' });
+    const ball = 0.085 * r;
+    const pitch = 1.25 * r;
+    const count = Math.max(8, Math.floor((2 * Math.PI * pitch) / (2.4 * ball)));
+    // Each row just inside a face of the races, where the balls show between
+    // them -- set deeper, they were a dark ring.
+    const row = 0.4 * w - 1.3 * ball;
+    for (const side of [-1, 1]) {
+        for (let i = 0; i < count; i++) {
+            const a = (i / count) * Math.PI * 2 + (side > 0 ? Math.PI / count : 0);
+            const sphere = new THREE.SphereGeometry(ball, 12, 8);
+            sphere.translate(pitch * Math.cos(a), pitch * Math.sin(a), mid + side * row);
+            pieces.push(steel(faceted(THREE, sphere, null)));
+        }
+    }
+    return pieces;
+}
+
+// A tilting-pad journal bearing: five pads on their pivots, in the casing.
+function tiltingPad(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const depth = 0.86 * w;
+    const pieces = bearingFoot(THREE, part, depth, edges);
+    pieces.push(own(ring(THREE, 1.4 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    const pads = 5;
+    const arc = (56 * Math.PI) / 180;
+    for (let i = 0; i < pads; i++) {
+        // Load between pads: the bottom of the bearing is a gap, not a pad.
+        const centre = -Math.PI / 2 + Math.PI / pads + (i / pads) * Math.PI * 2;
+        pieces.push({ geometry: sector(THREE, 1.04 * r, 1.26 * r, centre - arc / 2, centre + arc / 2, 0.7 * w, mid, edges),
+            color: WHITE_METAL, finish: 'metal' });
+        pieces.push(steel(radialBox(THREE, 1.25 * r, 1.41 * r, centre, 0.12 * r, 0.2 * w, mid, edges)));
+    }
+    return pieces;
+}
+
+// An active magnetic bearing: the stator's poles and their windings round a
+// laminated sleeve on the shaft.
+function magneticBearing(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const depth = 0.86 * w;
+    const pieces = bearingFoot(THREE, part, depth, edges);
+    pieces.push(own(ring(THREE, 1.46 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    pieces.push(steel(ring(THREE, 1.3 * r, 1.46 * r, mid - 0.36 * w, mid + 0.36 * w, edges)));
+    pieces.push({ geometry: ring(THREE, 1.0 * r, 1.07 * r, mid - 0.32 * w, mid + 0.32 * w, edges), color: RACE, finish: 'metal' });
+    const poles = 8;
+    for (let i = 0; i < poles; i++) {
+        const a = (i / poles) * Math.PI * 2 + Math.PI / poles;
+        pieces.push(steel(radialBox(THREE, 1.1 * r, 1.31 * r, a, 0.2 * r, 0.6 * w, mid, edges)));
+        pieces.push({ geometry: radialBox(THREE, 1.14 * r, 1.28 * r, a, 0.34 * r, 0.7 * w, mid, edges), color: COPPER, finish: 'metal' });
+    }
+    return pieces;
+}
+
+// --- seals --------------------------------------------------------------------------------
+
+// A brush seal: a pack of bristles laid at an angle to the shaft, between a
+// front plate and a backing plate.
+function brushSeal(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const pieces = [
+        own(ring(THREE, 1.08 * r, R, mid - w / 2, mid - 0.3 * w, edges, SEGMENTS.part, 0.03 * R)),
+        own(ring(THREE, 1.16 * r, R, mid + 0.1 * w, mid + w / 2, edges, SEGMENTS.part, 0.03 * R)),
+    ];
+    const bristles = 96;
+    for (let i = 0; i < bristles; i++) {
+        const a = (i / bristles) * Math.PI * 2;
+        pieces.push({ geometry: radialBox(THREE, 1.005 * r, 0.97 * R, a, 0.035 * r, 0.4 * w, mid - 0.1 * w, null, Math.PI / 4.5),
+            color: BRISTLE, finish: 'metal' });
+    }
+    return pieces;
+}
+
+// --- point masses --------------------------------------------------------------------------
+
+// A balance weight: a block on one side of the shaft, on a clamping band.
+function balanceWeight(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const pieces = [
+        own(ring(THREE, 1.02 * r, 1.12 * r, mid - 0.45 * w, mid + 0.45 * w, edges), 'paint'),
+        own(sector(THREE, 1.1 * r, R, Math.PI / 2 - 0.9, Math.PI / 2 + 0.9, 0.9 * w, mid, edges), 'paint'),
+    ];
+    for (const a of [Math.PI / 2 - 0.55, Math.PI / 2 + 0.55]) {
+        const head = boltHead(THREE, 0.12 * r, 0.2 * r, 'y', 0, 0, 0, edges);
+        head.translate(0, R + 0.05 * r, 0);
+        head.rotateZ(a - Math.PI / 2);
+        head.translate(0, 0, mid);
+        pieces.push(steel(head));
+    }
+    return pieces;
+}
+
+// A lock nut and its washer.
+function lockNut(THREE, part, edges) {
+    const { r, R, w, mid } = onNode(part);
+    const hex = new THREE.Shape();
+    for (let i = 0; i <= 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        if (i === 0) hex.moveTo(0.99 * R * Math.cos(a), 0.99 * R * Math.sin(a));
+        else hex.lineTo(0.99 * R * Math.cos(a), 0.99 * R * Math.sin(a));
+    }
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, 1.02 * r, 0, Math.PI * 2, true);
+    hex.holes.push(hole);
+    const depth = 0.72 * w;
+    const nut = new THREE.ExtrudeGeometry(hex, { depth, bevelEnabled: false, curveSegments: 24 });
+    nut.translate(0, 0, mid - w / 2);
+    // The nut in the element's colour, as the legend shows it; the washer steel.
+    return [
+        own(faceted(THREE, nut, edges)),
+        steel(ring(THREE, 1.02 * r, 0.92 * R, mid - w / 2 + depth, mid + w / 2, edges)),
+    ];
+}
+
+// --- couplings ------------------------------------------------------------------------------
+//
+// Drawn in the coupling's own length (`part.body`), with the shaft ends it
+// clamps, as the disc-pack coupling is (rotor3d_parts.js).
+function couplingFrame(part) {
+    const [z0, z1] = part.body || [Math.min(part.z0, part.z1), Math.max(part.z0, part.z1)];
+    const [bore0, bore1] = part.bores || [part.bore, part.bore];
+    return { z0, z1, span: z1 - z0, R: part.radius, bore0, bore1, hub: part.hub };
+}
+
+// A gear coupling: a sleeve with a bolted flange in the middle, closed at the
+// ends round the hubs.
+function gearCoupling(THREE, part, edges) {
+    const { z0, z1, span, R, bore0, bore1, hub } = couplingFrame(part);
+    const mid = (z0 + z1) / 2;
+    const flange = 0.14 * span;
+    const pieces = couplingShaftEnds(THREE, part, edges);
+    pieces.push(own(ring(THREE, Math.max(bore0 * 1.4, 0.55 * R), 0.62 * R, z0, z0 + 0.35 * hub, edges)));
+    pieces.push(own(ring(THREE, Math.max(bore1 * 1.4, 0.55 * R), 0.62 * R, z1 - 0.35 * hub, z1, edges)));
+    pieces.push(own(ring(THREE, 0.6 * R, 0.84 * R, z0 + 0.3 * hub, mid - flange / 2, edges, SEGMENTS.part, 0.03 * R)));
+    pieces.push(own(ring(THREE, 0.6 * R, 0.84 * R, mid + flange / 2, z1 - 0.3 * hub, edges, SEGMENTS.part, 0.03 * R)));
+    pieces.push(own(ring(THREE, 0.6 * R, R, mid - flange / 2, mid + flange / 2, edges, SEGMENTS.part, 0.03 * R)));
+    for (const side of [-1, 1]) {
+        boltCircle(THREE, 8, 0.92 * R, 0.05 * R, 0.04 * R, mid + side * (flange / 2 + 0.02 * R), edges)
+            .forEach(g => pieces.push(steel(g)));
+    }
+    return pieces;
+}
+
+// A jaw coupling: two hubs whose jaws interleave, with the elastomer spider
+// between them.
+function jawCoupling(THREE, part, edges) {
+    const { z0, z1, span, R, bore0, bore1 } = couplingFrame(part);
+    const mid = (z0 + z1) / 2;
+    const hubLength = 0.38 * span;
+    const jawLength = 0.3 * span;
+    const pieces = couplingShaftEnds(THREE, part, edges);
+    pieces.push(own(ring(THREE, bore0, 0.9 * R, z0, z0 + hubLength, edges, SEGMENTS.part, 0.04 * R)));
+    pieces.push(own(ring(THREE, bore1, 0.9 * R, z1 - hubLength, z1, edges, SEGMENTS.part, 0.04 * R)));
+    const jaws = 3;
+    const arc = (44 * Math.PI) / 180;
+    for (let i = 0; i < jaws; i++) {
+        const a = (i / jaws) * Math.PI * 2;
+        pieces.push(own(sector(THREE, 0.42 * R, 0.9 * R, a - arc / 2, a + arc / 2, jawLength, z0 + hubLength + jawLength / 2 - 0.02 * span, edges)));
+        const b = a + Math.PI / jaws;
+        pieces.push(own(sector(THREE, 0.42 * R, 0.9 * R, b - arc / 2, b + arc / 2, jawLength, z1 - hubLength - jawLength / 2 + 0.02 * span, edges)));
+    }
+    pieces.push({ geometry: ring(THREE, 0.34 * R, 0.86 * R, mid - 0.12 * span, mid + 0.12 * span, edges), color: ELASTOMER, finish: 'paint' });
+    return pieces;
+}
+
+// A rigid flange coupling: two flanged hubs bolted face to face.
+function rigidCoupling(THREE, part, edges) {
+    const { z0, z1, span, R, bore0, bore1 } = couplingFrame(part);
+    const mid = (z0 + z1) / 2;
+    const flange = 0.16 * span;
+    const pieces = couplingShaftEnds(THREE, part, edges);
+    pieces.push(own(ring(THREE, bore0, Math.max(bore0 * 1.5, 0.55 * R), z0, mid - flange, edges, SEGMENTS.part, 0.04 * R)));
+    pieces.push(own(ring(THREE, bore1, Math.max(bore1 * 1.5, 0.55 * R), mid + flange, z1, edges, SEGMENTS.part, 0.04 * R)));
+    pieces.push(own(ring(THREE, Math.min(bore0, bore1), R, mid - flange, mid, edges, SEGMENTS.part, 0.03 * R)));
+    pieces.push(own(ring(THREE, Math.min(bore0, bore1), R, mid, mid + flange, edges, SEGMENTS.part, 0.03 * R)));
+    for (const side of [-1, 1]) {
+        boltCircle(THREE, 6, 0.8 * R, 0.06 * R, 0.045 * R, mid + side * (flange + 0.022 * R), edges, Math.PI / 6)
+            .forEach(g => pieces.push(steel(g)));
+    }
+    return pieces;
+}
+
+// By key, as core/shapes3d.js names them. The keys are unique across
+// categories; the layout only hands a part a key its own category offers.
 export const SHAPE_BUILDERS = {
     impeller,
     axial: axialStage,
@@ -245,4 +499,13 @@ export const SHAPE_BUILDERS = {
     fan,
     flywheel,
     pulley,
+    rolling: rollingBearing,
+    tilting_pad: tiltingPad,
+    magnetic: magneticBearing,
+    brush: brushSeal,
+    balance_weight: balanceWeight,
+    nut: lockNut,
+    gear_coupling: gearCoupling,
+    jaw: jawCoupling,
+    rigid: rigidCoupling,
 };

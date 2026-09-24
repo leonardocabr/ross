@@ -32,6 +32,29 @@ const CATALOGUE = {
         { key: 'flywheel', name: () => t('shapeFlywheel'), minWidth: 0 },
         { key: 'pulley', name: () => t('shapePulley'), minWidth: 0.2 },
     ],
+    // Every support stands on the same base as the pillow block, so the
+    // bench's pedestal meets it whatever it is drawn as.
+    bearings: [
+        { key: '', name: () => t('shapePillowBlock'), minWidth: 0 },
+        { key: 'rolling', name: () => t('shapeRollingBearing'), minWidth: 0 },
+        { key: 'tilting_pad', name: () => t('shapeTiltingPad'), minWidth: 0 },
+        { key: 'magnetic', name: () => t('shapeMagneticBearing'), minWidth: 0 },
+    ],
+    seals: [
+        { key: '', name: () => t('shapeLabyrinth'), minWidth: 0 },
+        { key: 'brush', name: () => t('shapeBrushSeal'), minWidth: 0 },
+    ],
+    pointmasses: [
+        { key: '', name: () => t('shapeCollar'), minWidth: 0 },
+        { key: 'balance_weight', name: () => t('shapeBalanceWeight'), minWidth: 0 },
+        { key: 'nut', name: () => t('shapeLockNut'), minWidth: 0 },
+    ],
+    couplings: [
+        { key: '', name: () => t('shapeDiscPack'), minWidth: 0 },
+        { key: 'gear_coupling', name: () => t('shapeGearCoupling'), minWidth: 0 },
+        { key: 'jaw', name: () => t('shapeJawCoupling'), minWidth: 0 },
+        { key: 'rigid', name: () => t('shapeRigidCoupling'), minWidth: 0 },
+    ],
 };
 
 // The shapes offered for a category, the default first. None for a category

@@ -29,7 +29,7 @@
 
 import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
 import {
-    EDGE_ANGLE, SEGMENTS, boltCircle, boltHead, faceted, own, revolve, ring, steel,
+    EDGE_ANGLE, SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, own, revolve, ring, steel,
 } from './rotor3d_solids.js';
 import { SHAPE_BUILDERS } from './rotor3d_shapes.js';
 
@@ -45,7 +45,9 @@ const DISC_PACK = 0x8e98a2;
 
 // --- one builder per kind -------------------------------------------------------
 //
-// Each returns a list of { geometry, color, finish } (rotor3d_solids.js).
+// Each returns a list of { geometry, color, finish } (rotor3d_solids.js). A
+// part given a shape from the geometry bank (core/shapes3d.js) is drawn as
+// that shape instead, by rotor3d_shapes.js.
 
 // One stretch of shaft from za to zb, radii read off the element's taper, its
 // ends chamfered where `chamfered` says.
@@ -247,6 +249,8 @@ function gearPieces(THREE, part, edges) {
 // Drawn to the side at x = ±offset: a half the coupling, as a hub on its node
 // and a flange facing the span, bolted, with a disc pack against it.
 function couplingPieces(THREE, part, edges) {
+    const shaped = part.shape && SHAPE_BUILDERS[part.shape];
+    if (shaped) return shaped(THREE, part, edges);
     // The coupling's own length (`couplingBody`), in the middle of its span.
     const [z0, z1] = part.body || [Math.min(part.z0, part.z1), Math.max(part.z0, part.z1)];
     const span = z1 - z0;
@@ -273,21 +277,7 @@ function couplingPieces(THREE, part, edges) {
     };
     half(bore0, z0, 1);
     half(bore1, z1, -1);
-    // Where no shaft element of the project reaches in (the layout says which
-    // side), the shaft is drawn from the node into the hub: a coupling clamps
-    // a shaft end, it does not float in its span.
-    const stubs = part.stubs || [false, false];
-    const stubColor = part.stubColor === undefined ? null : part.stubColor;
-    const node0 = Math.min(part.z0, part.z1);
-    const node1 = Math.max(part.z0, part.z1);
-    if (stubs[0]) {
-        pieces.push({ geometry: ring(THREE, 0, bore0, node0, z0 + 0.9 * hubLength, edges, SEGMENTS.shaft, 0.06 * bore0),
-            color: stubColor, finish: 'metal', named: true });
-    }
-    if (stubs[1]) {
-        pieces.push({ geometry: ring(THREE, 0, bore1, z1 - 0.9 * hubLength, node1, edges, SEGMENTS.shaft, 0.06 * bore1),
-            color: stubColor, finish: 'metal', named: true });
-    }
+    pieces.push(...couplingShaftEnds(THREE, part, edges));
     // The spacer between the two disc packs: a slender tube.
     const spacerFrom = z0 + hubLength + pack;
     const spacerTo = z1 - hubLength - pack;
@@ -302,6 +292,8 @@ function couplingPieces(THREE, part, edges) {
 // widens to two feet, a base; extruded along the shaft. A brass bushing shows
 // in the bore; hex bolts hold the cap and the feet; a grease nipple on top.
 function bearingPieces(THREE, part, edges) {
+    const shaped = part.shape && SHAPE_BUILDERS[part.shape];
+    if (shaped) return shaped(THREE, part, edges);
     const r = part.shaftRadius;
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
@@ -355,6 +347,8 @@ function bearingPieces(THREE, part, edges) {
 // A labyrinth gland: a ribbed ring round the shaft, and a flange with its
 // bolts on one face.
 function sealPieces(THREE, part, edges) {
+    const shaped = part.shape && SHAPE_BUILDERS[part.shape];
+    if (shaped) return shaped(THREE, part, edges);
     const r = part.shaftRadius;
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
@@ -380,6 +374,8 @@ function sealPieces(THREE, part, edges) {
 
 // A clamped collar: the ring, its lug on top and the clamp screw.
 function pointMassPieces(THREE, part, edges) {
+    const shaped = part.shape && SHAPE_BUILDERS[part.shape];
+    if (shaped) return shaped(THREE, part, edges);
     const r = part.shaftRadius;
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);

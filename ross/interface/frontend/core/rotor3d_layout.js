@@ -117,6 +117,9 @@ function partsOfLine(line, half, offset, shapeFor) {
     const parts = [];
     const key = (category, index) => (half ? `${half}:${category}:${index}` : `${category}:${index}`);
     const base = { half, offset };
+    // The key of the geometry-bank shape an element is drawn with, '' for its
+    // default.
+    const shapeKey = (category, index) => ((shapeFor && shapeFor(half, category, index)) || {}).key || '';
 
     // A coupling occupies its span like a shaft element (ROSS lumps its two
     // halves at the two nodes, m_l and m_r). It is drawn at a coupling's own
@@ -155,6 +158,7 @@ function partsOfLine(line, half, offset, shapeFor) {
             gap: [body[0] + hub, body[1] - hub],
             stubs: [!covered((z0 + body[0]) / 2), !covered((body[1] + z1) / 2)],
             stubColor: shaftColor,
+            shape: shapeKey('couplings', c.index),
             // A shaft element over the same span is a second, parallel stiffness
             // in ROSS; the tooltip says so.
             overlapsShaft: across.length > 0,
@@ -235,6 +239,7 @@ function partsOfLine(line, half, offset, shapeFor) {
                 radius: size.radius * r, bore: r, shaftRadius: r,
                 offset: { x: offset.x, y: offset.y - levels * SYMBOL.link * r, z: offset.z },
                 hanging: levels,
+                shape: shapeKey(category, e.index),
             });
         }
     }

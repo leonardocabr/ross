@@ -177,3 +177,27 @@ export function loft(THREE, sections, edges) {
     if (edges) edges.push({ geometry });
     return geometry;
 }
+
+// The shaft ends a coupling clamps, whatever it is drawn as. Where no shaft
+// element of the project reaches in (the layout says which side), the shaft
+// is drawn from the node into the hub: a coupling clamps a shaft end, it does
+// not float in its span.
+export function couplingShaftEnds(THREE, part, edges) {
+    const [z0, z1] = part.body || [Math.min(part.z0, part.z1), Math.max(part.z0, part.z1)];
+    const [bore0, bore1] = part.bores || [part.bore, part.bore];
+    const hubLength = part.hub;
+    const stubs = part.stubs || [false, false];
+    const stubColor = part.stubColor === undefined ? null : part.stubColor;
+    const node0 = Math.min(part.z0, part.z1);
+    const node1 = Math.max(part.z0, part.z1);
+    const pieces = [];
+    if (stubs[0]) {
+        pieces.push({ geometry: ring(THREE, 0, bore0, node0, z0 + 0.9 * hubLength, edges, SEGMENTS.shaft, 0.06 * bore0),
+            color: stubColor, finish: 'metal', named: true });
+    }
+    if (stubs[1]) {
+        pieces.push({ geometry: ring(THREE, 0, bore1, z1 - 0.9 * hubLength, node1, edges, SEGMENTS.shaft, 0.06 * bore1),
+            color: stubColor, finish: 'metal', named: true });
+    }
+    return pieces;
+}
