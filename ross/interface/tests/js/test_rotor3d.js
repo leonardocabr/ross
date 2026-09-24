@@ -128,25 +128,42 @@ check('a free end of the shaft line is chamfered', everyShafts[0].chamfer[0] ===
 check('an end that meets a thicker element is not', everyShafts[0].chamfer[1] === false);
 check('the thicker element\'s end, standing proud of the thinner one, is', everyShafts[1].chamfer[0] === true);
 
-// ROSS lumps a coupling's halves at its two nodes (m_l, m_r): a hub on each,
-// and only a slender spacer between them.
+// A coupling is drawn at its own length, mid-span: hubs at the two ends of
+// its body, a slender spacer between them, and the shaft showing on each side
+// as it runs into a hub. (Leonardo: on node 0 it used to swallow the whole
+// first element up to the bearing.)
 const couplingCase = CASES.coupling.scene;
 const couplingPart = layoutScene(couplingCase).parts.find(p => p.kind === 'coupling');
+const [body0, body1] = couplingPart.body;
+const span = couplingPart.z1 - couplingPart.z0;
+check('the coupling is drawn shorter than its span, in the middle of it',
+    body1 - body0 <= 0.6 * span + 1e-12 && body1 - body0 <= 2.6 * couplingPart.radius + 1e-12
+    && near((body0 + body1) / 2, (couplingPart.z0 + couplingPart.z1) / 2));
+const longSpan = copy(couplingCase);
+longSpan.couplings[0].z1 = longSpan.couplings[0].z0 + 2.0;
+const longPart = layoutScene(longSpan).parts.find(p => p.kind === 'coupling');
+check('on a long span it keeps its own size, not the span\'s',
+    near(longPart.body[1] - longPart.body[0], 2.6 * longPart.radius));
 const couplingModel = buildRotorModel(THREE, { parts: [couplingPart], rings: [] });
 const cp = couplingModel.object.getObjectByName('metal').geometry.attributes.position.array;
-const span = couplingPart.z1 - couplingPart.z0;
+const bodyLength = body1 - body0;
 let hubAtLeft = false;
 let hubAtRight = false;
 let bulkInMiddle = false;
+let shaftLeft = false;
+let shaftRight = false;
 for (let i = 0; i < cp.length; i += 3) {
     const radius = Math.hypot(cp[i], cp[i + 1]);
     const z = cp[i + 2];
-    if (radius > 0.95 * couplingPart.radius && z < couplingPart.z0 + 0.35 * span) hubAtLeft = true;
-    if (radius > 0.95 * couplingPart.radius && z > couplingPart.z1 - 0.35 * span) hubAtRight = true;
-    if (radius > 0.6 * couplingPart.radius && Math.abs(z - (couplingPart.z0 + couplingPart.z1) / 2) < 0.15 * span) bulkInMiddle = true;
+    if (radius > 0.95 * couplingPart.radius && z < body0 + 0.35 * bodyLength) hubAtLeft = true;
+    if (radius > 0.95 * couplingPart.radius && z > body1 - 0.35 * bodyLength) hubAtRight = true;
+    if (radius > 0.6 * couplingPart.radius && Math.abs(z - (body0 + body1) / 2) < 0.1 * bodyLength) bulkInMiddle = true;
+    if (radius > 1e-6 && radius <= couplingPart.bores[0] * 1.0001 && z < body0 - 1e-6) shaftLeft = true;
+    if (radius > 1e-6 && radius <= couplingPart.bores[1] * 1.0001 && z > body1 + 1e-6) shaftRight = true;
 }
-check('a coupling is a flanged hub at each of its nodes', hubAtLeft && hubAtRight);
+check('a coupling is a flanged hub at each end of its body', hubAtLeft && hubAtRight);
 check('and not a drum across the span', !bulkInMiddle);
+check('the shaft shows on each side of it, running into the hubs', shaftLeft && shaftRight);
 check('it carries ROSS\'s two lumped masses for the tooltip',
     couplingPart.entry.m_l === 2 && couplingPart.entry.m_r === 3);
 couplingModel.dispose();
@@ -155,7 +172,7 @@ couplingModel.dispose();
 // se separassem pelo acoplamento"): it runs into each hub and stops. When a
 // shaft element also spans the coupling's nodes -- a second, parallel
 // stiffness in ROSS -- it is cut the same way, and the tooltip says so.
-const gapOf = part => [part.z0 + part.hub, part.z1 - part.hub];
+const gapOf = part => [part.body[0] + part.hub, part.body[1] - part.hub];
 const shaftVerticesIn = (model, [g0, g1]) => {
     const p = model.object.getObjectByName('metal').geometry.attributes.position.array;
     let inside = 0;
@@ -203,6 +220,9 @@ for (const [name, { scene }] of Object.entries(CASES)) {
             const b = bearingsHere.find(x => x.key === p.key);
             return near(p.y0, bench.plate.top) && near(p.y1, b.offset.y - SYMBOL.bearing.base * b.shaftRadius) && p.y1 > p.y0;
         }));
+    check(`${name}: short legs, each on an isolator reaching the floor`,
+        bench.legs.every(l => near(bench.plate.bottom - bench.legHeight - l.mount, bench.floor))
+        && bench.legHeight < 0.5 * (bench.plate.x1 - bench.plate.x0) + 0.04 * (layout.bounds.max[2] - layout.bounds.min[2]));
     check(`${name}: legs from the plate to the floor, and the camera takes the whole bench in`,
         bench.legs.length >= 4 && bench.floor < bench.plate.bottom
         && bench.bounds.min[1] === bench.floor && bench.bounds.min[0] <= layout.bounds.min[0]

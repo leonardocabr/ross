@@ -344,8 +344,8 @@ function gearPieces(THREE, part, edges) {
 // Drawn to the side at x = ±offset: a half the coupling, as a hub on its node
 // and a flange facing the span, bolted, with a disc pack against it.
 function couplingPieces(THREE, part, edges) {
-    const z0 = Math.min(part.z0, part.z1);
-    const z1 = Math.max(part.z0, part.z1);
+    // The coupling's own length (`couplingBody`), in the middle of its span.
+    const [z0, z1] = part.body || [Math.min(part.z0, part.z1), Math.max(part.z0, part.z1)];
     const span = z1 - z0;
     const R = part.radius;
     const [bore0, bore1] = part.bores || [part.bore, part.bore];
@@ -370,17 +370,19 @@ function couplingPieces(THREE, part, edges) {
     };
     half(bore0, z0, 1);
     half(bore1, z1, -1);
-    // The shaft ends inside the hubs, where no shaft element of the project
-    // reaches in (the layout says which side needs one): a coupling clamps a
-    // shaft end, it does not float on the node.
+    // Where no shaft element of the project reaches in (the layout says which
+    // side), the shaft is drawn from the node into the hub: a coupling clamps
+    // a shaft end, it does not float in its span.
     const stubs = part.stubs || [false, false];
     const stubColor = part.stubColor === undefined ? null : part.stubColor;
+    const node0 = Math.min(part.z0, part.z1);
+    const node1 = Math.max(part.z0, part.z1);
     if (stubs[0]) {
-        pieces.push({ geometry: ring(THREE, 0, bore0, z0, z0 + 0.9 * hubLength, edges, SEGMENTS.shaft, 0.06 * bore0),
+        pieces.push({ geometry: ring(THREE, 0, bore0, node0, z0 + 0.9 * hubLength, edges, SEGMENTS.shaft, 0.06 * bore0),
             color: stubColor, finish: 'metal', named: true });
     }
     if (stubs[1]) {
-        pieces.push({ geometry: ring(THREE, 0, bore1, z1 - 0.9 * hubLength, z1, edges, SEGMENTS.shaft, 0.06 * bore1),
+        pieces.push({ geometry: ring(THREE, 0, bore1, z1 - 0.9 * hubLength, node1, edges, SEGMENTS.shaft, 0.06 * bore1),
             color: stubColor, finish: 'metal', named: true });
     }
     // The spacer between the two disc packs: a slender tube.
@@ -604,7 +606,7 @@ function ringLines(THREE, rings, segments = 40) {
 // and a pedestal with a foot plate under each bearing. Painted, in the greys of
 // a workshop; built and freed apart from the rotor, since it comes and goes
 // with a button.
-const BENCH = { plate: 0x7d8894, slot: 0x2c343d, leg: 0x3b4450, pedestal: 0x5a6571 };
+const BENCH = { plate: 0x7d8894, slot: 0x2c343d, leg: 0x3b4450, pedestal: 0x5a6571, rubber: 0x1c1f23, mount: 0x9aa4ae };
 
 export function buildBench(THREE, bench) {
     const colors = new Map();
@@ -627,8 +629,20 @@ export function buildBench(THREE, bench) {
     for (const f of [-0.28, 0, 0.28]) {
         block(0.035 * plateWidth, 0.004 * plateWidth, 0.97 * plateLength, cx + f * plateWidth, plate.top + 0.002 * plateWidth, cz, BENCH.slot);
     }
+    // A round piece of the isolator: a cylinder with its axis vertical.
+    const disc = (radius, height, x, y, z, hex) => {
+        const geometry = new THREE.CylinderGeometry(radius, radius, height, 28);
+        geometry.translate(x, y, z);
+        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex) });
+    };
     for (const leg of bench.legs) {
+        const foot = plate.bottom - bench.legHeight;
         block(leg.size, bench.legHeight, leg.size, leg.x, plate.bottom - bench.legHeight / 2, leg.z, BENCH.leg);
+        // The isolator under the leg: a square top plate, the rubber, a round base.
+        const m = leg.mount;
+        block(1.5 * leg.size, 0.15 * m, 1.5 * leg.size, leg.x, foot - 0.075 * m, leg.z, BENCH.mount);
+        disc(0.7 * leg.size, 0.55 * m, leg.x, foot - 0.15 * m - 0.275 * m, leg.z, BENCH.rubber);
+        disc(1.0 * leg.size, 0.3 * m, leg.x, foot - 0.7 * m - 0.15 * m, leg.z, BENCH.mount);
     }
     for (const p of bench.pedestals) {
         const height = p.y1 - p.y0;

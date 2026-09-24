@@ -41,6 +41,17 @@ export function couplingHub(span, radius) {
     return Math.min(0.3 * span, 1.1 * radius);
 }
 
+// How long a coupling is drawn: a real one is about two and a half diameters'
+// worth of hubs and spacer, whatever the length of the span ROSS gives it. On a
+// long span it sits in the middle, and the shaft shows on each side, running
+// into a hub (Leonardo: the coupling on node 0 used to swallow the whole first
+// element up to the bearing). It never takes more than 60 % of the span.
+export function couplingBody(z0, z1, radius) {
+    const length = Math.min(0.6 * (z1 - z0), 2.6 * radius);
+    const middle = (z0 + z1) / 2;
+    return [middle - length / 2, middle + length / 2];
+}
+
 // The face width a gear is drawn with when ROSS has none, in modules: gears
 // are commonly 8 to 12 modules wide.
 export const FACE_WIDTH_IN_MODULES = 10;
@@ -107,12 +118,13 @@ function partsOfLine(line, half, offset) {
     const key = (category, index) => (half ? `${half}:${category}:${index}` : `${category}:${index}`);
     const base = { half, offset };
 
-    // A coupling occupies its span like a shaft element, but ROSS lumps its two
-    // halves at the two nodes (m_l, m_r): it is drawn as a hub on each node and
-    // a slender spacer between them, and the shaft line is separated there --
-    // it runs into each hub and stops, whether or not a shaft element of the
-    // project also spans the coupling's nodes. Its bore is the shaft it clamps
-    // on each side.
+    // A coupling occupies its span like a shaft element (ROSS lumps its two
+    // halves at the two nodes, m_l and m_r). It is drawn at a coupling's own
+    // length in the middle of the span (`couplingBody`): two flanged hubs and a
+    // slender spacer, and the shaft line separated there -- from each node it
+    // runs into a hub and stops, whether or not a shaft element of the project
+    // also spans the coupling's nodes. Its bore is the shaft it clamps on each
+    // side.
     const withEnds = shafts.filter(s => s.z0 != null && s.z1 != null);
     const reaching = z => withEnds.filter(s => Math.abs(s.z0 - z) < 1e-9 || Math.abs(s.z1 - z) < 1e-9);
     const spanning = (a, b) => withEnds.filter(s => Math.min(s.z0, s.z1) < b - 1e-9 && Math.max(s.z0, s.z1) > a + 1e-9);
@@ -129,7 +141,8 @@ function partsOfLine(line, half, offset) {
         const bores = [sideRadius(z0), sideRadius(z1)];
         const r = Math.max(...bores);
         const radius = c.outer_diameter ? Math.max(c.outer_diameter / 2, 1.3 * r) : 2.2 * r;
-        const hub = couplingHub(z1 - z0, radius);
+        const body = couplingBody(z0, z1, radius);
+        const hub = couplingHub(body[1] - body[0], radius);
         // The hubs need a shaft end in them: one the project draws there (an
         // element spanning the coupling, which the cut below shortens), or a
         // stub of the shaft that ends on that node.
@@ -138,8 +151,9 @@ function partsOfLine(line, half, offset) {
         couplings.push({
             ...base, key: key('couplings', c.index), category: 'couplings', index: c.index, kind: 'coupling',
             entry: c, color: c.color, z0: c.z0, z1: c.z1, radius, bore: r, bores, hub,
-            gap: [z0 + hub, z1 - hub],
-            stubs: [!covered(z0 + hub / 2), !covered(z1 - hub / 2)],
+            body,
+            gap: [body[0] + hub, body[1] - hub],
+            stubs: [!covered((z0 + body[0]) / 2), !covered((body[1] + z1) / 2)],
             stubColor: shaftColor,
             // A shaft element over the same span is a second, parallel stiffness
             // in ROSS; the tooltip says so.
@@ -338,8 +352,12 @@ export function benchLayout(layout) {
         x0: min[0] - margin, x1: max[0] + margin, z0: min[2] - margin, z1: max[2] + margin,
         top, bottom: top - thickness,
     };
-    const legHeight = Math.max(0.6 * (plate.x1 - plate.x0), 0.08 * length);
-    const floor = plate.bottom - legHeight;
+    // Short legs, close under the plate (Leonardo asked for them shorter), each
+    // standing on a vibration isolator: a rubber mount between two plates.
+    const legHeight = Math.max(0.3 * (plate.x1 - plate.x0), 0.035 * length);
+    const legSize = 0.08 * (plate.x1 - plate.x0);
+    const mount = Math.max(0.9 * legSize, 0.12 * legHeight);
+    const floor = plate.bottom - legHeight - mount;
     const pedestals = layout.parts.filter(p => p.kind === 'bearing').map(p => {
         const r = p.shaftRadius;
         return {
@@ -350,12 +368,11 @@ export function benchLayout(layout) {
     });
     // Legs at the corners, and more along a long bench, about three plate
     // widths apart.
-    const legSize = 0.08 * (plate.x1 - plate.x0);
     const along = Math.max(2, Math.ceil((plate.z1 - plate.z0) / (3 * (plate.x1 - plate.x0))) + 1);
     const legs = [];
     for (let i = 0; i < along; i++) {
         const z = plate.z0 + legSize + ((plate.z1 - plate.z0 - 2 * legSize) * i) / (along - 1);
-        for (const x of [plate.x0 + legSize, plate.x1 - legSize]) legs.push({ x, z, size: legSize });
+        for (const x of [plate.x0 + legSize, plate.x1 - legSize]) legs.push({ x, z, size: legSize, mount });
     }
     return {
         plate, pedestals, legs, floor, legHeight,
