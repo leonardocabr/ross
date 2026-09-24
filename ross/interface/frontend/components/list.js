@@ -6,6 +6,10 @@ import { listContext, state, getActiveData, syncBackToLibrary } from '../core/st
 import { allPicked, isPicked, nowShowing, pickedCount } from '../core/selection.js';
 import { afterMove } from '../core/editing.js';
 import { categoryHidden, elementHidden, threeDShown } from '../core/visibility.js';
+import {
+    activeCount, askForNumbers, criteriaFor, filterPanelOpen, missingNumbers, rowMatches,
+} from '../core/list_filter.js';
+import { renderFilterPanel } from './list_filter_panel.js';
 // The list does not know the rotor. Whoever builds the rotor subscribes here;
 // before, `renderList` called `buildRotorLive` directly, and measuring the
 // boundaries showed that as the only path from a component to a feature.
@@ -117,7 +121,12 @@ export function tabButton(category) {
 // ticking everything, which is the one case where selecting several by hand is
 // most tedious. The two action buttons are dead until something is ticked, which
 // says the same thing without hiding it.
-function renderSelectionBar(count) {
+//
+// The filter button sits here too (core/list_filter.js), with the number of
+// criteria in force; with a filter on and nothing ticked, the count says how
+// many of the rows are shown. "Select all" ticks the rows shown, not the ones
+// filtered out of sight.
+function renderSelectionBar(count, shown, filtering) {
     const bar = document.getElementById('selection-bar');
     if (!bar) return;
     if (!count) {
@@ -127,13 +136,17 @@ function renderSelectionBar(count) {
     }
     const chosen = pickedCount(listContext());
     const dead = chosen ? '' : 'disabled';
+    const counted = chosen ? escapeHtml(t('selectedCount')).replace('%1', chosen)
+        : filtering ? escapeHtml(t('filterShowing')).replace('%1', shown.length).replace('%2', count) : '';
+    const badge = filtering ? `<span class="filter-badge">${filtering}</span>` : '';
     bar.style.display = 'flex';
     bar.innerHTML = `
         <label class="pick-all">
-            <input type="checkbox" data-action="pick-all" ${allPicked(listContext(), count) ? 'checked' : ''}>
+            <input type="checkbox" data-action="pick-all" ${allPicked(listContext(), shown) ? 'checked' : ''}>
             <span>${escapeHtml(t('selectAll'))}</span>
         </label>
-        <span class="pick-count">${chosen ? escapeHtml(t('selectedCount')).replace('%1', chosen) : ''}</span>
+        <span class="pick-count">${counted}</span>
+        <button class="btn-action filter${filtering ? ' is-on' : ''}" data-action="toggle-list-filter" aria-pressed="${String(filterPanelOpen())}" title="${escapeHtml(t('filterTitle'))}"><i class="fas fa-filter"></i>${badge}</button>
         <button class="btn-action copy" data-action="copy-picked" ${dead} title="${escapeHtml(t('copySelected'))}"><i class="fas fa-copy"></i></button>
         <button class="btn-action delete" data-action="delete-picked" ${dead} title="${escapeHtml(t('deleteSelected'))}"><i class="fas fa-trash"></i></button>
     `;
@@ -177,15 +190,15 @@ function rowTitle(item, index, effectiveNode) {
 }
 
 // The rows of the list, detached. Nothing here touches the page.
-function buildRows(currentArray) {
-    const effNodes = getEffectiveNodes(currentArray);
+function buildRows(currentArray, effNodes, passes) {
     return currentArray.map((item, index) => {
         const div = document.createElement('div');
         // Faded when the 3D view on screen does not draw it -- hidden by its
         // eye or with its whole category from the legend.
         const outOfView = threeDShown() && state.currentTab !== 'materials'
             && (elementHidden(item) || categoryHidden(state.currentTab));
-        div.className = outOfView ? 'list-item is-out-of-view' : 'list-item';
+        // Out of the filter: hidden, but still in its place (core/list_filter.js).
+        div.className = 'list-item' + (outOfView ? ' is-out-of-view' : '') + (passes[index] === false ? ' is-filtered-out' : '');
         div.innerHTML = `
             <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
                 <input type="checkbox" class="item-pick" data-action="pick-element" data-index="${index}" ${isPicked(listContext(), index) ? 'checked' : ''} title="${escapeHtml(t('select'))}">
@@ -227,14 +240,26 @@ export function renderList() {
     // places that cause it.
     nowShowing(listContext());
 
-    const rows = buildRows(currentArray);
+    const effNodes = getEffectiveNodes(currentArray);
+    const criteria = criteriaFor(state.currentTab);
+    const filtering = activeCount(criteria);
+    const passes = currentArray.map((item, index) =>
+        (filtering ? rowMatches(state.currentTab, item, effNodes[index], criteria) : true));
+    const rows = buildRows(currentArray, effNodes, passes);
+    const shown = passes.map((pass, index) => (pass === false ? -1 : index)).filter(index => index >= 0);
 
     // Nothing below can fail on the project's content: from here on the old
     // list is replaced by one that is already complete.
     container.innerHTML = '';
     rows.forEach(row => container.appendChild(row));
-    renderSelectionBar(currentArray.length);
+    if (filtering) container.classList.add('is-filtering');
+    else container.classList.remove('is-filtering');
+    renderSelectionBar(currentArray.length, shown, filtering);
+    renderFilterPanel(state.currentTab, shown.length, currentArray.length);
     markEditedRow();
+    // Values the filter's condition needs read by the server; the answer
+    // redraws the list (features/list_filter.js).
+    askForNumbers(missingNumbers(state.currentTab, currentArray));
 
     // One instance per container: before, every render created another one without
     // destroying the previous, piling listeners onto the same list.
@@ -257,6 +282,9 @@ export function renderList() {
         // `draggable` keeps anything that is not a row from being picked up,
         // and the `...DraggableIndex` pair counts rows only.
         draggable: '.list-item',
+        // No dragging through a filter: rows out of sight would be dragged
+        // past without being seen, and the order they land in would surprise.
+        disabled: filtering > 0,
         animation: 150,
         onEnd: function (evt) {
             const oldIdx = evt.oldDraggableIndex;

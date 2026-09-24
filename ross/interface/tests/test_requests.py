@@ -105,6 +105,7 @@ def test_the_sweep_finds_every_envelope_there_is():
         "/api/export/python",
         "/api/rotor/concatenate",
         "/api/rotor/split_shaft",
+        "/api/units/convert",
         "/build_rotor",
         "/load_ross_file",
         "/run_analysis",

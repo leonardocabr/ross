@@ -16,6 +16,7 @@ import {
     setVerticalScale, splitItem, toggleSelectAll, toggleSelected,
 } from './modeling.js';
 import { switchMultiRotorTarget } from './multirotor.js';
+import { clearListFilter, filterBy, toggleListFilter } from './list_filter.js';
 import { frameRotor, toggleBench, toggleCategory3d, toggleElement3d, togglePan } from './rotor3d.js';
 import { getActiveData, state } from '../core/state.js';
 
@@ -38,6 +39,11 @@ export const MODELING_ACTIONS = {
     'copy-element': element => copyItem(position(element)),
     'delete-element': element => deleteItem(position(element)),
     'split-element': element => splitItem(position(element)),
+
+    // the list's filter (features/list_filter.js)
+    'toggle-list-filter': () => toggleListFilter(),
+    'filter-by': element => filterBy(element.dataset.key, element.value),
+    'clear-list-filter': () => clearListFilter(),
 
     // the form
     'add-element': () => openForm(true),

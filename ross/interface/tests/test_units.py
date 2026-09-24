@@ -46,3 +46,56 @@ def test_every_default_unit_has_alternatives():
         for unit in mapping.values():
             assert units.alternatives_for(unit), f"no alternatives for {unit}"
             assert units.alternatives_for(unit)[0] == unit
+
+
+# --- the element list's filter --------------------------------------------------
+#
+# The filter compares a field's values in one unit: "mass > 10 kg" has to find a
+# disk typed as 25 lb. The screen does not convert units -- pint does, here --
+# and what cannot be read as one number is left out of the comparison rather
+# than guessed at.
+
+from ross.interface.domain.conversion import to_unit  # noqa: E402
+
+
+def test_the_filter_reads_a_typed_value_in_the_unit_it_asks_for():
+    assert abs(to_unit("250", "mm", "m") - 0.25) < 1e-12
+    assert abs(to_unit(" 25 ", "lb", "kg") - 11.33980925) < 1e-9
+    assert abs(to_unit("2*pi", None, None) - 6.283185307179586) < 1e-12
+    assert to_unit("3", "", "") == 3.0
+
+
+def test_what_is_not_one_number_is_not_compared():
+    for typed in ["", None, "[1e6, 2e6]", "{'a': 1}", "(0.1, -0.1)", "oil"]:
+        assert to_unit(typed, "mm", "m") is None, typed
+    assert to_unit("10", "kg", "mm") is None, "units that do not convert"
+
+
+def test_the_route_answers_in_the_order_asked():
+    from ross.interface.api.security import SESSION_TOKEN
+    from ross.interface.app import app
+
+    app.config["TESTING"] = True
+    items = [
+        {"value": "1", "unit": "m", "to": "mm"},
+        {"value": "[1, 2]", "unit": "N/m", "to": "N/m"},
+        {"value": "22.0462", "unit": "lb", "to": "kg"},
+    ]
+    with app.test_client() as client:
+        answer = client.post(
+            "/api/units/convert",
+            json={"items": items},
+            headers={"X-ROSS-Token": SESSION_TOKEN},
+        )
+        refused = client.post(
+            "/api/units/convert",
+            json={"items": ["250"]},
+            headers={"X-ROSS-Token": SESSION_TOKEN},
+        )
+    values = answer.get_json()["values"]
+    assert answer.status_code == 200
+    assert values[0] == 1000.0 and values[1] is None and abs(values[2] - 10.0) < 1e-4
+    assert (
+        refused.status_code == 400
+        and "value, unit and to" in refused.get_json()["message"]
+    )

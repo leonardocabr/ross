@@ -10,6 +10,8 @@
 // and one listener looks the name up (core/actions.js).
 import { onReorder } from './components/list.js';
 import { startFormWindow } from './components/floating_form.js';
+import { onNumbersNeeded } from './core/list_filter.js';
+import { readNumbers } from './features/list_filter.js';
 import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
@@ -45,6 +47,10 @@ onProjectChanged(refreshHistoryButtons);
 // The 3D view keeps its theme colours in WebGL, where CSS does not reach; a
 // change of theme repaints them.
 onThemeChanged(restyleRotor3d);
+
+// The list filter's values are read by the server (pint knows the units); the
+// list asks, and the feature that talks to the server answers.
+onNumbersNeeded(readNumbers);
 
 // What the buttons mean, by name (core/actions.js). One table per area of the
 // page.

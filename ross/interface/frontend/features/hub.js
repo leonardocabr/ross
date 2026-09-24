@@ -11,6 +11,7 @@ import { generatePythonFile } from './export.js';
 import { buildRotorLive, closeForm } from './modeling.js';
 import { switchScreen } from './screens.js';
 import { t } from '../core/i18n.js';
+import { forgetFilters } from '../core/list_filter.js';
 // Function to open the Hub screen and render the list
 
 export function openRotorHub() {
@@ -150,6 +151,8 @@ export function openRotorWorkspace(index, targetScreen) {
     // likely the "lists vanished" of the week's report. The form is a window of
     // its own now, and cannot be emptied away.)
     closeForm();
+    // Filters are the last rotor's: its materials and fields, not this one's.
+    forgetFilters();
     document.getElementById('element-list').innerHTML = '';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     

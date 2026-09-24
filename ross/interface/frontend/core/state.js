@@ -1,5 +1,6 @@
 import { recordChange, resetHistory, structuralSnapshot } from './history.js';
 import { clearSelection } from './selection.js';
+import { filterSignature } from './list_filter.js';
 
 // The six values that cross module boundaries, in one named object.
 //
@@ -77,11 +78,15 @@ export function projectChanged() {
 // which of the two rotors. The multiple selection carries this around so that a
 // set of indices taken on one list cannot be read as a set of indices on
 // another -- see core/selection.js.
+//
+// The filter is part of it (core/list_filter.js). Rows ticked and then
+// filtered out of sight would otherwise still be deleted by "delete selected":
+// a change of filter is a different list on screen, and the ticks go.
 export function listContext() {
     const half = state.projectData && state.projectData.isMultiRotor
         ? state.multiRotorEditTarget
         : '';
-    return String(state.currentTab) + '/' + half;
+    return String(state.currentTab) + '/' + half + '/' + filterSignature(state.currentTab);
 }
 
 // Writes the open project back to the library, records the step for undo, and

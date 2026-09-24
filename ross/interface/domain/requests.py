@@ -176,6 +176,15 @@ CONCATENATE_REQUEST = Envelope(
 # it is what someone typed: the refusal for '4 0 0' belongs in the domain, with
 # the other refusals, and not in a JSON parser that would have turned it into
 # nothing on the way here.
+# The element list's filter compares a field's values in one unit, and only
+# pint knows every unit the forms accept -- including what was typed into
+# "Others". Each item is what was typed, the unit beside it and the unit to
+# answer in (`domain/conversion.to_unit`).
+UNITS_REQUEST = Envelope(
+    "/api/units/convert",
+    Field("items", list, required=True),
+)
+
 SPLIT_REQUEST = Envelope(
     "/api/rotor/split_shaft",
     Field("project", dict, required=True),

@@ -504,6 +504,97 @@ button {
     font-size: 12px;
     color: var(--text-muted);
 }
+/* The filter (core/list_filter.js): its button, lit while a filter is on,
+   with the number of criteria in force; the panel under the bar; and the rows
+   it hides, which keep their places in the list. */
+#selection-bar .btn-action.filter {
+    position: relative;
+}
+#selection-bar .btn-action.filter.is-on,
+#selection-bar .btn-action.filter[aria-pressed="true"] {
+    color: var(--accent);
+    background: var(--surface-tint);
+}
+.filter-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--white);
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+}
+.list-filter {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    font-size: var(--fs-xs);
+}
+.filter-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 8px;
+    align-items: center;
+}
+.filter-grid label {
+    font: var(--type-eyebrow);
+    letter-spacing: var(--ls-eyebrow);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+.filter-grid input,
+.filter-grid select {
+    min-width: 0;
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--surface-page);
+    color: var(--text-body);
+    font-size: var(--fs-xs);
+}
+.filter-pair,
+.filter-condition {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+.filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+.filter-condition select:first-child {
+    width: auto;
+    min-width: 52px;
+}
+/* No dragging through a filter (components/list.js): the handles say so. */
+#element-list.is-filtering .item-drag {
+    visibility: hidden;
+}
+.filter-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--text-muted);
+}
+.filter-clear {
+    padding: 3px 8px;
+    font-size: var(--fs-xs);
+}
+.list-item.is-filtered-out {
+    display: none;
+}
 #selection-bar .btn-action:disabled {
     opacity: 0.35;
     cursor: default;

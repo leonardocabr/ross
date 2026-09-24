@@ -4,6 +4,7 @@ import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } 
 import { categoryName, getEffectiveNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
 import { placeFormWindow } from '../components/floating_form.js';
 import { setThreeDShown, threeDShown } from '../core/visibility.js';
+import { shownIndexes } from '../core/list_filter.js';
 import { reapplyHelp } from '../components/help.js';
 import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
@@ -640,8 +641,11 @@ export function toggleSelected(index) {
     renderList();
 }
 
+// All the rows shown: with a filter on, the ones it lets through
+// (core/list_filter.js). A row out of sight is never ticked by the header.
 export function toggleSelectAll() {
-    pickAll(listContext(), (getActiveData()[state.currentTab] || []).length);
+    const items = getActiveData()[state.currentTab] || [];
+    pickAll(listContext(), shownIndexes(state.currentTab, items, getEffectiveNodes(items)));
     renderList();
 }
 
