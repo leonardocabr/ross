@@ -19,10 +19,10 @@ import { renderRotorHub } from './features/hub.js';
 import {
     buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth, startRotorViewToggle,
 } from './features/modeling.js';
-import { startRotor3dListLink } from './features/rotor3d.js';
+import { restyleRotor3d, startRotor3dListLink } from './features/rotor3d.js';
 import { startHistoryShortcuts } from './features/shortcuts.js';
 import { startWorkBar } from './features/progress.js';
-import { startTheme } from './core/theme.js';
+import { onThemeChanged, startTheme } from './core/theme.js';
 import { startErrorNotice } from './features/error_notice.js';
 import { defineActions, startActions } from './core/actions.js';
 import { SHELL_ACTIONS } from './features/shell_actions.js';
@@ -41,6 +41,10 @@ onReorder(buildRotorLive);
 // The buttons grey out when there is nothing left to undo. The reason this is a
 // hook and not a call from core/state.js is written there.
 onProjectChanged(refreshHistoryButtons);
+
+// The 3D view keeps its theme colours in WebGL, where CSS does not reach; a
+// change of theme repaints them.
+onThemeChanged(restyleRotor3d);
 
 // What the buttons mean, by name (core/actions.js). One table per area of the
 // page.

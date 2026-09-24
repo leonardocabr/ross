@@ -414,19 +414,47 @@ export function framing(bounds, fovDegrees, aspect, direction = [1, 0.45, 0.3]) 
     return { center, radius, distance: Math.max(distance * 1.08, radius * 1.05), direction: back };
 }
 
-// From the side, a little above and a little in front of node 0, so the
-// shaft reads left to right as in the 2D figure. For a MultiRotor, obliquely
-// across the line between the two axes and from its upper side, so neither
-// line hides the other.
+// Where the camera looks from: the side, a little above and a little in front
+// of node 0, so the shaft reads left to right as in ROSS's 2D figure -- node 0
+// on the left, z growing to the right.
+//
+// It used to say that and do the opposite: from +x, which puts node 0 on the
+// right, so switching between the 2D figure and the 3D view mirrored the rotor.
+// Nothing checked the claim until the axis triad drew z pointing left. What
+// decides it is the sign of x alone: seen from `d`, the screen's right is
+// (d.z, 0, -d.x), so z grows to the right exactly when d.x < 0.
+//
+// For a MultiRotor the second line must not hide behind the first, so the
+// camera keeps away from the line between the two axes (`orientation_angle`,
+// from x): the direction around the rotor axis nearest to the one-rotor view
+// that is at least `MIN_ACROSS` degrees off that line, among those that still
+// read left to right.
+const SIDE_VIEW = [-1, 0.45, -0.3];
+const MIN_ACROSS = 50;
+
 export function viewDirection(scene) {
-    if (scene && scene.kind === 'multirotor') {
-        const angle = scene.orientation_angle || 0;
-        let side = [-Math.sin(angle), Math.cos(angle)];
-        if (side[1] < 0) side = side.map(v => -v);
-        const across = [Math.cos(angle), Math.sin(angle)];
-        return normalized([side[0] + 0.8 * across[0], side[1] + 0.8 * across[1], 0.5]);
-    }
-    return normalized([1, 0.45, 0.3]);
+    if (!(scene && scene.kind === 'multirotor')) return normalized(SIDE_VIEW);
+    const around = Math.hypot(SIDE_VIEW[0], SIDE_VIEW[1]);
+    const preferred = Math.atan2(SIDE_VIEW[1], SIDE_VIEW[0]) * 180 / Math.PI;
+    const line = ((scene.orientation_angle || 0) * 180 / Math.PI) % 180;
+    const offLine = theta => {
+        const d = Math.abs(((theta - line) % 180 + 180) % 180);
+        return Math.min(d, 180 - d);
+    };
+    // Reading left to right is x < 0: angles strictly between 90 and 270. From
+    // above or level first (up to 180); from below only when the line between
+    // the axes leaves nothing else -- when it runs at 45 degrees down from x.
+    const nearest = (from, to) => {
+        let found = null;
+        for (let theta = from; theta <= to; theta += 1) {
+            if (offLine(theta) < MIN_ACROSS) continue;
+            if (found === null || Math.abs(theta - preferred) < Math.abs(found - preferred)) found = theta;
+        }
+        return found;
+    };
+    const best = nearest(95, 180) ?? nearest(181, 265) ?? preferred;
+    const angle = best * Math.PI / 180;
+    return normalized([around * Math.cos(angle), around * Math.sin(angle), SIDE_VIEW[2]]);
 }
 
 function dot(a, b) {

@@ -2,8 +2,8 @@
 //
 // It is a view and nothing else: it draws the scene the server answered with
 // the rotor (`domain/rotor_scene.py`), and has no model of its own to fall out
-// of step with the element lists. Editing from it comes in a later slice,
-// through the same forms the lists open.
+// of step with the element lists. Editing from it goes through the same forms
+// and paths the lists use (`editFrom3d` and its siblings in modeling.js).
 //
 // What the prototype cost, and what this does instead (measured; see the
 // project's 3D evaluation):
@@ -23,6 +23,7 @@ import { t } from '../core/i18n.js';
 import { benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection } from '../core/rotor3d_layout.js';
 import { state } from '../core/state.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
+import { buildTriad } from '../components/rotor3d_triad.js';
 import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
 
 const FOV = 35;
@@ -86,10 +87,61 @@ function loadLibrary() {
 }
 
 // A colour of the page's theme, for what the 3D view draws in the interface's
-// colours rather than ROSS's: the node rings and the highlight.
+// colours rather than ROSS's: the node rings, the outlines, the highlight and
+// the axes.
 function themeColor(name, fallback) {
     const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return value || fallback;
+}
+
+function rotorLook() {
+    return { ring: themeColor('--accent', 'steelblue'), outline: themeColor('--text-strong', 'black') };
+}
+
+// The axes in the colours the figures give x, y and z (the plots' series).
+function axisColours() {
+    return { x: themeColor('--plot-red', 'firebrick'), y: themeColor('--plot-green', 'seagreen'), z: themeColor('--plot-blue', 'steelblue') };
+}
+
+// The theme changed (core/theme.js, subscribed in main.js). What wears its
+// colours is repainted where it is -- WebGL keeps the colours it was given, and
+// a view built in the light theme stayed light in the dark one until the next
+// rebuild. ROSS's own colours, most of what is drawn, are not the page's.
+export function restyleRotor3d() {
+    if (!stage) return;
+    const accent = themeColor('--accent', 'steelblue');
+    stage.sleeve.material.color.set(accent);
+    stage.mark.material.color.set(accent);
+    stage.triad.restyle(axisColours());
+    if (model) model.restyle(rotorLook());
+    requestFrame();
+}
+
+// The axis triad (components/rotor3d_triad.js), drawn over the bottom-left
+// corner by the same renderer after the rotor: a square of this many CSS
+// pixels, this far from the edges.
+const TRIAD_SIZE = 100;
+const TRIAD_MARGIN = 8;
+
+function inTriad(x, y, height) {
+    return x >= TRIAD_MARGIN && x <= TRIAD_MARGIN + TRIAD_SIZE
+        && y >= height - TRIAD_MARGIN - TRIAD_SIZE && y <= height - TRIAD_MARGIN;
+}
+
+function drawTriad() {
+    const { renderer, camera, triad } = stage;
+    const size = renderer.getSize(new library.THREE.Vector2());
+    triad.orient(camera.quaternion);
+    renderer.autoClear = false;
+    renderer.setScissorTest(true);
+    // Measured from the bottom, as WebGL counts.
+    renderer.setViewport(TRIAD_MARGIN, TRIAD_MARGIN, TRIAD_SIZE, TRIAD_SIZE);
+    renderer.setScissor(TRIAD_MARGIN, TRIAD_MARGIN, TRIAD_SIZE, TRIAD_SIZE);
+    renderer.clearDepth();
+    renderer.render(triad.scene, triad.camera);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, size.x, size.y);
+    renderer.autoClear = true;
 }
 
 // How the rotor is lit. Metal looks like metal by what it reflects, so the
@@ -103,6 +155,11 @@ function light(stageScene, renderer) {
     renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+    // The sun stands still and so does the rotor while the camera turns: the
+    // shadow is redrawn when what casts it changes (`placeFloor`), not on every
+    // frame. Measured on the compressor: half of each frame's triangles were
+    // the shadow's, drawn again for a picture that had not changed.
+    renderer.shadowMap.autoUpdate = false;
     const makeEnvironment = new THREE.PMREMGenerator(renderer);
     const room = new RoomEnvironment();
     stageScene.environment = makeEnvironment.fromScene(room, 0.04).texture;
@@ -140,6 +197,9 @@ function placeFloor(current, bounds) {
     shadow.updateProjectionMatrix();
     sun.shadow.bias = -0.0005;
     sun.shadow.normalBias = 0.002 * size;
+    // Called whenever what casts the shadow changed: the rotor was rebuilt,
+    // the bench came or went.
+    current.renderer.shadowMap.needsUpdate = true;
 }
 
 function makeStage(container) {
@@ -232,6 +292,7 @@ function makeStage(container) {
 
     const fresh = {
         container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor,
+        triad: buildTriad(THREE, axisColours()),
         raycaster: new THREE.Raycaster(), hovered: null,
     };
     if (typeof ResizeObserver === 'function') {
@@ -302,10 +363,7 @@ export async function showRotor3d(container, scene) {
     }
     layout = layoutScene(scene);
     direction = viewDirection(scene);
-    model = buildRotorModel(library.THREE, layout, {
-        ring: themeColor('--accent', 'steelblue'),
-        outline: themeColor('--text-strong', 'black'),
-    });
+    model = buildRotorModel(library.THREE, layout, rotorLook());
     stage.scene.add(model.object);
     placeBench();
     stage.hovered = null;
@@ -364,6 +422,8 @@ function pickAt(event) {
     if (!stage || !layout) return null;
     const box = stage.renderer.domElement.getBoundingClientRect();
     if (!box.width || !box.height) return null;
+    // The triad's corner is not a window onto the rotor.
+    if (inTriad(event.clientX - box.left, event.clientY - box.top, box.height)) return null;
     const ndc = {
         x: ((event.clientX - box.left) / box.width) * 2 - 1,
         y: -((event.clientY - box.top) / box.height) * 2 + 1,
@@ -454,12 +514,14 @@ function drawFrame() {
     if (!stage) return;
     showWhatIsUnderThePointer();
     stage.renderer.render(stage.scene, stage.camera);
+    drawTriad();
 }
 
 function showWhatIsUnderThePointer() {
     const { sleeve, tip, raycaster, camera } = stage;
+    const overTriad = !!pointer && inTriad(pointer.x, pointer.y, pointer.height);
     let hit = null;
-    if (pointer && layout && pointer.width && pointer.height) {
+    if (pointer && !overTriad && layout && pointer.width && pointer.height) {
         const ndc = { x: (pointer.x / pointer.width) * 2 - 1, y: -(pointer.y / pointer.height) * 2 + 1 };
         raycaster.setFromCamera(ndc, camera);
         const { origin, direction } = raycaster.ray;
@@ -469,6 +531,10 @@ function showWhatIsUnderThePointer() {
     const find = key => (key && layout ? layout.parts.find(p => p.key === key) : null);
     const marked = chosenPart();
     if (marked) placeSleeve(stage.mark, marked, 1.14); else stage.mark.visible = false;
+    if (overTriad) {
+        showAxesTip();
+        return;
+    }
     markRow(part);
     if (!part) {
         tip.hidden = true;
@@ -489,8 +555,26 @@ function showWhatIsUnderThePointer() {
             + `<div class="rotor3d-tip-hint">${escapeHtml(t('rotor3dHint').replace('%1', node))}</div>`;
         stage.hovered = tipKey;
     }
+    placeTip();
+}
+
+// Over the triad: what the axes are, and no part.
+function showAxesTip() {
+    const { sleeve, tip } = stage;
+    sleeve.visible = false;
+    markRow(null);
+    if (stage.hovered !== 'axes') {
+        tip.innerHTML = `<div class="rotor3d-tip-title">${escapeHtml(t('rotor3dAxesTitle'))}</div>`
+            + `<div>${escapeHtml(t('rotor3dAxes'))}</div>`;
+        stage.hovered = 'axes';
+    }
+    placeTip();
+}
+
+// Beside the pointer, and turned back inside when it would leave the view.
+function placeTip() {
+    const { tip } = stage;
     tip.hidden = false;
-    // Beside the pointer, and turned back inside when it would leave the view.
     const left = pointer.x + 16 + tip.offsetWidth > pointer.width ? pointer.x - 16 - tip.offsetWidth : pointer.x + 16;
     const top = Math.min(pointer.y + 16, Math.max(0, pointer.height - tip.offsetHeight - 4));
     tip.style.left = `${Math.max(0, left)}px`;

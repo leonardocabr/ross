@@ -731,6 +731,8 @@ export function buildRotorModel(THREE, layout, look = {}) {
         mesh.castShadow = true;
         keep(mesh, geometry, material);
     }
+    // The two that wear the theme's colours, kept to be repainted in place.
+    const themed = { outline: null, ring: null };
     if (outlines) {
         const material = new THREE.LineBasicMaterial({
             color: look.outline || 'black', transparent: true, opacity: 0.35, depthWrite: false,
@@ -738,6 +740,7 @@ export function buildRotorModel(THREE, layout, look = {}) {
         const lines = new THREE.LineSegments(outlines, material);
         lines.name = 'outlines';
         keep(lines, outlines, material);
+        themed.outline = material;
     }
     if (layout.rings.length) {
         const geometry = ringLines(THREE, layout.rings);
@@ -745,6 +748,7 @@ export function buildRotorModel(THREE, layout, look = {}) {
         const lines = new THREE.LineSegments(geometry, material);
         lines.name = 'nodes';
         keep(lines, geometry, material);
+        themed.ring = material;
     }
 
     const release = () => {
@@ -754,9 +758,17 @@ export function buildRotorModel(THREE, layout, look = {}) {
         made.materials = [];
         group.clear();
     };
+    // A change of theme repaints the outlines and the rings where they are:
+    // rebuilding the rotor for two colours would cost a rebuild, and ROSS's
+    // colours, which are most of what is drawn, do not change with the page.
+    const restyle = colours => {
+        if (themed.outline && colours.outline) themed.outline.color.set(colours.outline);
+        if (themed.ring && colours.ring) themed.ring.color.set(colours.ring);
+    };
     return {
         object: group,
         vertices: made.geometries.reduce((sum, g) => sum + g.attributes.position.count, 0),
+        restyle,
         dispose: release,
     };
 }
