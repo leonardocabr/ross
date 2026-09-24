@@ -135,14 +135,6 @@
                     <div id="selection-bar" style="display:none;"></div>
                 <div id="element-list" class="dynamic-list"></div>
                     <button class="btn-add" id="btn-add-item" data-action="add-element"><i class="fas fa-plus"></i></button>
-                    
-                    <div id="insertion-form" class="form-box" style="display: none;">
-                        <div id="form-fields"></div>
-                        <div class="form-actions">
-                            <button class="btn-confirm" data-action="save-element"><i class="fas fa-check"></i></button>
-                            <button class="btn-cancel" data-action="close-form"><i class="fas fa-times"></i></button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -170,6 +162,24 @@
                         <button type="button" class="rotor3d-tool" data-action="toggle-bench" aria-pressed="false" title="Show the rotor on a test bench" data-i18n-title="rotor3dBench"><i class="fas fa-table"></i></button>
                         <button type="button" class="rotor3d-tool rotor3d-frame" data-action="frame-rotor" title="Show the whole rotor" data-i18n-title="rotor3dFrame"><i class="fas fa-expand"></i></button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- The element form, as a window over the screen and not a box in the
+             list (components/floating_form.js says why). Not modal: the figure
+             beside it stays live. The heading is written by `markEditedRow`. -->
+        <div id="insertion-form" class="form-box form-window" role="dialog" aria-labelledby="form-window-title" style="display: none;">
+            <div class="form-window-bar">
+                <i class="fas fa-grip-lines form-window-grip" title="Drag to move the form" data-i18n-title="formWindowMove"></i>
+                <span id="form-window-title" class="form-window-title"></span>
+                <button type="button" class="form-window-close" data-action="close-form" title="Close without saving" data-i18n-title="formWindowClose"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="form-window-body">
+                <div id="form-fields"></div>
+                <div class="form-actions">
+                    <button class="btn-confirm" data-action="save-element"><i class="fas fa-check"></i></button>
+                    <button class="btn-cancel" data-action="close-form"><i class="fas fa-times"></i></button>
                 </div>
             </div>
         </div>

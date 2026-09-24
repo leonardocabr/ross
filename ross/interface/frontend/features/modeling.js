@@ -1,7 +1,8 @@
 // The modeling screen: the element tabs, the form, the rotor figure that redraws
 // itself on every change, and the node hub over the figure.
 import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } from '../components/form.js';
-import { getEffectiveNodes, positionFormBox, renderList } from '../components/list.js';
+import { categoryName, getEffectiveNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
+import { placeFormWindow } from '../components/floating_form.js';
 import { reapplyHelp } from '../components/help.js';
 import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
@@ -288,26 +289,7 @@ export async function changeLanguage(language) {
     state.editingIndex = editedIndex;
     selectSubType(state.currentSubType);
     restoreFormValues(formValues);
-    positionFormBox(editedIndex);
     document.getElementById('btn-add-item').style.display = 'none';
-}
-
-// The translated name of a category comes from the sidebar button that opens it:
-// that button is the one carrying the `data-i18n`. A second `category -> key`
-// table here could only diverge from the one already in `index.html`.
-export function categoryName(category, button) {
-    const target = button || tabButton(category);
-    const key = target && target.dataset && target.dataset.i18n;
-    return key ? t(key) : category;
-}
-
-// The sidebar button of a category, found by what it *is* (`data-tab`) rather
-// than by what it happens to call. It used to be found by reading `openTab('x')`
-// out of the `onclick` text -- which is how this slice would have broken the
-// title and the highlight the moment the buttons started calling `pickTab`.
-function tabButton(category) {
-    return Array.from(document.querySelectorAll('.tab-btn'))
-        .find(b => b.dataset && b.dataset.tab === category);
 }
 
 function tabTitle(category, button) {
@@ -402,9 +384,9 @@ export function openTab(category) {
 // Function to open the form
 
 export async function openForm(isNew = true) {
-    // A form opened from the figure (the node hub) or from anywhere else has to
-    // be seen: it lives in the list panel.
-    showListPanel(true);
+    // The list panel is left as it is. The form used to live in it and had to
+    // open it to be seen; as a window of its own it is seen anyway, and someone
+    // who hid the list to give the figure room keeps that room while editing.
     await schemaReady();          // the forms come from /api/schema/elements
     if (isNew) { state.editingIndex = -1; state.currentSubType = 'BASIC'; }
     let subTypes = formSubtypes(state.currentTab);
@@ -419,19 +401,18 @@ export async function openForm(isNew = true) {
         subTypes.forEach(type => { html += `<button class="btn-subtype" data-action="pick-subtype" data-subtype="${type}">${type}</button>`; });
         html += '</div><button class="btn-cancel" style="width:100%; margin-top:15px;" data-action="close-form">' + escapeHtml(t('cancel')) + '</button>';
         document.getElementById('form-fields').innerHTML = html;
-        document.querySelector('.form-actions').style.display = 'none';
+        document.querySelector('#insertion-form .form-actions').style.display = 'none';
     } else {
         const activeData = getActiveData();
         selectSubType(isNew ? 'BASIC' : activeData[state.currentTab][state.editingIndex].element_type || 'BASIC');
     }    
     
     document.getElementById('btn-add-item').style.display = 'none';    
-    const formBox = document.getElementById('insertion-form');
-    formBox.style.display = 'block';    
-    
-    positionFormBox(isNew ? -1 : state.editingIndex);
+    placeFormWindow();
+    document.getElementById('insertion-form').style.display = 'block';
+    markEditedRow();
     if(!document.getElementById('btn-default-form')) {
-        document.querySelector('.form-actions').insertAdjacentHTML('afterbegin', `<button type="button" id="btn-default-form" class="btn-default" data-action="fill-default"><i class="fas fa-magic"></i> ${escapeHtml(t('defaultButton'))}</button>`);
+        document.querySelector('#insertion-form .form-actions').insertAdjacentHTML('afterbegin', `<button type="button" id="btn-default-form" class="btn-default" data-action="fill-default"><i class="fas fa-magic"></i> ${escapeHtml(t('defaultButton'))}</button>`);
     }
 
     addingFromNodeHub = false; 
@@ -442,7 +423,7 @@ export async function openForm(isNew = true) {
 export function selectSubType(type) {
     state.currentSubType = type;
     document.getElementById('form-fields').innerHTML = buildFormHTML(state.currentTab, type);
-    document.querySelector('.form-actions').style.display = 'flex';
+    document.querySelector('#insertion-form .form-actions').style.display = 'flex';
     
     const activeData = getActiveData();
     
@@ -503,12 +484,11 @@ export function selectSubType(type) {
 // Function to close the form
 
 export function closeForm() { 
-    const formBox = document.getElementById('insertion-form');
-    formBox.style.display = 'none'; 
-    document.getElementById('list-area').appendChild(formBox);
+    document.getElementById('insertion-form').style.display = 'none'; 
     document.getElementById('btn-add-item').style.display = 'block'; 
     state.editingIndex = -1; 
     hiddenNode = null;
+    markEditedRow();
 }
 
 // Element editing function
@@ -1097,11 +1077,11 @@ function openNodeHub(nodeIndex) {
 // list's delete (with its question about a material in use), the node hub --
 // so undo, the rules of each form and the material checks hold there with
 // nothing added. What it needs from here is getting to the row: the right half
-// of a MultiRotor, the right tab, and the list in view.
+// of a MultiRotor and the right tab. Not the list in view: the form is a window
+// of its own, and a list hidden to give the figure room stays hidden.
 function reachRow(category, half) {
     const otherHalf = state.projectData.isMultiRotor && half && state.multiRotorEditTarget !== half;
     if (otherHalf) state.multiRotorEditTarget = half;
-    showListPanel(true);
     if (otherHalf || state.currentTab !== category) openTab(category);
 }
 

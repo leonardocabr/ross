@@ -1,5 +1,5 @@
-// The element list of the modeling screen: effective node numbering, the form box
-// anchored to the item, and reordering by dragging.
+// The element list of the modeling screen: effective node numbering, the row
+// whose form is open, and reordering by dragging.
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
 import { listContext, state, getActiveData, syncBackToLibrary } from '../core/state.js';
@@ -58,27 +58,54 @@ export const getEffectiveNodes = (arr) => {
     return eff;
 };
 
-// Takes the form out of the list before any redraw.
-// Without this, `container.innerHTML = ''` deletes #insertion-form from the
-// document and the interface is left with no form at all until the page is
-// reloaded.
-function moveFormBoxOutOfList() {
-    const formBox = document.getElementById('insertion-form');
-    const container = document.getElementById('element-list');
-    if (formBox && container && container.contains(formBox)) {
-        document.getElementById('list-area').appendChild(formBox);
-        return true;
-    }
-    return false;
+// The row whose form is open, marked, and the heading of the form window.
+//
+// The form used to open under its row, and that was how the person knew which
+// element it was. In a window of its own (components/floating_form.js) the row is
+// marked instead, and the window's bar says it in words -- the words of the
+// row, so the two cannot disagree. Called on every redraw of the list, because
+// a drag or a copy above it moves the edited row and renumbers it.
+export function markEditedRow() {
+    const box = document.getElementById('insertion-form');
+    const open = !!box && box.style.display === 'block';
+    const editing = open ? state.editingIndex : -1;
+    Array.from(document.getElementById('element-list').children).forEach((row, index) => {
+        if (index === editing) row.classList.add('is-editing');
+        else row.classList.remove('is-editing');
+    });
+    const title = document.getElementById('form-window-title');
+    if (title) title.textContent = open ? formTitle(editing) : '';
 }
 
-// Puts the form back right under the item being edited (or at the end of the area).
-export function positionFormBox(index) {
-    const formBox = document.getElementById('insertion-form');
-    if (!formBox) return;
-    const items = document.getElementById('element-list').children;
-    if (index >= 0 && items[index]) items[index].insertAdjacentElement('afterend', formBox);
-    else document.getElementById('list-area').appendChild(formBox);
+function formTitle(editing) {
+    const items = getActiveData()[state.currentTab] || [];
+    let title = editing >= 0 && items[editing]
+        ? rowTitle(items[editing], editing, getEffectiveNodes(items)[editing])
+        : t('formWindowNew').replace('%1', categoryName(state.currentTab));
+    // On a MultiRotor the list says which line it is showing; with the list
+    // hidden, only the window can.
+    if (state.projectData.isMultiRotor) {
+        title += ' · ' + t(state.multiRotorEditTarget === 'driven' ? 'multiDriven' : 'multiDriving');
+    }
+    return title;
+}
+
+// The translated name of a category comes from the sidebar button that opens it:
+// that button is the one carrying the `data-i18n`. A second `category -> key`
+// table here could only diverge from the one already in `index.html`.
+export function categoryName(category, button) {
+    const target = button || tabButton(category);
+    const key = target && target.dataset && target.dataset.i18n;
+    return key ? t(key) : category;
+}
+
+// The sidebar button of a category, found by what it *is* (`data-tab`) rather
+// than by what it happens to call. It used to be found by reading `openTab('x')`
+// out of the `onclick` text -- which is how this slice would have broken the
+// title and the highlight the moment the buttons started calling `pickTab`.
+export function tabButton(category) {
+    return Array.from(document.querySelectorAll('.tab-btn'))
+        .find(b => b.dataset && b.dataset.tab === category);
 }
 
 // The bar above the list: tick everything, how many are ticked, and the two
@@ -188,14 +215,10 @@ export function renderList() {
 
     // Nothing below can fail on the project's content: from here on the old
     // list is replaced by one that is already complete.
-    const formWasInTheList = moveFormBoxOutOfList();
     container.innerHTML = '';
     rows.forEach(row => container.appendChild(row));
     renderSelectionBar(currentArray.length);
-    // The form goes back under the element it is editing. Before, a copy or a
-    // delete elsewhere in the list left it stranded at the bottom, under
-    // nothing in particular.
-    if (formWasInTheList) positionFormBox(state.editingIndex);
+    markEditedRow();
 
     // One instance per container: before, every render created another one without
     // destroying the previous, piling listeners onto the same list.
@@ -204,8 +227,10 @@ export function renderList() {
         handle: '.item-drag',
         // Only the rows move, and only rows are counted.
         //
-        // The open form is a child of this same container, sitting under the
-        // element it edits. With Sortable's defaults it counted as an item:
+        // The open form used to be a child of this same container, under the
+        // element it edited (it is a window of its own now, but anything else
+        // put in the list would do the same). With Sortable's defaults it
+        // counted as an item:
         // `oldIndex` and `newIndex` are positions among **all** the children,
         // so with the form above the dragged row every index was one too high.
         // Dragging the last of four shafts to the top with a form open asked
@@ -213,8 +238,8 @@ export function renderList() {
         // `undefined` was inserted at the top -- saved as `null`, and every
         // later render of that list failed. Measured in a browser, not guessed.
         //
-        // `draggable` keeps the form from being picked up, and the
-        // `...DraggableIndex` pair counts rows only.
+        // `draggable` keeps anything that is not a row from being picked up,
+        // and the `...DraggableIndex` pair counts rows only.
         draggable: '.list-item',
         animation: 150,
         onEnd: function (evt) {

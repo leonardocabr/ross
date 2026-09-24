@@ -142,13 +142,13 @@ export function openRotorWorkspace(index, targetScreen) {
     openProjectHistory(state.projectData);
     showOpenRotorName();
     
-    // The form first, then the list. The form lives *inside* the list while an
-    // element is being edited, and emptying the list with it there deleted it
-    // from the page for good: every later `closeForm` threw, `openTab` stopped
-    // before drawing anything, and the element lists stayed empty until the
-    // page was reloaded. Leaving the modeling screen with a form open was
-    // enough -- which is very likely the "lists vanished" of the week's report.
-    // `closeForm` puts it back in `#list-area` and sets `editingIndex` to -1.
+    // The form closes with the rotor it was editing: `closeForm` hides the
+    // window and sets `editingIndex` to -1, so the next rotor does not open
+    // with a form for an element of the last one. (It also used to lift the
+    // form out of the list before the list was emptied -- the form lived there,
+    // and emptying the list with it inside deleted it from the page, very
+    // likely the "lists vanished" of the week's report. The form is a window of
+    // its own now, and cannot be emptied away.)
     closeForm();
     document.getElementById('element-list').innerHTML = '';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));

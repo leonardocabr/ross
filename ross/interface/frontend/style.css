@@ -547,6 +547,70 @@ button {
     margin-top: 10px;
     box-shadow: var(--shadow-xs);
 }
+/* The element form as a window over the modeling screen
+   (components/floating_form.js). Not modal, so no scrim. Above the figure and
+   the 3D tooltip; below the dialogs, the line of work and the error notice.
+   The window itself scrolls, with its bar and its buttons held at the top and
+   the bottom: a bearing's form is taller than most screens, and the way to
+   save it should not be at the end of the scroll. Its height is capped by
+   `placeFormWindow` to the room under it. */
+.form-window {
+    position: fixed;
+    z-index: 800;
+    width: 400px;
+    margin-top: 0;
+    padding: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: var(--shadow-lg);
+}
+.form-window-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 6px 6px 6px var(--space-3);
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+.form-window-grip {
+    color: var(--text-subtle);
+}
+.form-window-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--text-strong);
+}
+.form-window-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.form-window-close:hover {
+    background: var(--surface-hover);
+    color: var(--text-body);
+}
+.form-window-body {
+    padding: var(--space-4) var(--space-4) 0;
+}
+.form-window .form-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface-card);
+    padding-bottom: var(--space-3);
+}
 .form-section {
     margin-top: 10px;
     border: 1px solid var(--border-default);
@@ -828,6 +892,12 @@ button {
 }
 /* The row of the part the pointer is on in the 3D view. */
 .list-item.is-pointed {
+    background: var(--surface-tint);
+}
+/* The row whose form is open: the form is a window of its own now, and this
+   is what ties the two together (with the window's heading). */
+.list-item.is-editing {
+    border-left-color: var(--accent);
     background: var(--surface-tint);
 }
 .rotor3d-tip-note {

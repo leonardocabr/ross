@@ -9,6 +9,7 @@
 // called (73 names at its largest); every button now says `data-action="..."`
 // and one listener looks the name up (core/actions.js).
 import { onReorder } from './components/list.js';
+import { startFormWindow } from './components/floating_form.js';
 import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
@@ -71,6 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startRotorViewToggle();
     // A row of the element list lights its part in the 3D view.
     startRotor3dListLink();
+    // The element form's window: dragged by its bar, kept in view.
+    startFormWindow();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));

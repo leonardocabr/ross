@@ -67,6 +67,19 @@ await settle(20);
 check('Delete on a disk removes that disk', state.projectData.disks.length === 0);
 check('and nothing else', state.projectData.gears.length === 1 && state.projectData.shafts.length === 2);
 
+// The list hidden to give the figure room stays hidden: the form is a window
+// of its own and is seen without it.
+const panelClasses = new Set(['collapsed']);
+node('list-panel').classList = {
+    add: n => panelClasses.add(n), remove: n => panelClasses.delete(n),
+    toggle: n => (panelClasses.has(n) ? panelClasses.delete(n) : panelClasses.add(n)),
+    contains: n => panelClasses.has(n),
+};
+editFrom3d('gears', 0, null);
+await settle(20);
+check('a click with the list hidden opens the form and leaves the list hidden',
+    state.editingIndex === 0 && node('insertion-form').style.display === 'block' && panelClasses.has('collapsed'));
+
 addFrom3d(1, null);
 check('a double click near node 1 opens the node hub on node 1',
     node('node-hub-overlay').style.display === 'flex' && String(node('node-hub-target').innerText) === '1');

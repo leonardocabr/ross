@@ -49,7 +49,7 @@ frontend/
   design/      The ROSS design system: tokens and fonts, copied from docs/_static
   main.js      Bootstrap
   core/        Store, API client, shared state, schema loader, i18n, persistence, theme
-  components/  Form builder, element list, modals, contextual help
+  components/  Form builder and its window, element list, modals, contextual help
   features/    One module per screen: hub, modeling, analysis, multirotor, export
 tests/         Python suites, plus tests/js/ behaviour batteries run with node
 tools/         Measuring instruments: they assert nothing and change nothing
