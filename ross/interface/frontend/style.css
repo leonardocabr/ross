@@ -772,11 +772,19 @@ button {
 .rotor3d-message[hidden] {
     display: none;
 }
-.rotor3d-frame {
+.rotor3d-tools {
     position: absolute;
     top: var(--space-2);
     right: var(--space-2);
     z-index: 2;
+    display: flex;
+    gap: var(--space-1);
+}
+.rotor3d-tool[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--white);
+}
+.rotor3d-tool {
     padding: 4px 8px;
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);

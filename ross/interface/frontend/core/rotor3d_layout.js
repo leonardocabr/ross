@@ -35,6 +35,12 @@ export const SYMBOL = {
 export const GEAR_HUB = 0.62;
 export const SEAL_FLANGE = 1.2;
 
+// How far a coupling's hub reaches into its span from each node: under a third
+// of the span, and not much longer than the coupling is wide.
+export function couplingHub(span, radius) {
+    return Math.min(0.3 * span, 1.1 * radius);
+}
+
 // The face width a gear is drawn with when ROSS has none, in modules: gears
 // are commonly 8 to 12 modules wide.
 export const FACE_WIDTH_IN_MODULES = 10;
@@ -101,6 +107,46 @@ function partsOfLine(line, half, offset) {
     const key = (category, index) => (half ? `${half}:${category}:${index}` : `${category}:${index}`);
     const base = { half, offset };
 
+    // A coupling occupies its span like a shaft element, but ROSS lumps its two
+    // halves at the two nodes (m_l, m_r): it is drawn as a hub on each node and
+    // a slender spacer between them, and the shaft line is separated there --
+    // it runs into each hub and stops, whether or not a shaft element of the
+    // project also spans the coupling's nodes. Its bore is the shaft it clamps
+    // on each side.
+    const withEnds = shafts.filter(s => s.z0 != null && s.z1 != null);
+    const reaching = z => withEnds.filter(s => Math.abs(s.z0 - z) < 1e-9 || Math.abs(s.z1 - z) < 1e-9);
+    const spanning = (a, b) => withEnds.filter(s => Math.min(s.z0, s.z1) < b - 1e-9 && Math.max(s.z0, s.z1) > a + 1e-9);
+    const couplings = [];
+    for (const c of line.couplings || []) {
+        if (c.z0 == null || c.z1 == null) continue;
+        const z0 = Math.min(c.z0, c.z1);
+        const z1 = Math.max(c.z0, c.z1);
+        const across = spanning(z0, z1);
+        const sideRadius = z => {
+            const touching = reaching(z).concat(across);
+            return touching.length ? shaftRadiusAt(touching, z, typical) : typical;
+        };
+        const bores = [sideRadius(z0), sideRadius(z1)];
+        const r = Math.max(...bores);
+        const radius = c.outer_diameter ? Math.max(c.outer_diameter / 2, 1.3 * r) : 2.2 * r;
+        const hub = couplingHub(z1 - z0, radius);
+        // The hubs need a shaft end in them: one the project draws there (an
+        // element spanning the coupling, which the cut below shortens), or a
+        // stub of the shaft that ends on that node.
+        const covered = z => across.some(s => Math.min(s.z0, s.z1) <= z + 1e-9 && Math.max(s.z0, s.z1) >= z - 1e-9);
+        const shaftColor = (reaching(z0).concat(reaching(z1), across)[0] || {}).color;
+        couplings.push({
+            ...base, key: key('couplings', c.index), category: 'couplings', index: c.index, kind: 'coupling',
+            entry: c, color: c.color, z0: c.z0, z1: c.z1, radius, bore: r, bores, hub,
+            gap: [z0 + hub, z1 - hub],
+            stubs: [!covered(z0 + hub / 2), !covered(z1 - hub / 2)],
+            stubColor: shaftColor,
+            // A shaft element over the same span is a second, parallel stiffness
+            // in ROSS; the tooltip says so.
+            overlapsShaft: across.length > 0,
+        });
+    }
+
     // An end of a shaft element is chamfered where it stands proud: at a free
     // end, or at a step down to a thinner neighbour. Between two elements of the
     // same diameter the surface runs on, as on a real shaft.
@@ -116,28 +162,12 @@ function partsOfLine(line, half, offset) {
             radius: Math.max(s.odl || 0, s.odr || 0) / 2,
             profile,
             chamfer: [exposed(s, s.z0, profile.odl / 2), exposed(s, s.z1, profile.odr / 2)],
+            cuts: couplings.map(c => c.gap).filter(([g0, g1]) => g1 > g0
+                && Math.min(s.z0, s.z1) < g1 && Math.max(s.z0, s.z1) > g0),
         });
     }
+    parts.push(...couplings);
 
-    // A coupling occupies its span like a shaft element, but ROSS lumps its two
-    // halves at the two nodes (m_l, m_r): it is drawn as a hub on each node and
-    // a slender spacer between them. Its bore is the shaft it clamps on each side.
-    const others = shafts.filter(s => s.z0 != null && s.z1 != null);
-    const reaching = z => others.filter(s => Math.abs(s.z0 - z) < 1e-9 || Math.abs(s.z1 - z) < 1e-9);
-    for (const c of line.couplings || []) {
-        if (c.z0 == null || c.z1 == null) continue;
-        const sideRadius = z => {
-            const touching = reaching(z);
-            return touching.length ? shaftRadiusAt(touching, z, typical) : typical;
-        };
-        const bores = [sideRadius(c.z0), sideRadius(c.z1)];
-        const r = Math.max(...bores);
-        parts.push({
-            ...base, key: key('couplings', c.index), category: 'couplings', index: c.index, kind: 'coupling',
-            entry: c, color: c.color, z0: c.z0, z1: c.z1,
-            radius: c.outer_diameter ? Math.max(c.outer_diameter / 2, 1.3 * r) : 2.2 * r, bore: r, bores,
-        });
-    }
 
     for (const d of line.disks || []) {
         if (d.z == null) continue;
@@ -286,6 +316,54 @@ function boundsOf(parts) {
         min[2] = Math.min(min[2], o.z + Math.min(p.z0, p.z1)); max[2] = Math.max(max[2], o.z + Math.max(p.z0, p.z1));
     }
     return { min, max };
+}
+
+// The test bench the rotor can be shown on, as in Leonardo's prototype: a
+// slotted bed plate on legs, and a pedestal under every bearing reaching down
+// to it. It is not in the model -- ROSS knows no bench -- and it is drawn only
+// when asked for. Every size is in proportion to the rotor, so a 1 m rotor and
+// an 11 m one both stand on a bench that fits them.
+//
+// The plate's top sits below the lowest point of the rotor, so a large disk
+// clears it; the pedestals make up the difference under each bearing.
+export function benchLayout(layout) {
+    const { min, max } = layout.bounds;
+    const length = max[2] - min[2];
+    const width = max[0] - min[0];
+    const height = max[1] - min[1];
+    const margin = Math.max(0.06 * length, 0.25 * width);
+    const thickness = Math.min(Math.max(0.1 * width, 0.015 * length), 0.03 * length);
+    const top = min[1] - Math.max(0.08 * height, 0.01 * length);
+    const plate = {
+        x0: min[0] - margin, x1: max[0] + margin, z0: min[2] - margin, z1: max[2] + margin,
+        top, bottom: top - thickness,
+    };
+    const legHeight = Math.max(0.6 * (plate.x1 - plate.x0), 0.08 * length);
+    const floor = plate.bottom - legHeight;
+    const pedestals = layout.parts.filter(p => p.kind === 'bearing').map(p => {
+        const r = p.shaftRadius;
+        return {
+            key: p.key, x: p.offset.x, z: p.offset.z + (p.z0 + p.z1) / 2,
+            y0: top, y1: p.offset.y - SYMBOL.bearing.base * r,
+            width: 1.5 * SYMBOL.bearing.feet * r, depth: 0.8 * Math.abs(p.z1 - p.z0),
+        };
+    });
+    // Legs at the corners, and more along a long bench, about three plate
+    // widths apart.
+    const legSize = 0.08 * (plate.x1 - plate.x0);
+    const along = Math.max(2, Math.ceil((plate.z1 - plate.z0) / (3 * (plate.x1 - plate.x0))) + 1);
+    const legs = [];
+    for (let i = 0; i < along; i++) {
+        const z = plate.z0 + legSize + ((plate.z1 - plate.z0 - 2 * legSize) * i) / (along - 1);
+        for (const x of [plate.x0 + legSize, plate.x1 - legSize]) legs.push({ x, z, size: legSize });
+    }
+    return {
+        plate, pedestals, legs, floor, legHeight,
+        bounds: {
+            min: [Math.min(min[0], plate.x0), floor, Math.min(min[2], plate.z0)],
+            max: [Math.max(max[0], plate.x1), max[1], Math.max(max[2], plate.z1)],
+        },
+    };
 }
 
 // Where to look from, for the whole rotor in view. The camera stands on the

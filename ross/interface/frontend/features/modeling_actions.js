@@ -16,7 +16,7 @@ import {
     setVerticalScale, splitItem, toggleSelectAll, toggleSelected,
 } from './modeling.js';
 import { switchMultiRotorTarget } from './multirotor.js';
-import { frameRotor } from './rotor3d.js';
+import { frameRotor, toggleBench } from './rotor3d.js';
 
 function position(element) {
     return Number(element.dataset.index);
@@ -55,4 +55,5 @@ export const MODELING_ACTIONS = {
     'set-vertical-scale': element => setVerticalScale(element.value),
     'set-rotor-view': element => setRotorView(element.dataset.view),
     'frame-rotor': () => frameRotor(),
+    'toggle-bench': () => toggleBench(),
 };

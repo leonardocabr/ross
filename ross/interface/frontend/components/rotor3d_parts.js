@@ -149,24 +149,46 @@ function boltCircle(THREE, count, radius, size, height, z, edges, phase = 0) {
 const own = (geometry, finish = 'metal') => ({ geometry, color: null, finish });
 const steel = geometry => ({ geometry, color: STEEL, finish: 'metal' });
 
-function shaftPieces(THREE, part, edges) {
+// One stretch of shaft from za to zb, radii read off the element's taper, its
+// ends chamfered where `chamfered` says.
+function shaftStretch(THREE, part, za, zb, chamfered, edges) {
     const { odl, odr, idl, idr } = part.profile;
-    const z0 = part.z0;
-    const z1 = part.z1;
-    const ro0 = odl / 2;
-    const ro1 = odr / 2;
-    const ri0 = idl / 2;
-    const ri1 = idr / 2;
-    // A chamfer of 6 % of the radius on an end that stands proud (the layout
-    // says which), never more than a fifth of the element's length.
-    const c = end => (part.chamfer && part.chamfer[end] ? Math.min(0.06 * (end ? ro1 : ro0), (z1 - z0) / 5) : 0);
-    const c0 = c(0);
-    const c1 = c(1);
-    const profile = [[ri0, z0], [ro0 - c0, z0]];
-    if (c0) profile.push([ro0, z0 + c0]);
-    if (c1) profile.push([ro1, z1 - c1], [ro1 - c1, z1]); else profile.push([ro1, z1]);
-    profile.push([ri1, z1], [ri0, z0]);
-    return [own(revolve(THREE, profile, SEGMENTS.shaft, edges))];
+    const along = z => (part.z1 === part.z0 ? 0 : (z - part.z0) / (part.z1 - part.z0));
+    const outer = z => (odl + (odr - odl) * along(z)) / 2;
+    const inner = z => (idl + (idr - idl) * along(z)) / 2;
+    const ro0 = outer(za);
+    const ro1 = outer(zb);
+    const ri0 = inner(za);
+    const ri1 = inner(zb);
+    // A chamfer of 6 % of the radius, never more than a fifth of the length.
+    const c0 = chamfered[0] ? Math.min(0.06 * ro0, (zb - za) / 5) : 0;
+    const c1 = chamfered[1] ? Math.min(0.06 * ro1, (zb - za) / 5) : 0;
+    const profile = [[ri0, za], [ro0 - c0, za]];
+    if (c0) profile.push([ro0, za + c0]);
+    if (c1) profile.push([ro1, zb - c1], [ro1 - c1, zb]); else profile.push([ro1, zb]);
+    profile.push([ri1, zb], [ri0, za]);
+    return own(revolve(THREE, profile, SEGMENTS.shaft, edges));
+}
+
+// A shaft element, less where a coupling separates the shaft line
+// (`part.cuts`, from the layout): the line stops inside the coupling's hub and
+// starts again inside the other, as two shaft ends joined by the coupling.
+// An end that stands proud is chamfered (the layout says which), and so is
+// every end a cut makes.
+function shaftPieces(THREE, part, edges) {
+    let stretches = [[part.z0, part.z1, !!(part.chamfer && part.chamfer[0]), !!(part.chamfer && part.chamfer[1])]];
+    for (const [g0, g1] of part.cuts || []) {
+        const next = [];
+        for (const [a, b, ca, cb] of stretches) {
+            if (g1 <= a || g0 >= b) { next.push([a, b, ca, cb]); continue; }
+            if (g0 > a) next.push([a, g0, ca, true]);
+            if (g1 < b) next.push([g1, b, true, cb]);
+        }
+        stretches = next;
+    }
+    return stretches
+        .filter(([a, b]) => b - a > 1e-9)
+        .map(([a, b, ca, cb]) => shaftStretch(THREE, part, a, b, [ca, cb], edges));
 }
 
 // A wheel: hub the full width, a web that thins from hub to rim, the rim, and
@@ -327,7 +349,7 @@ function couplingPieces(THREE, part, edges) {
     const span = z1 - z0;
     const R = part.radius;
     const [bore0, bore1] = part.bores || [part.bore, part.bore];
-    const hubLength = Math.min(0.3 * span, 1.1 * R);
+    const hubLength = part.hub;
     const flange = Math.min(0.35 * hubLength, 0.25 * R);
     const pack = Math.min(0.05 * span, 0.08 * R);
     const pieces = [];
@@ -348,6 +370,19 @@ function couplingPieces(THREE, part, edges) {
     };
     half(bore0, z0, 1);
     half(bore1, z1, -1);
+    // The shaft ends inside the hubs, where no shaft element of the project
+    // reaches in (the layout says which side needs one): a coupling clamps a
+    // shaft end, it does not float on the node.
+    const stubs = part.stubs || [false, false];
+    const stubColor = part.stubColor === undefined ? null : part.stubColor;
+    if (stubs[0]) {
+        pieces.push({ geometry: ring(THREE, 0, bore0, z0, z0 + 0.9 * hubLength, edges, SEGMENTS.shaft, 0.06 * bore0),
+            color: stubColor, finish: 'metal', named: true });
+    }
+    if (stubs[1]) {
+        pieces.push({ geometry: ring(THREE, 0, bore1, z1 - 0.9 * hubLength, z1, edges, SEGMENTS.shaft, 0.06 * bore1),
+            color: stubColor, finish: 'metal', named: true });
+    }
     // The spacer between the two disc packs: a slender tube.
     const spacerFrom = z0 + hubLength + pack;
     const spacerTo = z1 - hubLength - pack;
@@ -565,6 +600,67 @@ function ringLines(THREE, rings, segments = 40) {
     return geometry;
 }
 
+// The test bench (`benchLayout`): the bed plate with its T-slots, the legs,
+// and a pedestal with a foot plate under each bearing. Painted, in the greys of
+// a workshop; built and freed apart from the rotor, since it comes and goes
+// with a button.
+const BENCH = { plate: 0x7d8894, slot: 0x2c343d, leg: 0x3b4450, pedestal: 0x5a6571 };
+
+export function buildBench(THREE, bench) {
+    const colors = new Map();
+    const tone = hex => colorOf(THREE, colors, `#${hex.toString(16).padStart(6, '0')}`);
+    const pieces = [];
+    const edges = [];
+    const block = (sx, sy, sz, x, y, z, hex) => {
+        const geometry = new THREE.BoxGeometry(sx, sy, sz);
+        geometry.translate(x, y, z);
+        pieces.push({ geometry: faceted(THREE, geometry, edges), color: tone(hex) });
+    };
+    const { plate } = bench;
+    const plateWidth = plate.x1 - plate.x0;
+    const plateLength = plate.z1 - plate.z0;
+    const cx = (plate.x0 + plate.x1) / 2;
+    const cz = (plate.z0 + plate.z1) / 2;
+    const thickness = plate.top - plate.bottom;
+    block(plateWidth, thickness, plateLength, cx, (plate.top + plate.bottom) / 2, cz, BENCH.plate);
+    // Three T-slots along the plate.
+    for (const f of [-0.28, 0, 0.28]) {
+        block(0.035 * plateWidth, 0.004 * plateWidth, 0.97 * plateLength, cx + f * plateWidth, plate.top + 0.002 * plateWidth, cz, BENCH.slot);
+    }
+    for (const leg of bench.legs) {
+        block(leg.size, bench.legHeight, leg.size, leg.x, plate.bottom - bench.legHeight / 2, leg.z, BENCH.leg);
+    }
+    for (const p of bench.pedestals) {
+        const height = p.y1 - p.y0;
+        if (height > 1e-6) block(0.75 * p.width, height, 0.85 * p.depth, p.x, p.y0 + height / 2, p.z, BENCH.pedestal);
+        // The foot it is bolted down with.
+        const foot = Math.max(0.012 * plateWidth, 0.1 * p.width);
+        block(1.05 * p.width, foot, 1.2 * p.depth, p.x, p.y0 + foot / 2, p.z, BENCH.pedestal);
+    }
+    const geometry = mergeColoured(THREE, pieces);
+    const material = new THREE.MeshStandardMaterial({ vertexColors: true, ...FINISHES.paint });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = 'bench';
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const outline = outlineLines(THREE, edges);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 'black', transparent: true, opacity: 0.3, depthWrite: false });
+    const lines = new THREE.LineSegments(outline, lineMaterial);
+    lines.name = 'bench-outlines';
+    const group = new THREE.Group();
+    group.add(mesh, lines);
+    return {
+        object: group,
+        dispose: () => {
+            geometry.dispose();
+            material.dispose();
+            outline.dispose();
+            lineMaterial.dispose();
+            group.clear();
+        },
+    };
+}
+
 // How each finish looks. Bare metal takes its look from the environment the
 // view lights the scene with; paint is duller.
 const FINISHES = {
@@ -589,7 +685,11 @@ export function buildRotorModel(THREE, layout, look = {}) {
         const o = part.offset;
         for (const piece of build(THREE, part, edges)) {
             if (o.x || o.y || o.z) piece.geometry.translate(o.x, o.y, o.z);
-            const color = piece.color === null ? partColor : colorOf(THREE, colors, `#${piece.color.toString(16).padStart(6, '0')}`);
+            // null: the element's colour; a name: a colour ROSS gave something
+            // else (a shaft end in a coupling); a number: a fixed material.
+            const color = piece.color === null ? partColor
+                : piece.named ? colorOf(THREE, colors, piece.color)
+                    : colorOf(THREE, colors, `#${piece.color.toString(16).padStart(6, '0')}`);
             byFinish[piece.finish].push({ geometry: piece.geometry, color });
         }
         // Outlines of faceted pieces are read after the move; circles move here.

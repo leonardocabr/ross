@@ -166,7 +166,10 @@
                 <!-- The 3D view (features/rotor3d.js puts its canvas here). -->
                 <div id="rotor-3d" class="live-plot-area rotor3d-view" hidden>
                     <p id="rotor-3d-message" class="rotor3d-message" hidden></p>
-                    <button type="button" class="rotor3d-frame" data-action="frame-rotor" title="Show the whole rotor" data-i18n-title="rotor3dFrame"><i class="fas fa-expand"></i></button>
+                    <div class="rotor3d-tools">
+                        <button type="button" class="rotor3d-tool" data-action="toggle-bench" aria-pressed="false" title="Show the rotor on a test bench" data-i18n-title="rotor3dBench"><i class="fas fa-table"></i></button>
+                        <button type="button" class="rotor3d-tool rotor3d-frame" data-action="frame-rotor" title="Show the whole rotor" data-i18n-title="rotor3dFrame"><i class="fas fa-expand"></i></button>
+                    </div>
                 </div>
             </div>
         </div>

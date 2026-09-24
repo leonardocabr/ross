@@ -20,8 +20,8 @@
 //   lifetime, where browsers allow only a handful before they drop the oldest.
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { framing, layoutScene, pickPart, viewDirection } from '../core/rotor3d_layout.js';
-import { buildRotorModel } from '../components/rotor3d_parts.js';
+import { benchLayout, framing, layoutScene, pickPart, viewDirection } from '../core/rotor3d_layout.js';
+import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
 
 const FOV = 35;
 
@@ -33,7 +33,22 @@ let layout = null;
 let direction = null;
 let framedFor = null;
 let framedFrom = null;
+let bench = null;
+let benchPlan = null;
 let frameAsked = false;
+
+// The test bench under the rotor (`benchLayout`), shown or not as the person
+// left it -- like the language, the theme and the 2D/3D choice.
+const BENCH_KEY = 'ross-rotor-bench';
+let benchShown = rememberedBench();
+
+function rememberedBench() {
+    try {
+        return localStorage.getItem(BENCH_KEY) === 'on';
+    } catch (e) {
+        return false;   // storage blocked: no bench until asked for
+    }
+}
 let pointer = null;
 
 // `import()` of the bare name 'three' goes through the import map in
@@ -183,6 +198,12 @@ function fitCanvas(current) {
 
 // The camera is put back only when the rotor changed size noticeably: editing
 // one disk should not undo the angle the person was looking from.
+// What the camera and the floor have to take in: the rotor, and the bench
+// when it is shown.
+function shownBounds() {
+    return benchShown && benchPlan ? benchPlan.bounds : layout.bounds;
+}
+
 function needsFraming(bounds) {
     if (!framedFor) return true;
     const size = b => [0, 1, 2].map(i => b.max[i] - b.min[i]);
@@ -194,7 +215,7 @@ function needsFraming(bounds) {
 export function frameRotor() {
     if (!stage || !layout) return;
     const { camera, controls } = stage;
-    const view = framing(layout.bounds, FOV, camera.aspect, direction);
+    const view = framing(shownBounds(), FOV, camera.aspect, direction);
     const [cx, cy, cz] = view.center;
     const [dx, dy, dz] = view.direction;
     const d = view.distance;
@@ -204,7 +225,7 @@ export function frameRotor() {
     camera.updateProjectionMatrix();
     controls.target.set(cx, cy, cz);
     controls.update();
-    framedFor = layout.bounds;
+    framedFor = shownBounds();
     framedFrom = String(direction);
     requestFrame();
 }
@@ -230,10 +251,45 @@ export async function showRotor3d(container, scene) {
         outline: themeColor('--text-strong', 'black'),
     });
     stage.scene.add(model.object);
-    placeFloor(stage, layout.bounds);
+    placeBench();
     stage.hovered = null;
-    if (needsFraming(layout.bounds) || framedFrom !== String(direction)) frameRotor();
+    if (needsFraming(shownBounds()) || framedFrom !== String(direction)) frameRotor();
     requestFrame();
+}
+
+// The bench follows the rotor: rebuilt with it, or taken away.
+function placeBench() {
+    if (bench) {
+        stage.scene.remove(bench.object);
+        bench.dispose();
+        bench = null;
+    }
+    benchPlan = benchLayout(layout);
+    if (benchShown) {
+        bench = buildBench(library.THREE, benchPlan);
+        stage.scene.add(bench.object);
+    }
+    placeFloor(stage, shownBounds());
+    showBenchButton();
+}
+
+function showBenchButton() {
+    document.querySelectorAll('[data-action="toggle-bench"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(benchShown));
+    });
+}
+
+// The bench button: on or off, remembered, and the camera takes in the new
+// whole -- the bench adds a table and its legs under the rotor.
+export function toggleBench() {
+    benchShown = !benchShown;
+    try {
+        localStorage.setItem(BENCH_KEY, benchShown ? 'on' : 'off');
+    } catch (e) { /* a preference: without storage it lasts until the page closes */ }
+    showBenchButton();
+    if (!stage || !layout) return;
+    placeBench();
+    frameRotor();
 }
 
 // While the 2D figure is on screen the 3D view keeps its renderer and its
@@ -360,6 +416,7 @@ function describePart(part) {
         if (e.m_l != null) rows.push(line(t('rotor3dMassLeft'), `${number(e.m_l)} kg`));
         if (e.m_r != null) rows.push(line(t('rotor3dMassRight'), `${number(e.m_r)} kg`));
         rows.push(note(t('rotor3dCouplingHubs')));
+        if (part.overlapsShaft) rows.push(note(t('rotor3dCouplingOverShaft')));
     } else if (part.kind === 'pointmass') {
         rows.push(line(t('rotor3dMass'), `${number(e.m)} kg`));
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dNoSize'))}</div>`);

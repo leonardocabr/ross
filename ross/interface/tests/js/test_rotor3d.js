@@ -13,9 +13,9 @@ import fs from 'node:fs';
 import { check, shutDown } from './fake_dom.js';
 
 const THREE = await import('../../frontend/vendor/three/three.module.js');
-const { SYMBOL, drivenPlacement, framing, layoutScene, pickPart, shaftRadiusAt, viewDirection } =
+const { SYMBOL, benchLayout, drivenPlacement, framing, layoutScene, pickPart, shaftRadiusAt, viewDirection } =
     await import('../../frontend/core/rotor3d_layout.js');
-const { MAX_DRAWN_TEETH, buildRotorModel, mergeColoured } =
+const { MAX_DRAWN_TEETH, buildBench, buildRotorModel, mergeColoured } =
     await import('../../frontend/components/rotor3d_parts.js');
 
 const CASES = JSON.parse(fs.readFileSync(new URL('../golden/rotor_scenes.json', import.meta.url)));
@@ -150,6 +150,75 @@ check('and not a drum across the span', !bulkInMiddle);
 check('it carries ROSS\'s two lumped masses for the tooltip',
     couplingPart.entry.m_l === 2 && couplingPart.entry.m_r === 3);
 couplingModel.dispose();
+
+// The shaft line is separated at the coupling (Leonardo: "como se os dois eixos
+// se separassem pelo acoplamento"): it runs into each hub and stops. When a
+// shaft element also spans the coupling's nodes -- a second, parallel
+// stiffness in ROSS -- it is cut the same way, and the tooltip says so.
+const gapOf = part => [part.z0 + part.hub, part.z1 - part.hub];
+const shaftVerticesIn = (model, [g0, g1]) => {
+    const p = model.object.getObjectByName('metal').geometry.attributes.position.array;
+    let inside = 0;
+    for (let i = 0; i < p.length; i += 3) if (p[i + 2] > g0 + 1e-6 && p[i + 2] < g1 - 1e-6) inside += 1;
+    return inside;
+};
+const shaftsOnly = parts => ({ parts: parts.filter(p => p.kind === 'shaft'), rings: [] });
+const plainParts = layoutScene(couplingCase).parts;
+const plainCoupling = plainParts.find(p => p.kind === 'coupling');
+check('with no shaft element across it, the coupling carries the shaft ends in its hubs',
+    plainCoupling.stubs[0] && plainCoupling.stubs[1] && plainCoupling.overlapsShaft === false);
+
+const overlapping = copy(couplingCase);
+const joint = overlapping.couplings[0];
+overlapping.shafts.push({ ...overlapping.shafts[0], index: 3, n: joint.n, z0: joint.z0, z1: joint.z1, tag: 'over' });
+const overParts = layoutScene(overlapping).parts;
+const overCoupling = overParts.find(p => p.kind === 'coupling');
+const overShaft = overParts.find(p => p.kind === 'shaft' && p.entry.tag === 'over');
+check('a shaft element across the coupling is cut between the hubs',
+    overShaft.cuts.length === 1 && near(overShaft.cuts[0][0], gapOf(overCoupling)[0]) && near(overShaft.cuts[0][1], gapOf(overCoupling)[1]));
+const overModel = buildRotorModel(THREE, shaftsOnly(overParts));
+check('and nothing of it is drawn there', shaftVerticesIn(overModel, gapOf(overCoupling)) === 0);
+check('while both its ends are, running into the hubs',
+    shaftVerticesIn(overModel, [overCoupling.z0, gapOf(overCoupling)[0]]) > 0
+    && shaftVerticesIn(overModel, [gapOf(overCoupling)[1], overCoupling.z1]) > 0);
+overModel.dispose();
+check('its ends in the hubs are its own, so the coupling adds no stubs, and says a shaft is there too',
+    !overCoupling.stubs[0] && !overCoupling.stubs[1] && overCoupling.overlapsShaft === true);
+const others = overParts.filter(p => p.kind === 'shaft' && p.entry.tag !== 'over');
+check('shaft elements outside the coupling are not cut', others.every(p => p.cuts.length === 0));
+
+// --- the bench ---------------------------------------------------------------------
+console.log('\nThe test bench');
+
+for (const [name, { scene }] of Object.entries(CASES)) {
+    const layout = layoutScene(scene);
+    const bench = benchLayout(layout);
+    const bearingsHere = layout.parts.filter(p => p.kind === 'bearing');
+    check(`${name}: the bench top is below every part of the rotor`, bench.plate.top < layout.bounds.min[1]);
+    check(`${name}: the plate is under the whole rotor`,
+        bench.plate.x0 < layout.bounds.min[0] && bench.plate.x1 > layout.bounds.max[0]
+        && bench.plate.z0 < layout.bounds.min[2] && bench.plate.z1 > layout.bounds.max[2]);
+    check(`${name}: a pedestal under every bearing, from the plate to the bearing's base`,
+        bench.pedestals.length === bearingsHere.length && bench.pedestals.every(p => {
+            const b = bearingsHere.find(x => x.key === p.key);
+            return near(p.y0, bench.plate.top) && near(p.y1, b.offset.y - SYMBOL.bearing.base * b.shaftRadius) && p.y1 > p.y0;
+        }));
+    check(`${name}: legs from the plate to the floor, and the camera takes the whole bench in`,
+        bench.legs.length >= 4 && bench.floor < bench.plate.bottom
+        && bench.bounds.min[1] === bench.floor && bench.bounds.min[0] <= layout.bounds.min[0]
+        && bench.bounds.max[1] === layout.bounds.max[1]);
+    const built = buildBench(THREE, bench);
+    const benchBox = new THREE.Box3().setFromObject(built.object);
+    check(`${name}: the bench drawn fits the box the camera frames`,
+        benchBox.min.y >= bench.bounds.min[1] - 1e-6 && benchBox.min.x >= bench.bounds.min[0] - 1e-6
+        && benchBox.max.x <= bench.bounds.max[0] + 1e-6 && benchBox.max.z <= bench.bounds.max[2] + 1e-6);
+    const held = [];
+    built.object.traverse(o => { if (o.geometry) held.push(o.geometry, o.material); });
+    const gone = new Set();
+    held.forEach(o => o.addEventListener('dispose', () => gone.add(o)));
+    built.dispose();
+    check(`${name}: taking the bench away frees it`, held.length === 4 && held.every(o => gone.has(o)));
+}
 
 // --- the pointer ----------------------------------------------------------------------
 console.log('\nThe pointer finds the part it is on');
