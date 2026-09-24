@@ -475,6 +475,10 @@ button {
     color: var(--danger-700);
     background: var(--danger-100);
 }
+.btn-action.eye:hover {
+    color: var(--accent);
+    background: var(--blue-100);
+}
 
 /* The bar above the element list: tick everything, the count, and the two bulk
    actions. It sits where the list starts so the ticks and the actions read as
@@ -856,6 +860,57 @@ button {
     color: var(--text-muted);
     cursor: pointer;
 }
+/* The legend of the 3D view: a chip per category, as the 2D figure's legend
+   (features/rotor3d.js). Along the bottom, from the right, clear of the axis
+   triad: the top corners hold the tools and, by default, the element form's
+   window. */
+.rotor3d-legend {
+    position: absolute;
+    left: 116px;
+    right: var(--space-2);
+    bottom: var(--space-2);
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap-reverse;
+    justify-content: flex-end;
+    gap: var(--space-1);
+    pointer-events: none;
+}
+.rotor3d-chip {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--text-body);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    user-select: none;
+}
+.rotor3d-chip:hover {
+    border-color: var(--accent);
+}
+.rotor3d-chip[aria-pressed="false"] {
+    color: var(--text-subtle);
+    text-decoration: line-through;
+}
+.rotor3d-chip[aria-pressed="false"] .rotor3d-swatch {
+    opacity: 0.3;
+}
+.rotor3d-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-circle);
+    border: 1px solid var(--border-strong);
+}
+.rotor3d-chip-count {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+}
 .rotor3d-tip {
     position: absolute;
     z-index: 3;
@@ -889,6 +944,15 @@ button {
 }
 .rotor3d-canvas:focus {
     outline: none;
+}
+/* A row the 3D view on screen does not draw: hidden by its eye, or with its
+   category from the legend. */
+.list-item.is-out-of-view .item-text {
+    color: var(--text-subtle);
+    font-style: italic;
+}
+.btn-action.eye.is-off {
+    color: var(--text-subtle);
 }
 /* The row of the part the pointer is on in the 3D view. */
 .list-item.is-pointed {

@@ -5,6 +5,7 @@ import { t } from '../core/i18n.js';
 import { listContext, state, getActiveData, syncBackToLibrary } from '../core/state.js';
 import { allPicked, isPicked, nowShowing, pickedCount } from '../core/selection.js';
 import { afterMove } from '../core/editing.js';
+import { categoryHidden, elementHidden, threeDShown } from '../core/visibility.js';
 // The list does not know the rotor. Whoever builds the rotor subscribes here;
 // before, `renderList` called `buildRotorLive` directly, and measuring the
 // boundaries showed that as the only path from a component to a feature.
@@ -148,6 +149,16 @@ function renderSelectionBar(count) {
 //
 // Every other category is on a node, not between two: a disk has nothing to
 // split. So the button appears for `shafts` and for nothing else.
+// The eye: this element in or out of the 3D view (core/visibility.js). Only
+// while the 3D view is the one on screen -- ROSS's 2D figure cannot hide one
+// element -- and not on materials, which are not drawn.
+function eyeButton(item, index) {
+    if (!threeDShown() || state.currentTab === 'materials') return '';
+    const hidden = elementHidden(item);
+    const title = hidden ? t('rotor3dShowElement') : t('rotor3dHideElement');
+    return `<button class="btn-action eye${hidden ? ' is-off' : ''}" data-action="hide-element" data-index="${index}" aria-pressed="${String(hidden)}" title="${escapeHtml(title)}"><i class="fas ${hidden ? 'fa-eye-slash' : 'fa-eye'}"></i></button>`;
+}
+
 function splitButton(index) {
     if (state.currentTab !== 'shafts') return '';
     return `<button class="btn-action split" data-action="split-element" data-index="${index}" title="${escapeHtml(t('splitTitle'))}"><i class="fas fa-scissors"></i></button>`;
@@ -170,7 +181,11 @@ function buildRows(currentArray) {
     const effNodes = getEffectiveNodes(currentArray);
     return currentArray.map((item, index) => {
         const div = document.createElement('div');
-        div.className = 'list-item';
+        // Faded when the 3D view on screen does not draw it -- hidden by its
+        // eye or with its whole category from the legend.
+        const outOfView = threeDShown() && state.currentTab !== 'materials'
+            && (elementHidden(item) || categoryHidden(state.currentTab));
+        div.className = outOfView ? 'list-item is-out-of-view' : 'list-item';
         div.innerHTML = `
             <div style="display:flex; align-items:center; flex:1; overflow:hidden;">
                 <input type="checkbox" class="item-pick" data-action="pick-element" data-index="${index}" ${isPicked(listContext(), index) ? 'checked' : ''} title="${escapeHtml(t('select'))}">
@@ -178,6 +193,7 @@ function buildRows(currentArray) {
                 <span class="item-text">${escapeHtml(rowTitle(item, index, effNodes[index]))}</span>
             </div>
             <div class="item-actions">
+                ${eyeButton(item, index)}
                 ${splitButton(index)}
                 <button class="btn-action edit" data-action="edit-element" data-index="${index}" title="${escapeHtml(t('edit'))}"><i class="fas fa-pen"></i></button>
                 <button class="btn-action copy" data-action="copy-element" data-index="${index}" title="${escapeHtml(t('copy'))}"><i class="fas fa-copy"></i></button>

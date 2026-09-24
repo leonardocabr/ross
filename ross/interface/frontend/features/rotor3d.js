@@ -22,6 +22,10 @@ import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
 import { benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection } from '../core/rotor3d_layout.js';
 import { state } from '../core/state.js';
+import {
+    LEGEND_CATEGORIES, categoryHidden, drawn, elementHidden, legendClick, toggleElementHidden,
+} from '../core/visibility.js';
+import { renderList } from '../components/list.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
 import { buildTriad } from '../components/rotor3d_triad.js';
 import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
@@ -39,6 +43,11 @@ let framedFrom = null;
 let bench = null;
 let benchPlan = null;
 let frameAsked = false;
+// The parts drawn: the layout's, less what the legend and the list's eyes hid
+// (core/visibility.js). The pointer finds only these.
+let shownParts = [];
+// Left-drag moves the view instead of turning it (the "move" button).
+let panning = false;
 
 // The test bench under the rotor (`benchLayout`), shown or not as the person
 // left it -- like the language, the theme and the 2D/3D choice.
@@ -221,6 +230,13 @@ function makeStage(container) {
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.addEventListener('change', requestFrame);
+    // Moving the view: OrbitControls already pans with the right button and
+    // with Shift, Ctrl or Cmd held on the left one; the arrow keys pan once it
+    // listens to them. The "move" button (`togglePan`) swaps the left and right
+    // buttons for whoever does not know the gestures, or has no right button.
+    controls.screenSpacePanning = true;
+    controls.listenToKeyEvents(renderer.domElement);
+    setButtons(controls);
 
     // The highlight: a translucent sleeve over the part under the pointer. One
     // mesh, moved and scaled; it is never rebuilt.
@@ -244,8 +260,14 @@ function makeStage(container) {
     tip.className = 'rotor3d-tip';
     tip.hidden = true;
 
+    // The legend: one chip per category the rotor has, as in the 2D figure.
+    const legend = document.createElement('div');
+    legend.className = 'rotor3d-legend';
+    legend.setAttribute('role', 'group');
+
     container.appendChild(renderer.domElement);
     container.appendChild(tip);
+    container.appendChild(legend);
 
     renderer.domElement.addEventListener('pointermove', event => {
         const box = renderer.domElement.getBoundingClientRect();
@@ -291,7 +313,7 @@ function makeStage(container) {
     });
 
     const fresh = {
-        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor,
+        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor, legend,
         triad: buildTriad(THREE, axisColours()),
         raycaster: new THREE.Raycaster(), hovered: null,
     };
@@ -356,19 +378,116 @@ export async function showRotor3d(container, scene) {
         framedFor = null;
     }
     fitCanvas(stage);
+    layout = layoutScene(scene);
+    direction = viewDirection(scene);
+    buildModel();
+    placeBench();
+    stage.hovered = null;
+    if (needsFraming(shownBounds()) || framedFrom !== String(direction)) frameRotor();
+    requestFrame();
+}
+
+// The model of what is shown: the layout's parts less the hidden ones. The
+// camera, the floor and the bench keep to the whole rotor, so hiding a
+// category does not make the view jump.
+function buildModel() {
     if (model) {
         stage.scene.remove(model.object);
         model.dispose();
         model = null;
     }
-    layout = layoutScene(scene);
-    direction = viewDirection(scene);
-    model = buildRotorModel(library.THREE, layout, rotorLook());
+    shownParts = layout.parts.filter(part => drawn(part.category, elementOf(part)));
+    const rings = categoryHidden('nodes') ? [] : layout.rings;
+    model = buildRotorModel(library.THREE, { parts: shownParts, rings, bounds: layout.bounds }, rotorLook());
     stage.scene.add(model.object);
-    placeBench();
+    // A hidden part takes its shadow with it.
+    stage.renderer.shadowMap.needsUpdate = true;
+    renderLegend();
+}
+
+// The project's element a part was drawn from.
+function elementOf(part) {
+    const project = state.projectData;
+    if (!project) return null;
+    const line = project.isMultiRotor ? project[`${part.half}_rotor`] : project;
+    return line && line[part.category] ? line[part.category][part.index] || null : null;
+}
+
+function presentCategories() {
+    if (!layout) return [];
+    return LEGEND_CATEGORIES.filter(c => (c === 'nodes' ? layout.rings.length > 0 : layout.parts.some(p => p.category === c)));
+}
+
+function renderLegend() {
+    const chips = presentCategories().map(category => {
+        const parts = layout.parts.filter(p => p.category === category);
+        const shown = parts.filter(p => !elementHidden(elementOf(p))).length;
+        const count = category === 'nodes' ? ''
+            : `<span class="rotor3d-chip-count">${shown === parts.length ? shown : `${shown}/${parts.length}`}</span>`;
+        const swatch = category === 'nodes' ? 'var(--accent)' : escapeHtml(String(parts[0].color || 'gray'));
+        return `<button type="button" class="rotor3d-chip" data-action="hide-category" data-category="${category}"`
+            + ` aria-pressed="${String(!categoryHidden(category))}" title="${escapeHtml(t('rotor3dLegendHint'))}">`
+            + `<span class="rotor3d-swatch" style="background:${swatch}"></span>`
+            + `${escapeHtml(legendName(category))}${count}</button>`;
+    });
+    stage.legend.innerHTML = chips.join('');
+}
+
+// A change of language: the legend's names are written here, not in the HTML.
+export function relabelRotor3d() {
+    if (stage && layout) renderLegend();
+}
+
+function legendName(category) {
+    return category === 'nodes' ? t('rotor3dNodes') : (CATEGORY_NAMES[category] || (() => category))();
+}
+
+function showWhatIsHidden() {
+    if (!stage || !layout) return;
+    buildModel();
     stage.hovered = null;
-    if (needsFraming(shownBounds()) || framedFrom !== String(direction)) frameRotor();
     requestFrame();
+}
+
+// The legend's chip: a click hides or shows the category, a double click
+// shows it alone (or all again), as in Plotly's legend (`legendClick`).
+export function toggleCategory3d(category, event) {
+    legendClick(category, event ? event.detail : 1, presentCategories());
+    showWhatIsHidden();
+    redrawOpenList();
+}
+
+// The eye on a row of the list: that one element, in or out of the 3D view.
+export function toggleElement3d(element) {
+    toggleElementHidden(element);
+    showWhatIsHidden();
+    redrawOpenList();
+}
+
+// The list shows which rows are out of view; with no tab open there is none.
+function redrawOpenList() {
+    if (state.currentTab && state.projectData) renderList();
+}
+
+// The "move" button: which mouse button turns the view and which moves it.
+function setButtons(controls) {
+    const { MOUSE } = library.THREE;
+    controls.mouseButtons = panning
+        ? { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE }
+        : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+    showPanButton();
+}
+
+function showPanButton() {
+    document.querySelectorAll('[data-action="toggle-pan"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(panning));
+    });
+}
+
+export function togglePan() {
+    panning = !panning;
+    if (stage) setButtons(stage.controls);
+    else showPanButton();
 }
 
 // The bench follows the rotor: rebuilt with it, or taken away.
@@ -432,7 +551,7 @@ function pickAt(event) {
     const { origin, direction } = stage.raycaster.ray;
     const from = [origin.x, origin.y, origin.z];
     const toward = [direction.x, direction.y, direction.z];
-    const hit = pickPart(layout.parts, from, toward);
+    const hit = pickPart(shownParts, from, toward);
     return hit ? { ...hit, point: hitPoint(from, toward, hit.distance) } : null;
 }
 
@@ -525,7 +644,7 @@ function showWhatIsUnderThePointer() {
         const ndc = { x: (pointer.x / pointer.width) * 2 - 1, y: -(pointer.y / pointer.height) * 2 + 1 };
         raycaster.setFromCamera(ndc, camera);
         const { origin, direction } = raycaster.ray;
-        hit = pickPart(layout.parts, [origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z]);
+        hit = pickPart(shownParts, [origin.x, origin.y, origin.z], [direction.x, direction.y, direction.z]);
     }
     const part = hit ? hit.part : null;
     const find = key => (key && layout ? layout.parts.find(p => p.key === key) : null);

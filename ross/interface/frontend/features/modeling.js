@@ -3,6 +3,7 @@
 import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } from '../components/form.js';
 import { categoryName, getEffectiveNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
 import { placeFormWindow } from '../components/floating_form.js';
+import { setThreeDShown, threeDShown } from '../core/visibility.js';
 import { reapplyHelp } from '../components/help.js';
 import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
@@ -20,7 +21,7 @@ import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
 import { splitProject } from './split.js';
-import { hideRotor3d, showRotor3d } from './rotor3d.js';
+import { hideRotor3d, relabelRotor3d, showRotor3d } from './rotor3d.js';
 
 // How the rotor figure settles into the panel. This used to be done in the
 // backend (BE-12): margin, background, size and legend position assembled on top
@@ -193,6 +194,10 @@ export function setRotorView(view) {
 }
 
 function showChosenRotorView() {
+    // The list's eyes are drawn only with the 3D view on screen.
+    const eyesBefore = threeDShown();
+    setThreeDShown(rotorView === '3d');
+    if (eyesBefore !== threeDShown() && state.currentTab && state.projectData) renderList();
     const flat = document.getElementById('plot-rotor');
     const solid = document.getElementById('rotor-3d');
     const scale = document.getElementById('rotor-scale');
@@ -280,6 +285,8 @@ export async function changeLanguage(language) {
     renderRotorHub();
     reapplyHelp();
     await redrawAnalyses();
+    // The 3D view's legend is written by the JS, like the Hub.
+    relabelRotor3d();
 
     if (!state.currentTab) return;
     refreshTabTitle();
