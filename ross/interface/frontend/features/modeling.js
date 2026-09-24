@@ -798,7 +798,65 @@ export function saveItem() {
     buildRotorLive();
 }
 
-let rotorUpdateActive = false;
+// --- the build under way ------------------------------------------------------
+//
+// While ROSS builds the rotor -- a moment, or a minute for a bearing it has to
+// solve, a tilting pad -- the view on screen is dimmed and closed to the
+// pointer, and after half a second says it is computing: the 2D figure's place
+// with the spinner, the 3D view with the same card over its canvas (Leonardo:
+// the 3D view said nothing while the 2D figure did).
+//
+// All of that belongs to the NEWEST build. A build overtaken by a newer one
+// returns at once, and the newer one begins by taking down whatever the older
+// one put up, in either view. It used to be each build's own to take down, and
+// the overtaken one returned without doing it: a build started in 3D and
+// overtaken by a switch to 2D left the 3D view dimmed and deaf to the mouse
+// for good -- what Leonardo saw with a tilting pad, whose build is long enough
+// to switch views in the middle of.
+const SAY_BUSY_AFTER_MS = 500;
+let building = null;
+
+function startBuilding(in3d) {
+    stopBuilding(building);
+    const shown = document.getElementById(in3d ? 'rotor-3d' : 'plot-rotor');
+    const run = { shown, timer: null };
+    building = run;
+    shown.style.opacity = '0.4';
+    shown.style.pointerEvents = 'none';
+    run.timer = setTimeout(() => {
+        if (building !== run) return;
+        shown.style.opacity = '1';
+        if (in3d) {
+            const card = document.getElementById('rotor-3d-busy');
+            if (!card) return;
+            card.innerHTML = busyCard();
+            card.hidden = false;
+            return;
+        }
+        showInsteadOfFigure(shown, `
+                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; min-height:400px; color: var(--text-main);">
+                    ${busyCard()}
+                </div>`);
+    }, SAY_BUSY_AFTER_MS);
+    return run;
+}
+
+function busyCard() {
+    return `<span style="margin-bottom:15px; color: var(--accent-primary);">${busySpinner(3)}</span>`
+        + `<h3 style="margin:0;">${escapeHtml(t('computingElement'))}</h3>`
+        + `<p style="color: var(--text-muted); text-align:center; padding:0 20px;">${escapeHtml(t('usingCache'))}</p>`;
+}
+
+// Takes down what `run` put up, if it is still the build on screen.
+function stopBuilding(run) {
+    if (!run || building !== run) return;
+    building = null;
+    clearTimeout(run.timer);
+    run.shown.style.opacity = '1';
+    run.shown.style.pointerEvents = 'auto';
+    const card = document.getElementById('rotor-3d-busy');
+    if (card) card.hidden = true;
+}
 
 let debounceTimer = null;
 
@@ -825,34 +883,17 @@ async function _fetchRotorLive() {
         if(infoContainer) infoContainer.style.opacity = '0';
         return;
     }    
-    rotorUpdateActive = true;
     const in3d = rotorView === '3d';
-    // The view on screen dims while the rotor is rebuilt. Only the 2D figure is
-    // swapped for the spinner: the 3D view keeps its canvas and its camera.
-    const shown = in3d ? document.getElementById('rotor-3d') : plotContainer;
-    shown.style.opacity = '0.4';
-    shown.style.pointerEvents = 'none';
-    let loadingTimer = setTimeout(() => {
-        if(rotorUpdateActive && !in3d) {
-            plotContainer.style.opacity = '1';
-            showInsteadOfFigure(plotContainer, `
-                <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; height:100%; min-height:400px; color: var(--text-main);">
-                    <span style="margin-bottom:15px; color: var(--accent-primary);">${busySpinner(3)}</span>
-                    <h3 style="margin:0;">${escapeHtml(t('computingElement'))}</h3>
-                    <p style="color: var(--text-muted); text-align:center; padding:0 20px;">${escapeHtml(t('usingCache'))}</p>
-                </div>`);
-        }
-    }, 500);
+    const run = startBuilding(in3d);
+    // Whatever the figure on screen was, it is not the project being built.
+    figureIsCurrent = false;
     try {
         const response = await apiFetchLatest('rotor', '/build_rotor', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ project: projectForServer(state.projectData), figure: !in3d })
         });
-        const data = await response.json();        
-        rotorUpdateActive = false;
-        clearTimeout(loadingTimer);
-        shown.style.opacity = '1';
-        shown.style.pointerEvents = 'auto';        
+        const data = await response.json();
+        stopBuilding(run);
         if(data.status === "success") {
             if (data.plot_json) {
                 plotContainer.innerHTML = "";
@@ -883,11 +924,8 @@ async function _fetchRotorLive() {
             if(infoContainer) infoContainer.style.opacity = '0';
         }
     } catch (e) { 
-        if (wasCancelled(e)) return;   // a newer request has taken over
-        rotorUpdateActive = false; 
-        clearTimeout(loadingTimer); 
-        shown.style.opacity = '1';
-        shown.style.pointerEvents = 'auto';
+        if (wasCancelled(e)) return;   // a newer build has taken over, and down what this one put up
+        stopBuilding(run);
         say3d(t('serverConnectionError'));
         showInsteadOfFigure(plotContainer, `<p class="analysis-error analysis-error-tall">`
             + `${escapeHtml(t('serverConnectionError'))}</p>`);

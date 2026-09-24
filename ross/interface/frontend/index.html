@@ -160,6 +160,8 @@
                 <!-- The 3D view (features/rotor3d.js puts its canvas here). -->
                 <div id="rotor-3d" class="live-plot-area rotor3d-view" hidden>
                     <p id="rotor-3d-message" class="rotor3d-message" hidden></p>
+                    <!-- "Computing": over the canvas while ROSS builds the rotor (modeling.js). -->
+                    <div id="rotor-3d-busy" class="rotor3d-busy" role="status" aria-live="polite" hidden></div>
                     <div class="rotor3d-tools">
                         <button type="button" class="rotor3d-tool" data-action="toggle-pan" aria-pressed="false" title="Move the view: dragging moves it instead of turning it (also: right button, Shift + drag, arrow keys)" data-i18n-title="rotor3dPan"><i class="fas fa-up-down-left-right"></i></button>
                         <button type="button" class="rotor3d-tool" data-action="toggle-bench" aria-pressed="false" title="Show the rotor on a test bench, driven by a motor" data-i18n-title="rotor3dBench"><i class="fas fa-table"></i></button>

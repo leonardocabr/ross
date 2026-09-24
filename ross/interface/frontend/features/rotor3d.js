@@ -170,11 +170,7 @@ function light(stageScene, renderer) {
     // frame. Measured on the compressor: half of each frame's triangles were
     // the shadow's, drawn again for a picture that had not changed.
     renderer.shadowMap.autoUpdate = false;
-    const makeEnvironment = new THREE.PMREMGenerator(renderer);
-    const room = new RoomEnvironment();
-    stageScene.environment = makeEnvironment.fromScene(room, 0.04).texture;
-    room.dispose();
-    makeEnvironment.dispose();
+    lightByRoom(stageScene, renderer);
 
     const sun = new THREE.DirectionalLight(0xffffff, 1.4);
     sun.castShadow = true;
@@ -186,6 +182,17 @@ function light(stageScene, renderer) {
     floor.receiveShadow = true;
     stageScene.add(floor);
     return { sun, floor };
+}
+
+// The room the metal reflects, made into an environment map on the GPU.
+function lightByRoom(stageScene, renderer) {
+    const { THREE, RoomEnvironment } = library;
+    if (stageScene.environment) stageScene.environment.dispose();
+    const makeEnvironment = new THREE.PMREMGenerator(renderer);
+    const room = new RoomEnvironment();
+    stageScene.environment = makeEnvironment.fromScene(room, 0.04).texture;
+    room.dispose();
+    makeEnvironment.dispose();
 }
 
 // The floor under the rotor's box, and the light's shadow camera around it.
@@ -310,6 +317,19 @@ function makeStage(container) {
         event.preventDefault();
         chosen = null;
         deleteFrom3d(part.category, part.index, part.half);
+        requestFrame();
+    });
+
+    // The browser may take the WebGL context away -- the graphics driver
+    // reset, the GPU's memory wanted elsewhere -- and give it back. three.js
+    // uploads the geometries again by itself; what was drawn on the GPU, the
+    // environment map and the shadow map, has to be made again, and a view
+    // that draws only when something changes has to be told to draw. Without
+    // this the canvas stayed as the loss left it until the pointer moved over
+    // it, and dull where it used to shine.
+    renderer.domElement.addEventListener('webglcontextrestored', () => {
+        lightByRoom(scene, renderer);
+        renderer.shadowMap.needsUpdate = true;
         requestFrame();
     });
 

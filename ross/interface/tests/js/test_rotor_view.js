@@ -18,9 +18,26 @@ console.error = (...args) => logged.push(args.join(' '));
 
 let bodies = [];
 let answer = () => ({ status: 'success', mass: 1, ip: 1, scene: { kind: 'rotor', nodes: [], shafts: [] } });
+// A build that takes its time, as ROSS solving a tilting pad does: held until
+// `release()`, and cancelled, as a real fetch is, when its signal aborts.
+let holding = false;
+let releases = [];
+const release = () => { releases.forEach(go => go()); releases = []; };
 globalThis.fetch = async (path, options = {}) => {
     const body = options.body ? JSON.parse(options.body) : null;
     if (String(path).includes('/build_rotor')) bodies.push(body);
+    if (holding && String(path).includes('/build_rotor')) {
+        await new Promise((go, stop) => {
+            releases.push(go);
+            if (options.signal) {
+                options.signal.addEventListener('abort', () => {
+                    const error = new Error('aborted');
+                    error.name = 'AbortError';
+                    stop(error);
+                });
+            }
+        });
+    }
     const reply = answer(body);
     if (body && body.figure && reply.status === 'success') reply.plot_json = JSON.stringify({ data: [], layout: {} });
     return { ok: true, status: 200, json: async () => reply };
@@ -109,6 +126,56 @@ disk.content['ross-rotor-view'] = 'sideways';
 buttons = prepare();
 startRotorViewToggle();
 check('and on 2D when what is stored is not a view', node('plot-rotor').hidden === false);
+
+// --- a build that takes its time ------------------------------------------------------
+console.log('\nA long build');
+
+// What the person sees of a build: dimmed and closed to the pointer, and the
+// card that says it is computing.
+const closed = id => node(id).style.opacity === '0.4' && node(id).style.pointerEvents === 'none';
+const open = id => node(id).style.opacity === '1' && node(id).style.pointerEvents === 'auto';
+
+disk.content['ross-rotor-view'] = '3d';
+buttons = prepare();
+startRotorViewToggle();
+holding = true;
+buildRotorLive();
+await settle(650);
+check('the 3D view is closed to the pointer while ROSS builds', node('rotor-3d').style.pointerEvents === 'none');
+await settle(550);
+check('and after half a second says it is computing, as the 2D figure does',
+    node('rotor-3d-busy').hidden === false && node('rotor-3d-busy').innerHTML.includes(t('computingElement')));
+release();
+await settle(50);
+check('the answer takes the card down and opens the view again', node('rotor-3d-busy').hidden === true && open('rotor-3d'));
+
+// Leonardo's tilting pad: long enough to switch views in the middle. The
+// build started in 3D is overtaken by the one the 2D figure asks for, and
+// returns without a word -- it used to leave the 3D view closed for good.
+buildRotorLive();
+await settle(1200);
+check('(a build under way in 3D)', closed('rotor-3d') || node('rotor-3d-busy').hidden === false);
+setRotorView('2d');
+await settle(50);
+check('switching to 2D in the middle takes the 3D view\'s card down and opens it again',
+    node('rotor-3d-busy').hidden === true && open('rotor-3d'));
+check('while the 2D figure is the one waiting now', closed('plot-rotor'));
+setRotorView('3d');
+await settle(50);
+check('and back in 3D, the view answers the pointer', open('rotor-3d') && node('rotor-3d-busy').hidden === true);
+release();
+await settle(50);
+check('the 2D build answered, nothing is left closed', open('plot-rotor') && open('rotor-3d'));
+
+// A rotor ROSS refuses after a long wait: the card goes with the message.
+buildRotorLive();
+await settle(1200);
+answer = () => ({ status: 'error', message: 'no film' });
+release();
+await settle(50);
+check('a refusal takes the card down too', node('rotor-3d-busy').hidden === true && open('rotor-3d'));
+holding = false;
+answer = () => ({ status: 'success', mass: 1, ip: 1, scene: { kind: 'rotor', nodes: [], shafts: [] } });
 
 // --- what the 3D view says when there is nothing to draw ---------------------------------
 console.log('\nNothing to draw');

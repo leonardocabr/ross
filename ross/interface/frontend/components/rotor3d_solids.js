@@ -4,6 +4,7 @@
 // of the geometry bank (rotor3d_shapes.js), which cannot import each other.
 //
 // three.js is handed in, not imported (see rotor3d_parts.js).
+import { SYMBOL } from '../core/rotor3d_layout.js';
 
 export const SEGMENTS = { shaft: 40, part: 56, small: 12 };
 
@@ -200,4 +201,51 @@ export function couplingShaftEnds(THREE, part, edges) {
             color: stubColor, finish: 'metal', named: true });
     }
     return pieces;
+}
+
+// The housing a bearing stands in, seen from the front: a round cap over the
+// shaft whose sides run on straight down from it, tangent, to a base with a
+// foot to each side, where SYMBOL.bearing puts them -- extruded along the
+// shaft, its edges bevelled, with a bore of radius `bore`, and a bolt in each
+// foot. The pillow block's (rotor3d_parts.js), and every bearing's of the
+// geometry bank (rotor3d_shapes.js): Leonardo asked for theirs to meet the
+// base as the pillow block's does, and one outline for all of them is what
+// keeps them standing alike on the bench's pedestals. `footTop` is where the
+// feet end, for what else sits on them.
+export function bearingHousing(THREE, part, bore, edges) {
+    const r = part.shaftRadius;
+    const z = (part.z0 + part.z1) / 2;
+    const w = Math.abs(part.z1 - part.z0);
+    const { feet, base } = SYMBOL.bearing;
+    const depth = w * 0.86;
+    // The bevel grows the outline by its own size: the outline is drawn that
+    // much inside, so the block ends where SYMBOL.bearing says it does.
+    const bevel = Math.min(0.06 * r, depth * 0.08);
+    const cap = part.radius - bevel;
+    const edge = feet * r - bevel;
+    const bottom = -base * r + bevel;
+    const footTop = (-base + 0.4) * r;
+    const shape = new THREE.Shape();
+    shape.moveTo(-edge, bottom);
+    shape.lineTo(edge, bottom);
+    shape.lineTo(edge, footTop);
+    shape.lineTo(cap * 1.02, footTop);
+    shape.lineTo(cap, 0);
+    shape.absarc(0, 0, cap, 0, Math.PI, false);
+    shape.lineTo(-cap * 1.02, footTop);
+    shape.lineTo(-edge, footTop);
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, bore + bevel, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    const body = new THREE.ExtrudeGeometry(shape, {
+        depth: depth - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel,
+        bevelSegments: 1, curveSegments: 28,
+    });
+    body.translate(0, 0, z - depth / 2 + bevel);
+    const pieces = [own(faceted(THREE, body, edges), 'paint')];
+    for (const x of [-(feet - 0.45) * r, (feet - 0.45) * r]) {
+        pieces.push(steel(boltHead(THREE, 0.16 * r, 0.25 * r, 'y', x, footTop + 0.12 * r, z, edges)));
+    }
+    return { pieces, footTop, depth };
 }

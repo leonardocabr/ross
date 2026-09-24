@@ -8,9 +8,9 @@
 // three.js is handed in, not imported (see rotor3d_parts.js). Each builder
 // returns pieces as rotor3d_solids.js describes them.
 import {
-    SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, loft, own, revolve, ring, steel,
+    SEGMENTS, bearingHousing, boltCircle, boltHead, couplingShaftEnds, faceted, loft, own, revolve, ring, steel,
 } from './rotor3d_solids.js';
-import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
+import { SEAL_FLANGE } from '../core/rotor3d_layout.js';
 
 // The frame every shape is built in: z along the shaft, the part's middle at
 // `mid`.
@@ -375,33 +375,11 @@ function radialBox(THREE, inner, outer, a, across, depth, z, edges, lay = 0) {
     return faceted(THREE, box, edges);
 }
 
-// What every other support stands on: a base like the pillow block's, down to
-// where SYMBOL.bearing puts it, bolted at each end -- so a bearing drawn
-// otherwise still stands on the bench's pedestal. Its top touches the casing
-// from below, at the casing's outer radius: the first version rose to cut
-// through the casing, and hid the bottom of the ring and what is inside it
-// (Leonardo asked for the whole ring to show).
-function bearingFoot(THREE, part, depth, edges) {
-    const { r, R, mid } = onNode(part);
-    const { feet, base } = SYMBOL.bearing;
-    const top = -R;
-    const bottom = -base * r;
-    const block = new THREE.BoxGeometry(2 * (feet - 0.05) * r, top - bottom, depth);
-    block.translate(0, (top + bottom) / 2, mid);
-    const pieces = [own(faceted(THREE, block, edges), 'paint')];
-    for (const x of [-(feet - 0.45) * r, (feet - 0.45) * r]) {
-        pieces.push(steel(boltHead(THREE, 0.16 * r, 0.25 * r, 'y', x, top + 0.12 * r, mid, edges)));
-    }
-    return pieces;
-}
-
 // A double-row ball bearing in a round housing: inner race on the shaft, the
 // balls, the outer race.
 function rollingBearing(THREE, part, edges) {
-    const { r, R, w, mid } = onNode(part);
-    const depth = 0.86 * w;
-    const pieces = bearingFoot(THREE, part, depth, edges);
-    pieces.push(own(ring(THREE, 1.42 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    const { r, w, mid } = onNode(part);
+    const { pieces } = bearingHousing(THREE, part, 1.42 * r, edges);
     pieces.push({ geometry: ring(THREE, 1.34 * r, 1.42 * r, mid - 0.4 * w, mid + 0.4 * w, edges), color: RACE, finish: 'metal' });
     pieces.push({ geometry: ring(THREE, 1.02 * r, 1.16 * r, mid - 0.42 * w, mid + 0.42 * w, edges), color: RACE, finish: 'metal' });
     const ball = 0.085 * r;
@@ -423,10 +401,8 @@ function rollingBearing(THREE, part, edges) {
 
 // A tilting-pad journal bearing: five pads on their pivots, in the casing.
 function tiltingPad(THREE, part, edges) {
-    const { r, R, w, mid } = onNode(part);
-    const depth = 0.86 * w;
-    const pieces = bearingFoot(THREE, part, depth, edges);
-    pieces.push(own(ring(THREE, 1.4 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    const { r, w, mid } = onNode(part);
+    const { pieces } = bearingHousing(THREE, part, 1.4 * r, edges);
     const pads = 5;
     const arc = (56 * Math.PI) / 180;
     for (let i = 0; i < pads; i++) {
@@ -442,10 +418,8 @@ function tiltingPad(THREE, part, edges) {
 // An active magnetic bearing: the stator's poles and their windings round a
 // laminated sleeve on the shaft.
 function magneticBearing(THREE, part, edges) {
-    const { r, R, w, mid } = onNode(part);
-    const depth = 0.86 * w;
-    const pieces = bearingFoot(THREE, part, depth, edges);
-    pieces.push(own(ring(THREE, 1.46 * r, R, mid - depth / 2, mid + depth / 2, edges, SEGMENTS.part, 0.05 * r), 'paint'));
+    const { r, w, mid } = onNode(part);
+    const { pieces } = bearingHousing(THREE, part, 1.46 * r, edges);
     pieces.push(steel(ring(THREE, 1.3 * r, 1.46 * r, mid - 0.36 * w, mid + 0.36 * w, edges)));
     pieces.push({ geometry: ring(THREE, 1.0 * r, 1.07 * r, mid - 0.32 * w, mid + 0.32 * w, edges), color: RACE, finish: 'metal' });
     const poles = 8;

@@ -29,7 +29,7 @@
 
 import { SEAL_FLANGE, SYMBOL } from '../core/rotor3d_layout.js';
 import {
-    EDGE_ANGLE, SEGMENTS, boltCircle, boltHead, couplingShaftEnds, faceted, own, revolve, ring, steel,
+    EDGE_ANGLE, SEGMENTS, bearingHousing, boltCircle, boltHead, couplingShaftEnds, faceted, own, revolve, ring, steel,
 } from './rotor3d_solids.js';
 import { motorPieces } from './rotor3d_motor.js';
 import { SHAPE_BUILDERS } from './rotor3d_shapes.js';
@@ -322,52 +322,23 @@ function couplingPieces(THREE, part, edges) {
 }
 
 // A pillow block, seen from the front: a round cap over the shaft, a body that
-// widens to two feet, a base; extruded along the shaft. A brass bushing shows
-// in the bore; hex bolts hold the cap and the feet; a grease nipple on top.
+// widens to two feet, a base; extruded along the shaft (`bearingHousing`). A
+// brass bushing shows in the bore; hex bolts hold the cap and the feet; a
+// grease nipple on top.
 function bearingPieces(THREE, part, edges) {
     const shaped = part.shape && SHAPE_BUILDERS[part.shape];
     if (shaped) return shaped(THREE, part, edges);
     const r = part.shaftRadius;
     const z = (part.z0 + part.z1) / 2;
     const w = Math.abs(part.z1 - part.z0);
-    const { feet, base, top } = SYMBOL.bearing;
-    const depth = w * 0.86;
-    // The bevel grows the outline by its own size: the outline is drawn that
-    // much inside, so the block ends where SYMBOL.bearing says it does.
-    const bevel = Math.min(0.06 * r, depth * 0.08);
-    const cap = part.radius - bevel;
-    const edge = feet * r - bevel;
-    const bottom = -base * r + bevel;
-    const footTop = (-base + 0.4) * r;
-    const shape = new THREE.Shape();
-    shape.moveTo(-edge, bottom);
-    shape.lineTo(edge, bottom);
-    shape.lineTo(edge, footTop);
-    shape.lineTo(cap * 1.02, footTop);
-    shape.lineTo(cap, 0);
-    shape.absarc(0, 0, cap, 0, Math.PI, false);
-    shape.lineTo(-cap * 1.02, footTop);
-    shape.lineTo(-edge, footTop);
-    shape.closePath();
-    const bore = new THREE.Path();
-    bore.absarc(0, 0, 1.25 * r + bevel, 0, Math.PI * 2, true);
-    shape.holes.push(bore);
-    const body = new THREE.ExtrudeGeometry(shape, {
-        depth: depth - 2 * bevel, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel,
-        bevelSegments: 1, curveSegments: 28,
-    });
-    body.translate(0, 0, z - depth / 2 + bevel);
-    const pieces = [own(faceted(THREE, body, edges), 'paint')];
+    const { top } = SYMBOL.bearing;
+    const { pieces } = bearingHousing(THREE, part, 1.25 * r, edges);
     // The bushing, proud of the housing on both faces.
     pieces.push({ geometry: ring(THREE, r * 1.01, r * 1.25, z - w / 2, z + w / 2, edges), color: BRASS, finish: 'metal' });
-    // Cap bolts, vertical, where the cap meets the body; foot bolts.
-    const boltSize = 0.16 * r;
+    // Cap bolts, vertical, where the cap meets the body.
     for (const x of [-1.2 * r, 1.2 * r]) {
         const y = Math.sqrt(Math.max(part.radius * part.radius - x * x, 0));
-        pieces.push(steel(boltHead(THREE, boltSize, 0.3 * r, 'y', x, y + 0.1 * r, z, edges)));
-    }
-    for (const x of [-(feet - 0.45) * r, (feet - 0.45) * r]) {
-        pieces.push(steel(boltHead(THREE, boltSize, 0.25 * r, 'y', x, footTop + 0.12 * r, z, edges)));
+        pieces.push(steel(boltHead(THREE, 0.16 * r, 0.3 * r, 'y', x, y + 0.1 * r, z, edges)));
     }
     // The grease nipple, from inside the cap up to the top SYMBOL.bearing gives.
     const stemFrom = part.radius - 0.05 * r;

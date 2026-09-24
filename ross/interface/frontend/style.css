@@ -985,6 +985,24 @@ button {
 .rotor3d-message[hidden] {
     display: none;
 }
+/* While ROSS builds the rotor: the canvas stays, blurred behind the card that
+   says so, as the 2D figure's place says it with the same spinner. */
+.rotor3d-busy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-main);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--blur-glass);
+    backdrop-filter: var(--blur-glass);
+    z-index: 1;
+}
+.rotor3d-busy[hidden] {
+    display: none;
+}
 .rotor3d-tools {
     position: absolute;
     top: var(--space-2);
