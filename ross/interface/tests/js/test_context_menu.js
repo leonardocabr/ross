@@ -28,7 +28,7 @@ globalThis.fetch = async (path, options = {}) => {
 const { state } = await import('../../frontend/core/state.js');
 const { schemaReady } = await import('../../frontend/core/schema.js');
 const { t } = await import('../../frontend/core/i18n.js');
-const { closeContextMenu, contextMenuOpen, openContextMenu, runContextItem } = await import('../../frontend/components/context_menu.js');
+const { blockBrowserMenu, closeContextMenu, contextMenuOpen, openContextMenu, runContextItem } = await import('../../frontend/components/context_menu.js');
 const { cutHere, menuEntries } = await import('../../frontend/features/rotor3d.js');
 const { DIALOG_ACTIONS } = await import('../../frontend/features/dialog_actions.js');
 const settle = ms => new Promise(done => setTimeout(done, ms));
@@ -60,7 +60,14 @@ check('once closed, no position runs anything', runContextItem(1) === undefined 
 openContextMenu(10, 10, [{ label: 'Off', disabled: true, run: () => ran.push('off') }]);
 runContextItem(0);
 check('a disabled entry runs nothing', ran.length === 1);
+
+// Windows asks for the browser's menu after the release that opened ours, and
+// from ours, under the pointer: both opened (Leonardo, in Chrome).
+const asked = () => { const event = { prevented: false, preventDefault() { this.prevented = true; } }; blockBrowserMenu(event); return event.prevented; };
+openContextMenu(10, 10, [{ label: 'One', run: () => {} }]);
+check('while ours is open, the browser\'s menu is refused', asked() === true);
 closeContextMenu();
+check('once ours is closed, the browser\'s menu is the page\'s again', asked() === false);
 
 // --- where a split lands ------------------------------------------------------------------
 console.log('\nSplit here: the distance from the pointer');
