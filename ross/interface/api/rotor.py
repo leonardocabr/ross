@@ -6,8 +6,10 @@ import json
 from flask import Blueprint, jsonify, request
 
 from ross.interface.domain.concatenation import concatenated_project
+from ross.interface.domain.meshing import mesh_shafts
 from ross.interface.domain.requests import (
     CONCATENATE_REQUEST,
+    MESH_REQUEST,
     ROSS_FILE_REQUEST,
     ROTOR_REQUEST,
     SPLIT_REQUEST,
@@ -166,3 +168,23 @@ def split_shaft_route():
             ),
         }
     )
+
+
+@rotor_api.route("/api/rotor/mesh_shafts", methods=["POST"])
+def mesh_shafts_route():
+    """Cut the shafts by the length-to-diameter rule and answer the project.
+
+    A project in and a project out, like the split, and the plan with it: the
+    screen shows what would be cut -- how many parts, which elements are too
+    short to fix -- before it takes the project on. `indexes` empty is every
+    shaft. A refusal (a ratio that is not a number) is a `ValueError`, a 400
+    carrying its sentence (`api/errors.py`).
+    """
+    payload = MESH_REQUEST.read(request.get_json(silent=True))
+    built, report = mesh_shafts(
+        payload["project"],
+        payload["max_ld"],
+        payload["min_ld"],
+        payload["indexes"] or None,
+    )
+    return jsonify({"status": "success", "projectData": built, "report": report})

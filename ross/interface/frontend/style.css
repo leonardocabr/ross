@@ -471,6 +471,12 @@ button {
     color: var(--warning-700);
     background: var(--warning-100);
 }
+/* Discretizing: the split's colour, for the same reason -- it cuts, and loses
+   nothing. */
+.btn-action.mesh:hover {
+    color: var(--warning-700);
+    background: var(--warning-100);
+}
 .btn-action.delete:hover {
     color: var(--danger-700);
     background: var(--danger-100);

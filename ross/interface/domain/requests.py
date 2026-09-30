@@ -185,6 +185,18 @@ UNITS_REQUEST = Envelope(
     Field("items", list, required=True),
 )
 
+# Cutting the shaft line by the length-to-diameter rule (domain/meshing.py).
+# The ratios travel as text, like the split's offset, so that a word typed into
+# the box is refused by name; `indexes` are the shaft rows asked for, and none
+# means every shaft.
+MESH_REQUEST = Envelope(
+    "/api/rotor/mesh_shafts",
+    Field("project", dict, required=True),
+    Field("max_ld", str, default="0.5"),
+    Field("min_ld", str, default="0.1"),
+    Field("indexes", list, default=[]),
+)
+
 SPLIT_REQUEST = Envelope(
     "/api/rotor/split_shaft",
     Field("project", dict, required=True),

@@ -175,6 +175,8 @@ check('rows out of the filter are hidden, and kept in their places',
     rows().length === 4 && rows().map(r => r.className.includes('is-filtered-out')).join() === 'true,false,true,false');
 check('each keeps its own position', /data-index="3"/.test(rows()[3].innerHTML));
 check('the bar says how many are shown', /Showing 2 of 4/.test(node('selection-bar').innerHTML));
+check('the shafts\' bar offers to discretize them (features/mesh.js)',
+    /data-action="mesh-shafts"/.test(node('selection-bar').innerHTML) && typeof MODELING_ACTIONS['mesh-shafts'] === 'function');
 check('the panel is open, and says it too', node('list-filter').style.display === 'block' && /Showing 2 of 4/.test(node('list-filter').innerHTML));
 check('no dragging through a filter', draggable().options.disabled === true);
 

@@ -147,9 +147,17 @@ function renderSelectionBar(count, shown, filtering) {
         </label>
         <span class="pick-count">${counted}</span>
         <button class="btn-action filter${filtering ? ' is-on' : ''}" data-action="toggle-list-filter" aria-pressed="${String(filterPanelOpen())}" title="${escapeHtml(t('filterTitle'))}"><i class="fas fa-filter"></i>${badge}</button>
+        ${meshButton()}
         <button class="btn-action copy" data-action="copy-picked" ${dead} title="${escapeHtml(t('copySelected'))}"><i class="fas fa-copy"></i></button>
         <button class="btn-action delete" data-action="delete-picked" ${dead} title="${escapeHtml(t('deleteSelected'))}"><i class="fas fa-trash"></i></button>
     `;
+}
+
+// Discretizing the shafts (features/mesh.js): in the shafts' bar only, and
+// live whether or not anything is ticked -- nothing ticked is every shaft.
+function meshButton() {
+    if (state.currentTab !== 'shafts') return '';
+    return `<button class="btn-action mesh" data-action="mesh-shafts" title="${escapeHtml(t('meshTitle'))}"><i class="fas fa-ruler-horizontal"></i></button>`;
 }
 
 // The split button, and only on shafts.

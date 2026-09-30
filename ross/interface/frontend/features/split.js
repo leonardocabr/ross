@@ -107,7 +107,7 @@ export function applyProject(target, answered) {
 // splitting does not read them. They are also not thrown away, which is
 // deliberate -- splitting an element is an edit like any other on this screen,
 // and editing an element has never discarded the charts already computed.
-function withoutAnalyses(project) {
+export function withoutAnalyses(project) {
     const copy = JSON.parse(JSON.stringify(project));
     delete copy.savedAnalyses;
     return copy;

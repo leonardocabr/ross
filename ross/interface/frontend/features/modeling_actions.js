@@ -14,7 +14,7 @@ import { pickShape } from '../components/shape_picker.js';
 import {
     addElementFromNodeHub, closeForm, closeNodeHub, copyItem, copySelected, deleteItem,
     deleteSelected, editItem, openForm, pickTab, saveItem, selectSubType, setRotorView,
-    setVerticalScale, splitItem, toggleSelectAll, toggleSelected,
+    meshItems, setVerticalScale, splitItem, toggleSelectAll, toggleSelected,
 } from './modeling.js';
 import { switchMultiRotorTarget } from './multirotor.js';
 import { clearListFilter, filterBy, toggleListFilter } from './list_filter.js';
@@ -40,6 +40,7 @@ export const MODELING_ACTIONS = {
     'copy-element': element => copyItem(position(element)),
     'delete-element': element => deleteItem(position(element)),
     'split-element': element => splitItem(position(element)),
+    'mesh-shafts': () => meshItems(),
 
     // the list's filter (features/list_filter.js)
     'toggle-list-filter': () => toggleListFilter(),

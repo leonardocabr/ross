@@ -11,7 +11,7 @@ import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
 import { apiFetch, apiFetchLatest, wasCancelled, projectForServer } from '../core/api.js';
 import { busySpinner, escapeHtml } from '../core/dom.js';
 import { listContext, projectChanged, state, getActiveData, syncBackToLibrary, writeBackToLibrary } from '../core/state.js';
-import { pick, pickAll, picked } from '../core/selection.js';
+import { clearSelection, pick, pickAll, picked } from '../core/selection.js';
 import { applySnapshot, canRedo, canUndo, redo, undo } from '../core/history.js';
 import { afterInsertion, afterRemoval } from '../core/editing.js';
 import { elementsUsing, renameMaterial, rossMaterialName } from '../core/material_names.js';
@@ -23,6 +23,7 @@ import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
 import { splitProject } from './split.js';
+import { meshProject } from './mesh.js';
 import { hideRotor3d, relabelRotor3d, showRotor3d } from './rotor3d.js';
 
 // How the rotor figure settles into the panel. This used to be done in the
@@ -582,6 +583,24 @@ export async function splitItem(index) {
     if (state.editingIndex === index) closeForm();
     else state.editingIndex = afterInsertion(state.editingIndex, index + 1);
 
+    syncBackToLibrary();
+    renderList();
+    buildRotorLive();
+}
+
+// Discretizing the shafts (features/mesh.js): the shafts ticked, or every one.
+//
+// Beside `splitItem` for what it owes the screen, and a bigger change than a
+// split: every shaft may have been cut, and every node above the first cut
+// renumbered -- a disk's form open on node 4 would save a 4 that now means
+// another node. So the form is closed and the ticks let go, as after a bulk
+// delete.
+export async function meshItems() {
+    const activeData = getActiveData();
+    const chosen = state.currentTab === 'shafts' ? picked(listContext()) : [];
+    if (!(await meshProject(activeData, chosen))) return;
+    closeForm();
+    clearSelection();
     syncBackToLibrary();
     renderList();
     buildRotorLive();
