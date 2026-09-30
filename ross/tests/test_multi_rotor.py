@@ -456,3 +456,14 @@ def test_refine_mesh_refines_each_rotor_of_a_multi_rotor():
         assert max(ratios) <= 0.5 * (1 + 1e-9)
         assert len(after.shaft_elements) >= len(before.shaft_elements)
     assert refined.m == pytest.approx(multi_rotor.m)
+
+
+def test_refine_mesh_by_convergence_works_on_a_multi_rotor():
+    from ross.multi_rotor.multi_rotor import MultiRotor, two_shaft_rotor_example
+
+    multi_rotor = two_shaft_rotor_example()
+    converged, results = multi_rotor.refine_mesh_by_convergence(n_modes=6, rtol=1e-3)
+    assert isinstance(converged, MultiRotor)
+    assert results.chosen is not None
+    assert len(converged.shaft_elements) == results.el_num[results.chosen]
+    assert converged.m == pytest.approx(multi_rotor.m)

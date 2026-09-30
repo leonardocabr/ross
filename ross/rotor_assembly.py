@@ -1216,7 +1216,7 @@ class Rotor(object):
             **self._init_parameters(),
         )
 
-    def refine_mesh(self, max_ld=0.5, min_ld=0.1):
+    def refine_mesh(self, max_ld=0.5, min_ld=0.1, parts=None):
         """Subdivide the shaft elements by their length-to-diameter ratio.
 
         Every shaft element whose length is more than ``max_ld`` times its
@@ -1244,6 +1244,11 @@ class Rotor(object):
         min_ld : float, optional
             Smallest length-to-diameter ratio that is not warned about.
             Default is 0.1.
+        parts : int, optional
+            When given, every shaft element is cut into this many equal parts
+            instead, whatever its ratio (as ``nel_r`` does in
+            :meth:`from_section`), and ``max_ld`` is not used. Couplings are
+            still not cut.
 
         Returns
         -------
@@ -1269,7 +1274,19 @@ class Rotor(object):
         ([2, 4], [20, 40])
         >>> round(refined.m - rotor.m, 12)
         0.0
+        >>> len(rotor.refine_mesh(parts=3).shaft_elements)
+        18
         """
+        if parts is not None:
+            if (
+                isinstance(parts, bool)
+                or not isinstance(parts, (int, np.integer))
+                or parts < 1
+            ):
+                raise ValueError(
+                    "parts must be a whole number of 1 or more, got %r." % (parts,)
+                )
+            max_ld = np.inf
         if not max_ld > 0:
             raise ValueError("max_ld must be positive, got %r." % (max_ld,))
         if min_ld < 0 or min_ld > max_ld:
@@ -1293,11 +1310,11 @@ class Rotor(object):
             if length < min_ld * diameter:
                 too_short.append((n, length / diameter))
             # The tolerance keeps an element of exactly max_ld diameters whole.
-            parts = int(np.ceil(length / (max_ld * diameter) - 1e-9))
-            if parts < 2:
+            count = parts or int(np.ceil(length / (max_ld * diameter) - 1e-9))
+            if count < 2:
                 continue
             start = self.nodes_pos[self.nodes.index(elms[0].n_l)]
-            new_nodes_pos.extend(start + k * length / parts for k in range(1, parts))
+            new_nodes_pos.extend(start + k * length / count for k in range(1, count))
 
         if too_short:
             warnings.warn(
@@ -1310,6 +1327,158 @@ class Rotor(object):
             )
 
         return self.add_nodes(new_nodes_pos)
+
+    def refine_mesh_by_convergence(
+        self,
+        n_modes=6,
+        rtol=1e-3,
+        speed=0,
+        max_ld_values=(2.0, 1.0, 0.5, 0.25, 0.125),
+        min_ld=0.1,
+    ):
+        """The coarsest mesh whose natural frequencies have converged.
+
+        The rotor as it is, and then the rotor refined to each ratio of
+        ``max_ld_values`` (:meth:`refine_mesh`), from the coarsest, are each
+        compared with the next, finer one: the first whose ``n_modes`` lowest
+        natural frequencies all change by no more than ``rtol`` when it is
+        refined is the one returned -- the fewest elements that keep the
+        frequencies. Halving the ratio at each step at least doubles the
+        elements of every slender part, so two meshes that agree are not
+        two coarse meshes agreeing by chance.
+
+        Each mesh is compared with the next one and not with one very fine
+        reference because that is where the time goes: measured on
+        :func:`rotor_example`, the modal analysis of the 300 elements of L/D
+        0.1 took 37 s, and of its 30 elements of L/D 1.0, 0.2 s. Only the
+        shaft elements change from one mesh to the next, so the bearings are
+        not computed again.
+
+        Unlike :meth:`convergence`, this returns a new rotor and leaves this
+        one as it is, follows several frequencies at once, and keeps couplings,
+        layered elements and link nodes (it is built on :meth:`refine_mesh`).
+
+        Parameters
+        ----------
+        n_modes : int, optional
+            How many of the lowest natural frequencies must converge.
+            Default is 6.
+        rtol : float, optional
+            Largest relative change allowed when the mesh is refined.
+            Default is 1e-3.
+        speed : float, pint.Quantity, optional
+            Rotor speed of the modal analyses (rad/s). Default is 0.
+        max_ld_values : sequence of float, optional
+            The length-to-diameter ratios tried after the rotor as it is.
+            Default is 2.0, 1.0, 0.5, 0.25 and 0.125.
+        min_ld : float, optional
+            Passed to :meth:`refine_mesh` for the mesh returned: elements
+            shorter than this many diameters are warned about.
+
+        Returns
+        -------
+        rotor : Rotor
+            The mesh chosen: the rotor as it is, when refining it changes
+            nothing that matters.
+        results : ConvergenceResults
+            Per mesh analysed, from the coarsest: the number of shaft elements,
+            the highest frequency followed, and the largest relative change to
+            the next mesh (%; NaN for the last). Also ``max_ld`` (None for the
+            rotor as it is), ``wn`` (the frequencies followed, per mesh) and
+            ``chosen`` (the position of the mesh returned; None when none
+            converged, and the finest one is returned).
+
+        Examples
+        --------
+        >>> import ross as rs
+        >>> rotor = rs.rotor_example()
+        >>> converged, results = rotor.refine_mesh_by_convergence(n_modes=4, rtol=1e-3)
+        >>> results.chosen, list(results.el_num)
+        (0, [6, 18])
+        >>> converged is rotor
+        True
+        """
+        if (
+            isinstance(n_modes, bool)
+            or not isinstance(n_modes, (int, np.integer))
+            or n_modes < 1
+        ):
+            raise ValueError(
+                "n_modes must be a whole number of 1 or more, got %r." % (n_modes,)
+            )
+        if not rtol > 0:
+            raise ValueError("rtol must be positive, got %r." % (rtol,))
+        ratios = sorted({float(ld) for ld in max_ld_values}, reverse=True)
+        if not ratios or ratios[-1] <= 0:
+            raise ValueError("max_ld_values must be positive ratios.")
+
+        def frequencies(rotor):
+            # Dense below a thousand degrees of freedom: measured, ARPACK took
+            # 10.8 s on a 30-element rotor that the dense solver did in 0.2 s.
+            modal = rotor.run_modal(
+                speed=speed, num_modes=max(12, 2 * n_modes), sparse=rotor.ndof > 1000
+            )
+            wn = np.asarray(modal.wn, dtype=float)
+            if len(wn) < n_modes:
+                raise ValueError(
+                    "The rotor has %d natural frequencies, fewer than the %d asked for."
+                    % (len(wn), n_modes)
+                )
+            return wn[:n_modes]
+
+        meshes = []
+        seen = set()
+        for ld in [None] + ratios:
+            if ld is None:
+                rotor = self
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rotor = self.refine_mesh(max_ld=ld, min_ld=0)
+            count = len(rotor.shaft_elements)
+            # Two ratios can give the same mesh; it is analysed once.
+            if count in seen:
+                continue
+            seen.add(count)
+            meshes.append({"ld": ld, "rotor": rotor, "count": count})
+            meshes[-1]["wn"] = frequencies(rotor)
+            if len(meshes) < 2:
+                continue
+            before, after = meshes[-2]["wn"], meshes[-1]["wn"]
+            # A frequency of zero (a rigid-body mode) has no relative change:
+            # it is compared at the scale of the highest one followed.
+            scale = np.maximum(np.abs(after), 1e-6 * np.max(np.abs(after)))
+            meshes[-2]["change"] = float(np.max(np.abs(before - after) / scale))
+            if meshes[-2]["change"] <= rtol:
+                break
+
+        chosen = next(
+            (i for i, mesh in enumerate(meshes) if mesh.get("change", np.inf) <= rtol),
+            None,
+        )
+        if chosen is None:
+            warnings.warn(
+                "Refining to L/D = %s still changed the %d lowest natural "
+                "frequencies by more than %s; the finest mesh is returned."
+                % (ratios[-1], n_modes, rtol)
+            )
+            picked = meshes[-1]
+        else:
+            picked = meshes[chosen]
+        if picked["ld"] is None:
+            result = self
+        else:
+            result = self.refine_mesh(max_ld=picked["ld"], min_ld=min_ld)
+
+        results = ConvergenceResults(
+            np.array([mesh["count"] for mesh in meshes]),
+            np.array([float(mesh["wn"][-1]) for mesh in meshes]),
+            np.array([100 * mesh.get("change", np.nan) for mesh in meshes]),
+        )
+        results.max_ld = [mesh["ld"] for mesh in meshes]
+        results.wn = [mesh["wn"] for mesh in meshes]
+        results.chosen = chosen
+        return result, results
 
     def add_elements(self, new_elements):
         """Add elements to rotor.

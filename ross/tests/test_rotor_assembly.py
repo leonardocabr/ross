@@ -1124,6 +1124,81 @@ def test_refine_mesh_refuses_ratios_that_mean_nothing(rotor3, max_ld, min_ld):
         rotor3.refine_mesh(max_ld=max_ld, min_ld=min_ld)
 
 
+def test_refine_mesh_cuts_every_element_in_a_number_of_parts(rotor3):
+    refined = rotor3.refine_mesh(parts=4)
+    assert len(refined.shaft_elements) == 4 * len(rotor3.shaft_elements)
+    assert_allclose([elm.L for elm in refined.shaft_elements], 0.25 / 4)
+    assert_almost_equal(refined.m, rotor3.m)
+    # One part is the rotor as it is; the ratio is not looked at.
+    assert len(rotor3.refine_mesh(parts=1).shaft_elements) == 6
+    assert len(rotor3.refine_mesh(max_ld=0.01, parts=2).shaft_elements) == 12
+
+
+@pytest.mark.parametrize("parts", [0, -2, 1.5, "3", True])
+def test_refine_mesh_refuses_parts_that_are_not_a_count(rotor3, parts):
+    with pytest.raises(ValueError):
+        rotor3.refine_mesh(parts=parts)
+
+
+@pytest.fixture
+def coarse_rotor():
+    # Two elements for a metre of 40 mm shaft: far too coarse.
+    shafts = [ShaftElement(L=0.5, idl=0, odl=0.04, material=steel) for _ in range(2)]
+    disk = DiskElement.from_geometry(n=1, material=steel, width=0.05, i_d=0.04, o_d=0.3)
+    bearings = [
+        BearingElement(n=0, kxx=1e7, cxx=0),
+        BearingElement(n=2, kxx=1e7, cxx=0),
+    ]
+    return Rotor(shafts, [disk], bearings)
+
+
+def test_refine_mesh_by_convergence_returns_the_coarsest_converged_mesh(coarse_rotor):
+    converged, results = coarse_rotor.refine_mesh_by_convergence(n_modes=6, rtol=1e-3)
+    chosen = results.chosen
+    assert chosen is not None and chosen > 0
+    # The one chosen changes by no more than rtol when refined; every coarser
+    # one changed by more.
+    assert results.error_arr[chosen] <= 0.1
+    assert all(error > 0.1 for error in results.error_arr[:chosen])
+    assert len(converged.shaft_elements) == results.el_num[chosen]
+    assert results.el_num[chosen] < results.el_num[-1]
+    # And its frequencies are those of the finer mesh, to rtol.
+    finer = results.wn[chosen + 1]
+    assert np.max(np.abs(results.wn[chosen] / finer - 1)) <= 1e-3
+    assert_almost_equal(converged.m, coarse_rotor.m)
+    assert len(coarse_rotor.shaft_elements) == 2
+
+
+def test_refine_mesh_by_convergence_keeps_a_rotor_already_converged(rotor3):
+    converged, results = rotor3.refine_mesh_by_convergence(n_modes=4, rtol=1e-2)
+    assert results.chosen == 0 and results.max_ld[0] is None
+    assert converged is rotor3
+
+
+def test_refine_mesh_by_convergence_warns_when_nothing_converges(coarse_rotor):
+    with pytest.warns(UserWarning, match="finest mesh is returned"):
+        converged, results = coarse_rotor.refine_mesh_by_convergence(
+            n_modes=6, rtol=1e-12, max_ld_values=(2.0, 1.0)
+        )
+    assert results.chosen is None
+    assert len(converged.shaft_elements) == results.el_num[-1]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"n_modes": 0},
+        {"n_modes": 2.5},
+        {"rtol": 0},
+        {"max_ld_values": ()},
+        {"max_ld_values": (1, -1)},
+    ],
+)
+def test_refine_mesh_by_convergence_refuses_what_means_nothing(rotor3, kwargs):
+    with pytest.raises(ValueError):
+        rotor3.refine_mesh_by_convergence(**kwargs)
+
+
 def test_add_nodes_complex(rotor9):
     new_nodes_pos = [1.244, 0.052, 1.637]
     modified_rotor = rotor9.add_nodes(new_nodes_pos)
