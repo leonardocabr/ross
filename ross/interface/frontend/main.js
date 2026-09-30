@@ -10,6 +10,7 @@
 // and one listener looks the name up (core/actions.js).
 import { onReorder } from './components/list.js';
 import { startFormWindow } from './components/floating_form.js';
+import { startContextMenu } from './components/context_menu.js';
 import { onNumbersNeeded } from './core/list_filter.js';
 import { readNumbers } from './features/list_filter.js';
 import { applyLanguage } from './core/i18n.js';
@@ -84,6 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startRotor3dListLink();
     // The element form's window: dragged by its bar, kept in view.
     startFormWindow();
+    // The 3D view's right-button menu closes on a press elsewhere or Escape.
+    startContextMenu();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));

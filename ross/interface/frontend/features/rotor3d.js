@@ -29,7 +29,8 @@ import { renderList } from '../components/list.js';
 import { buildBench, buildRotorModel } from '../components/rotor3d_parts.js';
 import { buildTriad } from '../components/rotor3d_triad.js';
 import { SHAPE_FIELD, drawnShape, shapeOf } from '../core/shapes3d.js';
-import { addFrom3d, deleteFrom3d, editFrom3d } from './modeling.js';
+import { openContextMenu } from '../components/context_menu.js';
+import { addFrom3d, copyFrom3d, deleteFrom3d, editFrom3d, meshFrom3d, splitFrom3d } from './modeling.js';
 
 const FOV = 35;
 
@@ -294,10 +295,22 @@ function makeStage(container) {
     // form is never read here.
     renderer.domElement.tabIndex = 0;
     let pressed = null;
+    // The right button: released where it was pressed, it opens the menu of
+    // what is under it (`openMenu`); dragged, it moves the view, as before --
+    // the same slop that tells a click from a turn with the left one.
+    let rightPressed = null;
     renderer.domElement.addEventListener('pointerdown', event => {
         pressed = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+        rightPressed = event.button === 2 ? { x: event.clientX, y: event.clientY } : null;
     });
+    renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
     renderer.domElement.addEventListener('pointerup', event => {
+        if (event.button === 2) {
+            const still = rightPressed && Math.hypot(event.clientX - rightPressed.x, event.clientY - rightPressed.y) <= CLICK_SLOP;
+            rightPressed = null;
+            if (still) openMenu(pickAt(event), event.clientX, event.clientY);
+            return;
+        }
         if (!pressed || Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) > CLICK_SLOP) return;
         const hit = pickAt(event);
         clearTimeout(clickTimer);
@@ -311,6 +324,16 @@ function makeStage(container) {
         if (node !== null) addFrom3d(node, hit.part.half);
     });
     renderer.domElement.addEventListener('keydown', event => {
+        // The menu from the keyboard, for the part last clicked, at the
+        // middle of the view.
+        if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+            event.preventDefault();
+            const part = chosenPart();
+            const box = renderer.domElement.getBoundingClientRect();
+            const point = part ? [part.offset.x, part.offset.y, part.offset.z + (part.z0 + part.z1) / 2] : null;
+            openMenu(part ? { part, point } : null, box.left + box.width / 2, box.top + box.height / 2);
+            return;
+        }
         if (event.key !== 'Delete') return;
         const part = chosenPart();
         if (!part) return;
@@ -602,6 +625,77 @@ function editPart(part) {
     chosen = part.key;
     editFrom3d(part.category, part.index, part.half);
     requestFrame();
+}
+
+// --- the menu of the right button ----------------------------------------------------
+//
+// What the list does to a row, done to the part under the pointer -- and for a
+// shaft, what only the pointer can say: where to cut it. `hit` is null on the
+// empty view, which offers what concerns the whole rotor.
+
+function fill(template, ...values) {
+    return values.reduce((text, value, position) => text.split('%' + (position + 1)).join(String(value)), template);
+}
+
+// Metres in the units a length can be typed in; anything else is not offered
+// a cut "here", rather than cut at a guess.
+const METRES_IN = { mm: 1000, cm: 100, m: 1, in: 1 / 0.0254, inch: 1 / 0.0254, ft: 1 / 0.3048 };
+
+// How far along a shaft the pointer is, from its left face: shown in mm, and
+// sent in the unit its length is typed in (`splitProjectAt`). None within 1 %
+// of either face, where a cut would land on the node that is already there.
+export function cutHere(part, point, element) {
+    if (!part || part.kind !== 'shaft' || !point) return null;
+    const from = Math.min(part.z0, part.z1);
+    const length = Math.abs(part.z1 - part.z0);
+    const along = point[2] - part.offset.z - from;
+    if (!(length > 0) || along < 0.01 * length || along > 0.99 * length) return null;
+    const unit = String((element && element.L_unit) || 'mm').trim();
+    const factor = METRES_IN[unit];
+    if (!factor) return null;
+    return { shown: `${(along * 1000).toFixed(1)} mm`, value: String(Number((along * factor).toPrecision(6))) };
+}
+
+export function menuEntries(hit) {
+    if (!hit) {
+        return [
+            { label: t('ctxMeshAll'), icon: 'fa-ruler-horizontal', run: () => meshFrom3d(null, currentHalf()) },
+            { label: t('rotor3dFrame'), icon: 'fa-expand', run: () => frameRotor() },
+        ];
+    }
+    const { part } = hit;
+    const element = elementOf(part);
+    const name = (CATEGORY_NAMES[part.category] || (() => part.category))();
+    const tag = element && String(element.tag || '').trim();
+    const entries = [{ header: `${name} #${part.index + 1}${tag ? ' · ' + tag : ''}` }];
+    if (part.kind === 'shaft') {
+        const here = cutHere(part, hit.point, element);
+        entries.push(here
+            ? { label: fill(t('ctxSplitHere'), here.shown), icon: 'fa-scissors', run: () => splitFrom3d(part.index, part.half, here.value) }
+            : { label: t('ctxSplitHereNo'), icon: 'fa-scissors', disabled: true });
+        entries.push({ label: t('ctxSplitAsk'), icon: 'fa-scissors', run: () => splitFrom3d(part.index, part.half) });
+        entries.push({ label: t('ctxMesh'), icon: 'fa-ruler-horizontal', run: () => meshFrom3d(part.index, part.half) });
+        entries.push(null);
+    }
+    entries.push({ label: t('ctxEdit'), icon: 'fa-pen', run: () => editPart(part) });
+    entries.push({ label: t('ctxCopy'), icon: 'fa-copy', run: () => copyFrom3d(part.category, part.index, part.half) });
+    entries.push({ label: t('rotor3dHideElement'), icon: 'fa-eye-slash', disabled: !element, run: () => toggleElement3d(element) });
+    const node = hit.point && layout ? nodeUnder(hit) : null;
+    if (node !== null) entries.push({ label: fill(t('ctxAddAtNode'), node), icon: 'fa-plus', run: () => addFrom3d(node, part.half) });
+    entries.push(null);
+    entries.push({ label: t('ctxDelete'), icon: 'fa-trash', danger: true, run: () => deleteFrom3d(part.category, part.index, part.half) });
+    return entries;
+}
+
+// The line being edited, on a MultiRotor; none on a rotor.
+function currentHalf() {
+    return state.projectData && state.projectData.isMultiRotor ? state.multiRotorEditTarget : null;
+}
+
+function openMenu(hit, x, y) {
+    if (!layout) return;
+    clearTimeout(clickTimer);
+    openContextMenu(x, y, menuEntries(hit));
 }
 
 // The row of a part, when the list is showing it: same tab, same MultiRotor half.

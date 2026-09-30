@@ -22,7 +22,7 @@ import { projectFromFile } from '../core/project_file.js';
 import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
-import { splitProject } from './split.js';
+import { splitProject, splitProjectAt } from './split.js';
 import { meshProject } from './mesh.js';
 import { hideRotor3d, relabelRotor3d, showRotor3d } from './rotor3d.js';
 
@@ -573,9 +573,10 @@ function removeItem(activeData, index) {
 // already live side by side with the two calls that put the screen back in
 // agreement with the data. The question, the trip to the server and the answer
 // are in `splitProject`; what is added here is only what the screen owes.
-export async function splitItem(index) {
+export async function splitItem(index, at = null) {
     const activeData = getActiveData();
-    if (!(await splitProject(activeData, index))) return;
+    const cut = at === null ? splitProject(activeData, index) : splitProjectAt(activeData, index, at);
+    if (!(await cut)) return;
 
     // The form is open on the element that just stopped existing as one thing:
     // saving it would write the whole original back over its left half. Below
@@ -595,9 +596,11 @@ export async function splitItem(index) {
 // renumbered -- a disk's form open on node 4 would save a 4 that now means
 // another node. So the form is closed and the ticks let go, as after a bulk
 // delete.
-export async function meshItems() {
+// `only`: the shaft rows to cut, from the 3D view's menu; otherwise the ones
+// ticked in the list.
+export async function meshItems(only = null) {
     const activeData = getActiveData();
-    const chosen = state.currentTab === 'shafts' ? picked(listContext()) : [];
+    const chosen = only || (state.currentTab === 'shafts' ? picked(listContext()) : []);
     if (!(await meshProject(activeData, chosen))) return;
     closeForm();
     clearSelection();
@@ -1165,6 +1168,26 @@ export function editFrom3d(category, index, half) {
 export function deleteFrom3d(category, index, half) {
     reachRow(category, half);
     return deleteItem(index);
+}
+
+// The rest of the 3D view's menu (features/rotor3d.js): the list's own
+// actions, on the row of the part the menu was opened on.
+export function copyFrom3d(category, index, half) {
+    reachRow(category, half);
+    copyItem(index);
+}
+
+// `at`: the distance from the left face where the pointer was, in the unit
+// the element's length is typed in; null asks for it, halfway offered.
+export function splitFrom3d(index, half, at = null) {
+    reachRow('shafts', half);
+    return splitItem(index, at);
+}
+
+// One shaft, or -- `index` null -- every shaft of the line.
+export function meshFrom3d(index, half) {
+    reachRow('shafts', half);
+    return meshItems(index === null ? [] : [index]);
 }
 
 // The node hub, as the 2D figure's "+" opens it -- on a MultiRotor too, where

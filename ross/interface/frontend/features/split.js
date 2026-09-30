@@ -59,7 +59,13 @@ export async function splitProject(data, index) {
     // `null` is Escape or Cancel, and an empty box is somebody who changed their
     // mind with the keyboard. Neither is a distance, and neither is an error.
     if (typed === null || typed === undefined || String(typed).trim() === '') return false;
+    return splitProjectAt(data, index, typed);
+}
 
+// The same cut with the distance already known -- the 3D view's "split here",
+// where the pointer said where. In the unit the element's length is typed in,
+// as the dialog asks for it.
+export async function splitProjectAt(data, index, typed) {
     let answer;
     try {
         answer = await apiFetch('/api/rotor/split_shaft', {

@@ -21,6 +21,7 @@ import {
 } from './concatenate.js';
 import { closeMultiRotorModal, describeCoupling, saveMultiRotor } from './multirotor.js';
 import { cancelMeshDialog, showMethodFields, submitMeshDialog } from '../components/mesh_dialog.js';
+import { runContextItem } from '../components/context_menu.js';
 
 export const DIALOG_ACTIONS = {
     // About and the help
@@ -49,4 +50,7 @@ export const DIALOG_ACTIONS = {
     'mesh-method': () => showMethodFields(),
     'mesh-go': () => submitMeshDialog(),
     'mesh-cancel': () => cancelMeshDialog(),
+
+    // the 3D view's right-button menu (components/context_menu.js)
+    'context-item': element => runContextItem(Number(element.dataset.index)),
 };
