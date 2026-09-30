@@ -15,7 +15,11 @@ import pytest
 
 ross = pytest.importorskip("ross", reason="requires ROSS installed")
 
-from ross.interface.domain.meshing import mesh_shafts, plan  # noqa: E402
+from ross.interface.domain.meshing import (  # noqa: E402
+    mesh_by_convergence,
+    mesh_shafts,
+    plan,
+)
 from ross.interface.domain.rotor_builder import build_rotor_from_ui  # noqa: E402
 from ross.interface.tests.test_splitting import described, project  # noqa: E402
 
@@ -249,3 +253,172 @@ def test_the_route_answers_the_project_and_the_plan():
     assert response.get_json()["report"]["after"] == 6
     assert refused.status_code == 400
     assert "much" in refused.get_json()["message"]
+
+
+# --- in a number of parts --------------------------------------------------------------
+
+
+@pytest.mark.parametrize("with_link", [False, True])
+@pytest.mark.parametrize("parts", [1, 3])
+def test_cut_in_parts_the_project_builds_the_rotor_ross_would(with_link, parts):
+    data = project(with_link=with_link)
+    meshed, report = mesh_shafts(data, parts=str(parts))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        theirs = build_rotor_from_ui(data).refine_mesh(parts=parts)
+
+    assert described(build_rotor_from_ui(meshed)) == described(theirs)
+    assert report["after"] == parts * report["before"]
+
+
+def test_in_parts_only_the_rows_asked_for_are_cut():
+    meshed, _ = mesh_shafts(project(with_link=False), parts="4", indexes=[2])
+
+    assert [s.get("tag") for s in meshed["shafts"]] == [
+        "Inlet",
+        "Body",
+        "Outlet",
+        "Outlet (2)",
+        "Outlet (3)",
+        "Outlet (4)",
+    ]
+
+
+@pytest.mark.parametrize("parts", ["0", "2.5", "-3", "many", "inf"])
+def test_a_number_of_parts_that_is_not_one_is_refused_by_name(parts):
+    with pytest.raises(ValueError, match="number of parts"):
+        plan(project(), parts=parts)
+
+
+# --- by the convergence of the natural frequencies -----------------------------------
+
+
+def coarse():
+    """A metre of 40 mm shaft in two elements, a disk in the middle: far too
+    coarse for its first frequencies."""
+    data = {k: [] for k in ("disks", "gears", "couplings", "seals", "pointmasses")}
+    data["materials"] = [
+        {"name": "Steel", "rho": "7810", "E": "211e9", "G_s": "81.2e9"}
+    ]
+    data["shafts"] = [
+        {
+            "element_type": "BASIC",
+            "L": "500",
+            "odl": "40",
+            "idl": "0",
+            "material": "Steel",
+            "tag": "A",
+        },
+        {
+            "element_type": "BASIC",
+            "L": "500",
+            "odl": "40",
+            "idl": "0",
+            "material": "Steel",
+            "tag": "B",
+        },
+    ]
+    data["disks"] = [
+        {
+            "element_type": "Geometry",
+            "n": "1",
+            "width": "50",
+            "i_d": "40",
+            "o_d": "300",
+            "material": "Steel",
+        }
+    ]
+    data["bearings"] = [
+        {"element_type": "BASIC", "n": "0", "kxx": "1e7", "cxx": "0"},
+        {"element_type": "BASIC", "n": "2", "kxx": "1e7", "cxx": "0"},
+    ]
+    return data
+
+
+def test_the_converged_project_is_the_rotor_ross_converges_to():
+    data = coarse()
+    meshed, report = mesh_by_convergence(data, "6", "0.1", "0")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        theirs, results = build_rotor_from_ui(data).refine_mesh_by_convergence(
+            n_modes=6, rtol=1e-3
+        )
+
+    assert described(build_rotor_from_ui(meshed)) == described(theirs)
+    table = report["convergence"]
+    assert table["chosen"] == results.chosen == 1
+    assert [row["elements"] for row in table["rows"]] == [
+        int(n) for n in results.el_num
+    ]
+    assert (
+        table["rows"][table["chosen"]]["elements"]
+        == report["after"]
+        == len(meshed["shafts"])
+    )
+    # The rotor as it is first, marked by having no ratio; the frequencies in Hz.
+    assert table["rows"][0]["max_ld"] is None and table["rows"][0]["elements"] == 2
+    assert table["rows"][1]["wn"][0] == pytest.approx(
+        results.wn[1][0] / (2 * 3.141592653589793)
+    )
+    assert table["rows"][table["chosen"]]["change"] <= 0.1
+    assert table["rows"][-1]["change"] is None
+
+
+def test_a_rotor_already_converged_is_left_as_it_is():
+    data = coarse()
+    meshed, report = mesh_by_convergence(data, "2", "50", "0")
+
+    assert report["convergence"]["chosen"] == 0
+    assert meshed == data and report["cut"] == []
+
+
+@pytest.mark.parametrize(
+    "n_modes, rtol, speed, words",
+    [
+        ("0", "0.1", "0", "frequencies"),
+        ("x", "0.1", "0", "frequencies"),
+        ("6", "0", "0", "tolerance"),
+        ("6", "-1", "0", "tolerance"),
+        ("6", "0.1", "fast", "rpm"),
+    ],
+)
+def test_what_the_convergence_cannot_use_is_refused_by_name(
+    n_modes, rtol, speed, words
+):
+    with pytest.raises(ValueError, match=words):
+        mesh_by_convergence(coarse(), n_modes, rtol, speed)
+
+
+def test_the_route_runs_each_way_and_refuses_one_it_does_not_know():
+    from ross.interface.api.security import SESSION_TOKEN
+    from ross.interface.app import app
+
+    app.config["TESTING"] = True
+    headers = {"X-ROSS-Token": SESSION_TOKEN}
+    with app.test_client() as client:
+        parts = client.post(
+            "/api/rotor/mesh_shafts",
+            json={"project": project(), "method": "parts", "parts": "2"},
+            headers=headers,
+        )
+        converged = client.post(
+            "/api/rotor/mesh_shafts",
+            json={
+                "project": coarse(),
+                "method": "convergence",
+                "n_modes": "4",
+                "rtol": "0.1",
+            },
+            headers=headers,
+        )
+        unknown = client.post(
+            "/api/rotor/mesh_shafts",
+            json={"project": project(), "method": "magic"},
+            headers=headers,
+        )
+    assert parts.status_code == 200 and parts.get_json()["report"]["after"] == 6
+    assert (
+        converged.status_code == 200
+        and converged.get_json()["report"]["convergence"]["chosen"] >= 1
+    )
+    assert unknown.status_code == 400 and "magic" in unknown.get_json()["message"]

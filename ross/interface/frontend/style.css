@@ -486,6 +486,55 @@ button {
     background: var(--blue-100);
 }
 
+/* The dialog of the ruler button (components/mesh_dialog.js). */
+.mesh-box {
+    max-width: 460px;
+    padding: 0;
+}
+.mesh-body {
+    border: none;
+    box-shadow: none;
+    margin-top: 0;
+    border-radius: 0;
+}
+.mesh-way {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+}
+/* The form box gives every input the whole width; a radio button keeps its
+   own, beside its words. */
+.mesh-way input[type="radio"] {
+    width: auto;
+    flex: none;
+    margin: 0;
+}
+.mesh-fields {
+    padding-left: 24px;
+}
+.mesh-fields[hidden],
+.mesh-busy[hidden] {
+    display: none;
+}
+.mesh-row {
+    display: flex;
+    gap: 10px;
+}
+.mesh-hint {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.mesh-busy {
+    margin: 10px 0;
+    font-size: 13px;
+    color: var(--accent);
+}
+
 /* The bar above the element list: tick everything, the count, and the two bulk
    actions. It sits where the list starts so the ticks and the actions read as
    one thing. */

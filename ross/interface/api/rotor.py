@@ -6,7 +6,7 @@ import json
 from flask import Blueprint, jsonify, request
 
 from ross.interface.domain.concatenation import concatenated_project
-from ross.interface.domain.meshing import mesh_shafts
+from ross.interface.domain.meshing import BAD_METHOD, mesh_by_convergence, mesh_shafts
 from ross.interface.domain.requests import (
     CONCATENATE_REQUEST,
     MESH_REQUEST,
@@ -172,19 +172,35 @@ def split_shaft_route():
 
 @rotor_api.route("/api/rotor/mesh_shafts", methods=["POST"])
 def mesh_shafts_route():
-    """Cut the shafts by the length-to-diameter rule and answer the project.
+    """Discretize the shafts and answer the project, with the plan.
 
     A project in and a project out, like the split, and the plan with it: the
     screen shows what would be cut -- how many parts, which elements are too
-    short to fix -- before it takes the project on. `indexes` empty is every
-    shaft. A refusal (a ratio that is not a number) is a `ValueError`, a 400
-    carrying its sentence (`api/errors.py`).
+    short to fix, and for the convergence the meshes it analysed -- before it
+    takes the project on. `indexes` empty is every shaft. A refusal (a number
+    that is not one) is a `ValueError`, a 400 carrying its sentence
+    (`api/errors.py`).
+
+    The convergence runs a modal analysis per mesh here, in the request: a
+    few seconds on a small rotor, and the bearings are not computed again --
+    the rotor is built through the element cache the figure just filled.
     """
     payload = MESH_REQUEST.read(request.get_json(silent=True))
-    built, report = mesh_shafts(
-        payload["project"],
-        payload["max_ld"],
-        payload["min_ld"],
-        payload["indexes"] or None,
-    )
+    method = payload["method"]
+    project = payload["project"]
+    indexes = payload["indexes"] or None
+    if method == "ratio":
+        built, report = mesh_shafts(
+            project, payload["max_ld"], payload["min_ld"], indexes
+        )
+    elif method == "parts":
+        built, report = mesh_shafts(
+            project, min_ld=payload["min_ld"], indexes=indexes, parts=payload["parts"]
+        )
+    elif method == "convergence":
+        built, report = mesh_by_convergence(
+            project, payload["n_modes"], payload["rtol"], payload["speed"]
+        )
+    else:
+        raise ValueError(BAD_METHOD % method)
     return jsonify({"status": "success", "projectData": built, "report": report})

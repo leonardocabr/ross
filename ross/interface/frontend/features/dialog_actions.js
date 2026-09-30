@@ -20,6 +20,7 @@ import {
     closeConcatenateModal, describeJoint, saveConcatenation, swapConcatenationOrder,
 } from './concatenate.js';
 import { closeMultiRotorModal, describeCoupling, saveMultiRotor } from './multirotor.js';
+import { cancelMeshDialog, showMethodFields, submitMeshDialog } from '../components/mesh_dialog.js';
 
 export const DIALOG_ACTIONS = {
     // About and the help
@@ -43,4 +44,9 @@ export const DIALOG_ACTIONS = {
     'swap-concatenation': () => swapConcatenationOrder(),
     'save-concatenation': () => saveConcatenation(),
     'close-concatenate': () => closeConcatenateModal(),
+
+    // discretizing the shafts (features/mesh.js)
+    'mesh-method': () => showMethodFields(),
+    'mesh-go': () => submitMeshDialog(),
+    'mesh-cancel': () => cancelMeshDialog(),
 };

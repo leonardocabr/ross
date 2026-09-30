@@ -185,15 +185,23 @@ UNITS_REQUEST = Envelope(
     Field("items", list, required=True),
 )
 
-# Cutting the shaft line by the length-to-diameter rule (domain/meshing.py).
-# The ratios travel as text, like the split's offset, so that a word typed into
-# the box is refused by name; `indexes` are the shaft rows asked for, and none
-# means every shaft.
+# Discretizing the shaft line (domain/meshing.py), one of three ways: by the
+# length-to-diameter rule ("ratio", `max_ld`), in a number of parts per element
+# ("parts", `parts`), or by the convergence of the lowest `n_modes` natural
+# frequencies to `rtol` % at `speed` rpm ("convergence"). Every number travels
+# as text, like the split's offset, so that a word typed into the dialog is
+# refused by name; `indexes` are the shaft rows asked for, none meaning every
+# shaft (the convergence always takes the whole rotor).
 MESH_REQUEST = Envelope(
     "/api/rotor/mesh_shafts",
     Field("project", dict, required=True),
+    Field("method", str, default="ratio"),
     Field("max_ld", str, default="0.5"),
     Field("min_ld", str, default="0.1"),
+    Field("parts", str, default="2"),
+    Field("n_modes", str, default="6"),
+    Field("rtol", str, default="0.1"),
+    Field("speed", str, default="0"),
     Field("indexes", list, default=[]),
 )
 

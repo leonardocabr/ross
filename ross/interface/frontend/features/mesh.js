@@ -1,24 +1,20 @@
-// Discretizing the shafts: every element longer than a number of diameters
-// is cut into equal parts (domain/meshing.py), so the user draws the shaft by
-// its sections -- one row per step of diameter -- and the model gets the
-// elements it needs to be right.
+// Discretizing the shafts: the ruler button of the shafts' list. The person
+// draws the shaft by its sections -- one row per step of diameter -- and this
+// cuts them into the elements the model needs, one of three ways
+// (components/mesh_dialog.js): by the L/D rule of API RP 684, in a number of
+// parts per element, or by the convergence of the natural frequencies.
 //
-// THE RULE, and why it is asked for as a ratio. API RP 684 (section 1.5.2.1)
-// asks for no section longer than 1.0 diameter, 0.5 preferred, and none
-// shorter than 0.1. The dialog opens on 0.5; the server refuses anything that
-// is not a positive number, by name.
-//
-// The server answers the cut project AND the plan, and the plan is shown
-// before the project is taken on: how many elements each shaft becomes, which
-// ones are too short to fix, which spans a coupling keeps whole. Nothing is
-// changed until the person says yes -- and after, Undo takes it back like any
-// other edit.
-import { openCustomAlert, openCustomConfirm, openCustomPrompt } from '../components/modals.js';
+// The server answers the cut project AND the plan (domain/meshing.py), and the
+// plan is shown before the project is taken on: how many elements each shaft
+// becomes, what is too short to fix, what a coupling keeps whole -- and for
+// the convergence, the meshes it analysed and the one it chose. Nothing
+// changes until the person says yes; after, Undo takes it back like any other
+// edit.
+import { openCustomAlert, openCustomConfirm } from '../components/modals.js';
+import { closeMeshDialog, openMeshDialog, setMeshBusy } from '../components/mesh_dialog.js';
 import { apiFetch } from '../core/api.js';
 import { t } from '../core/i18n.js';
 import { applyProject, withoutAnalyses } from './split.js';
-
-export const DEFAULT_MAX_LD = '0.5';
 
 // A plan with more lines than this ends in "..." -- a rotor of fifty shafts
 // cut would otherwise be a dialog taller than the screen.
@@ -39,21 +35,36 @@ function rowsName(rows, shafts) {
     }).join(' + ');
 }
 
-const ratio = value => (typeof value === 'number' && isFinite(value) ? value.toFixed(2) : '?');
+const decimal = (value, digits) => (typeof value === 'number' && isFinite(value) ? value.toFixed(digits) : '?');
 
-// The plan in words, one line per span cut, then what could not be done.
+// The meshes the convergence analysed, the one it chose marked.
+export function convergenceLines(convergence) {
+    const lines = [fill(t('meshConvTitle'), convergence.n_modes, convergence.rtol)];
+    convergence.rows.forEach((row, position) => {
+        const name = row.max_ld === null ? t('meshConvAsIs') : `L/D ${decimal(row.max_ld, 3).replace(/0+$/, '').replace(/\.$/, '')}`;
+        const change = row.change === null ? '' : fill(t('meshConvChange'), decimal(row.change, 3));
+        const mark = position === convergence.chosen ? t('meshConvChosen') : '';
+        lines.push(`${name}: ${fill(t('meshConvElements'), row.elements)}${change}${mark}`);
+    });
+    if (convergence.chosen === null) lines.push(t('meshConvNone'));
+    return lines;
+}
+
+// The plan in words: the convergence first when there was one, then one line
+// per span cut, then what could not be done.
 export function meshSummary(report, shafts) {
-    const lines = [fill(t('meshSummary'), report.before, report.after)];
+    const lines = report.convergence ? convergenceLines(report.convergence).concat(['']) : [];
+    lines.push(fill(t('meshSummary'), report.before, report.after));
     const cut = report.cut || [];
     cut.slice(0, MOST_LINES).forEach(step => {
-        lines.push(fill(t('meshCutLine'), rowsName(step.rows, shafts), ratio(step.ratio), step.parts));
+        lines.push(fill(t('meshCutLine'), rowsName(step.rows, shafts), decimal(step.ratio, 2), step.parts));
     });
     if (cut.length > MOST_LINES) lines.push('...');
     const short = report.short || [];
     if (short.length) {
         lines.push('', t('meshShortTitle'));
         short.slice(0, MOST_LINES).forEach(step => {
-            lines.push(fill(t('meshShortLine'), rowsName(step.rows, shafts), ratio(step.ratio)));
+            lines.push(fill(t('meshShortLine'), rowsName(step.rows, shafts), decimal(step.ratio, 2)));
         });
         if (short.length > MOST_LINES) lines.push('...');
     }
@@ -67,27 +78,28 @@ export function meshSummary(report, shafts) {
 export async function meshProject(data, indexes) {
     const shafts = (data && data.shafts) || [];
     if (!shafts.length) return false;
+    const ticked = indexes || [];
 
-    const question = indexes && indexes.length ? fill(t('meshAskPicked'), indexes.length) : t('meshAsk');
-    const typed = await openCustomPrompt(question, DEFAULT_MAX_LD);
-    if (typed === null || typed === undefined || String(typed).trim() === '') return false;
+    const choice = await openMeshDialog(ticked.length);
+    if (!choice) return false;
+    const converging = choice.method === 'convergence';
+    setMeshBusy(true, converging ? t('meshBusyConvergence') : t('meshBusy'));
 
     let answer;
+    let body;
     try {
         answer = await apiFetch('/api/rotor/mesh_shafts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                project: withoutAnalyses(data),
-                max_ld: String(typed).trim().replace(',', '.'),
-                indexes: indexes || [],
-            }),
+            body: JSON.stringify(Object.assign({ project: withoutAnalyses(data), indexes: converging ? [] : ticked }, choice)),
         });
+        body = await answer.json();
     } catch (error) {
+        closeMeshDialog();
         await openCustomAlert(t('meshFailed'));
         return false;
     }
-    const body = await answer.json();
+    closeMeshDialog();
     if (!answer.ok) {
         await openCustomAlert(body.message || t('meshFailed'));
         return false;
@@ -95,9 +107,11 @@ export async function meshProject(data, indexes) {
 
     const report = body.report || {};
     if (!(report.cut || []).length) {
-        // Nothing to cut; what is too short is still worth knowing.
-        await openCustomAlert([t('meshNothing'), meshSummary(report, shafts).split('\n').slice(1).join('\n')]
-            .filter(Boolean).join('\n'));
+        // Nothing to cut -- the rotor had converged, or every element is
+        // within the ratio. What was found is still worth reading.
+        const words = meshSummary(report, shafts).split('\n');
+        const summary = fill(t('meshSummary'), report.before, report.after);
+        await openCustomAlert([t('meshNothing')].concat(words.filter(line => line !== summary)).join('\n').trim());
         return false;
     }
     if (!(await openCustomConfirm(meshSummary(report, shafts)))) return false;
