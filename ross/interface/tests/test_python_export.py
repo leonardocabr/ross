@@ -175,6 +175,48 @@ def test_the_exported_sweep_has_the_steps_the_form_asked_for(kind):
     assert "np.linspace(0, 1000, 50)" in build_script(project, [analysis])
 
 
+def test_a_coupling_with_no_node_is_exported_where_the_builder_puts_it():
+    """`rs.CouplingElement` has no default node, and the builder uses the
+    coupling's place in the list; the script has to say the same."""
+    coupling = {"m_l": "1", "m_r": "1", "Ip_l": "0.01", "Ip_r": "0.01"}
+    project = {"couplings": [dict(coupling, n="2"), dict(coupling)]}
+    script = build_script(project)
+
+    assert "dict(n=2, " not in script
+    assert "dict(n=1, " in script
+
+
+STEP_FIELDS = [
+    ("campbell", "speed_steps"),
+    ("freq_response", "speed_steps"),
+    ("unbalance", "speed_steps"),
+    ("clearance", "speed_steps"),
+    ("time_response", "steps"),
+    ("harmonic_balance", "t_steps"),
+    ("misalignment", "t_steps"),
+]
+
+
+@pytest.mark.parametrize("kind, field", STEP_FIELDS)
+def test_a_step_count_that_is_not_a_number_is_refused_by_name(kind, field):
+    """Written as typed, `abc` was a `NameError` in the user's script."""
+    project = {"shafts": [{"L": "100", "idl": "0", "odl": "50"}]}
+    analysis = {"type": kind, "params": {field: "abc"}}
+    with pytest.raises(ValueError) as refused:
+        build_script(project, [analysis])
+    assert field in str(refused.value)
+    assert "abc" in str(refused.value)
+
+
+@pytest.mark.parametrize("kind, field", STEP_FIELDS)
+@pytest.mark.parametrize("typed", ["137.0", "1.37e2", " 137 "])
+def test_a_step_count_is_written_as_the_integer_the_analysis_reads(kind, field, typed):
+    project = {"shafts": [{"L": "100", "idl": "0", "odl": "50"}]}
+    analysis = {"type": kind, "params": {field: typed}}
+    script = build_script(project, [analysis])
+    assert re.search(r"np\.linspace\([^)]*, 137\)", script)
+
+
 def test_an_empty_project_still_produces_a_runnable_script():
     script = build_script({})
     ast.parse(script)
@@ -534,6 +576,17 @@ def test_export_route_returns_a_parseable_script(client):
     assert response.json["status"] == "success"
     ast.parse(response.json["script"])
     assert "run_campbell" in response.json["script"]
+
+
+def test_export_route_refuses_a_step_count_that_is_not_a_number(client):
+    body = {
+        "project": CASES["minimo"]["project"],
+        "analyses": [{"type": "campbell", "params": {"speed_steps": "abc"}}],
+        "conversion_type": "",
+    }
+    response = client.post("/api/export/python", json=body, headers=_auth())
+    assert response.status_code == 400
+    assert "speed_steps" in response.json["message"]
 
 
 def test_export_route_survives_an_empty_body(client):

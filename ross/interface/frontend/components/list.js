@@ -43,6 +43,13 @@ function explicitNode(item) {
     return Math.trunc(value);
 }
 
+// The builder's rule for couplings (`node_resolver.listed_nodes`): the node the
+// user pinned, else the coupling's place in the list.
+export const getListedNodes = (arr) => arr.map((item, index) => {
+    const node = explicitNode(item);
+    return node === null ? index : node;
+});
+
 export const getEffectiveNodes = (arr) => {
     const fixed = new Set();
     for (const item of arr) {
@@ -136,7 +143,7 @@ function renderSelectionBar(count, shown, filtering) {
     }
     const chosen = pickedCount(listContext());
     const dead = chosen ? '' : 'disabled';
-    const counted = chosen ? escapeHtml(t('selectedCount')).replace('%1', chosen)
+    const counted = chosen ? escapeHtml(t('selectedCount')).replace('%1', () => chosen)
         : filtering ? escapeHtml(t('filterShowing')).replace('%1', shown.length).replace('%2', count) : '';
     const badge = filtering ? `<span class="filter-badge">${filtering}</span>` : '';
     bar.style.display = 'flex';

@@ -27,7 +27,7 @@ from .element_registry import (
 )
 from .legacy import migrate_element
 from .material_names import material_key, ross_material_name, validate_materials
-from .node_resolver import effective_nodes
+from .node_resolver import effective_nodes, listed_nodes
 import textwrap
 
 from .schema import unit_map_by_class
@@ -138,6 +138,25 @@ def _js_truthy(value):
 def _or(value, default):
     """The equivalent of JavaScript's `value || fallback`."""
     return value if _js_truthy(value) else default
+
+
+STEPS_UNREADABLE = "Field '%s' has to be a number of steps; got '%s'."
+
+
+def _steps(params, key, default):
+    """A step count for `np.linspace`, as an integer literal.
+
+    The analysis reads the field with `int(float(...))` and refuses what that
+    refuses (`services/analysis/base.py`); the export does the same, instead of
+    writing the text into the script, where `np.linspace(0, 100, abc)` would be
+    a `NameError` on the user's machine and `50.5` a `TypeError`. A refusal is
+    a `ValueError`, which reaches the screen as a 400 carrying the sentence.
+    """
+    raw = _or(params.get(key), default)
+    try:
+        return str(int(float(str(raw).strip())))
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(STEPS_UNREADABLE % (key, raw)) from error
 
 
 def _py_string(value):
@@ -335,10 +354,10 @@ def _build_rotor_block(r_data, suffix):
 
     # Couplings
     py += "couplings_data%s = [\n" % suffix
-    for coupling in r_data.get("couplings") or []:
-        py += "    dict(%s),\n" % _format_kwargs(
-            coupling, ["element_type"], "CouplingElement"
-        )
+    nodes = listed_nodes(r_data.get("couplings") or [])
+    for position, coupling in enumerate(r_data.get("couplings") or []):
+        args = _format_kwargs(coupling, ["element_type"], "CouplingElement")
+        py += "    dict(%s),\n" % _with_node_arg(coupling, args, nodes[position])
     py += (
         "]\ncouplings{s} = [rs.CouplingElement(**kwargs) "
         "for kwargs in couplings_data{s}]\n"
@@ -495,7 +514,7 @@ def _analysis_block(position, analysis):
         py += "speed_rads = np.linspace(%s, %s, %s)\n" % (
             _py_val(p, "speed_min", "rad/s"),
             _py_val(p, "speed_max", "rad/s"),
-            _js_str(_or(p.get("speed_steps"), 50)),
+            _steps(p, "speed_steps", 50),
         )
         py += (
             "camp_%d = rotor.run_campbell(speed_rads, frequencies=%s, frequency_type=%s, torsional_analysis=%s%s)\n"
@@ -569,7 +588,7 @@ def _analysis_block(position, analysis):
         py += "speed_rads = np.linspace(%s, %s, %s)\n" % (
             _py_val(p, "speed_min", "rad/s"),
             _py_val(p, "speed_max", "rad/s"),
-            _js_str(_or(p.get("speed_steps"), 50)),
+            _steps(p, "speed_steps", 50),
         )
         modes = ", modes=%s" % _js_str(p["modes"]) if _js_truthy(p.get("modes")) else ""
         py += "freq_%d = rotor.run_freq_response(speed_rads%s, free_free=%s%s)\n" % (
@@ -692,7 +711,7 @@ def _analysis_block(position, analysis):
         py += "speed_rads = np.linspace(%s, %s, %s)\n" % (
             _py_val(p, "speed_min", "rad/s"),
             _py_val(p, "speed_max", "rad/s"),
-            _js_str(_or(p.get("speed_steps"), 50)),
+            _steps(p, "speed_steps", 50),
         )
         nodes, mags, phases = _unbalance_columns(p)
         modes = ", modes=%s" % _js_str(p["modes"]) if _js_truthy(p.get("modes")) else ""
@@ -761,7 +780,7 @@ def _analysis_block(position, analysis):
         py += "t_hb = np.linspace(%s, %s, %s)\n" % (
             _js_str(_or(p.get("t_initial"), 0)),
             _js_str(_or(p.get("t_final"), 0.5)),
-            _js_str(_or(p.get("t_steps"), 1001)),
+            _steps(p, "t_steps", 1001),
         )
         py += "harmonic_forces = [{\n"
         py += "    'node': %s,\n" % _js_str(_or(p.get("hb_node"), 0))
@@ -797,7 +816,7 @@ def _analysis_block(position, analysis):
             position,
             _py_val(p, "speed_min", "rad/s"),
             _py_val(p, "speed_max", "rad/s"),
-            _js_str(_or(p.get("speed_steps"), 101)),
+            _steps(p, "speed_steps", 101),
         )
         args = [
             "speed_range=speed_range_%d" % position,
@@ -846,7 +865,7 @@ def _transient_block(position, kind, p):
         py += "speed = %s\n" % _py_val(p, "speed", "rad/s")
         py += "t = np.linspace(0, %s, %s)\n" % (
             _js_str(_or(p.get("t_max"), 1.0)),
-            _js_str(_or(p.get("steps"), 1000)),
+            _steps(p, "steps", 1000),
         )
         py += "dofs_per_node = rotor.number_dof\n"
         py += "F_%d = np.zeros((len(t), rotor.ndof))\n" % position
@@ -866,7 +885,7 @@ def _transient_block(position, kind, p):
         py += "t_sim = np.linspace(%s, %s, %s)\n" % (
             _js_str(_or(p.get("t_initial"), 0)),
             _js_str(_or(p.get("t_final"), 0.5)),
-            _js_str(_or(p.get("t_steps"), 5000)),
+            _steps(p, "t_steps", 5000),
         )
         nodes, mags, phases = _unbalance_columns(p)
         common = (
