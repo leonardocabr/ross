@@ -436,14 +436,32 @@ def _py_val(params, key, target_unit=None):
     return _js_str(literal)
 
 
+def _probe_expression(row):
+    """One row of a probe table as `rs.Probe(...)`.
+
+    A row that named a probe of the model has been filled in from it before
+    the script is written (api/export.py, domain/probe_refs.py): its node, its
+    angle in radians -- none for an axial probe -- its direction and its name.
+    """
+    if not str(row.get("probe", "") or "").strip():
+        return "rs.Probe(%s, %s)" % (
+            _js_str(row.get("node")),
+            _js_str(row.get("angle")),
+        )
+    angle = row.get("angle")
+    args = [str(int(row["node"])), "None" if angle is None else repr(float(angle))]
+    if row.get("direction") == "axial":
+        args.append("direction='axial'")
+    if row.get("tag"):
+        args.append("tag=%s" % _py_string(row["tag"]))
+    return "rs.Probe(%s)" % ", ".join(args)
+
+
 def _probes_expression(params):
     probes = params.get("probes") or []
     if not probes:
         return "rs.Probe(0, 0)"
-    return ", ".join(
-        "rs.Probe(%s, %s)" % (_js_str(s.get("node")), _js_str(s.get("angle")))
-        for s in probes
-    )
+    return ", ".join(_probe_expression(row) for row in probes)
 
 
 def _unbalance_columns(params, mag_default="0.01", phase_default="0.0"):

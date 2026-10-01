@@ -17,7 +17,7 @@ import { applyLanguage } from './core/i18n.js';
 import { startPersistence, restoreState } from './core/persistence.js';
 import { schemaReady } from './core/schema.js';
 import { onProjectChanged } from './core/state.js';
-import { fillAnalysisTypes } from './features/analysis.js';
+import { fillAnalysisTypes, startProbeChoices } from './features/analysis.js';
 import { renderRotorHub } from './features/hub.js';
 import {
     buildRotorLive, refreshHistoryButtons, startRotorFigureFollowsWidth, startRotorViewToggle,
@@ -87,6 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
     startFormWindow();
     // The 3D view's right-button menu closes on a press elsewhere or Escape.
     startContextMenu();
+    // The analysis screen offers the model's probes as they are when it opens.
+    startProbeChoices();
     schemaReady()
         .then(() => { applyLanguage(); fillAnalysisTypes(); })
         .catch(error => console.error('schema:', error));

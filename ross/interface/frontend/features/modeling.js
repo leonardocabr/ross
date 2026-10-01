@@ -19,6 +19,7 @@ import { themedLayout } from '../core/theme.js';
 import { applyLanguage, rememberLanguage, t } from '../core/i18n.js';
 import { formSubtypes, loadElementSchema, schemaReady } from '../core/schema.js';
 import { projectFromFile } from '../core/project_file.js';
+import { newProbeId } from '../core/probes.js';
 import { VERTICAL_SCALES, withVerticalScale } from '../core/rotor_scale.js';
 import { fillAnalysisTypes, redrawAnalyses } from './analysis.js';
 import { openRotorHub, renderRotorHub } from './hub.js';
@@ -515,6 +516,8 @@ export function editItem(index) { state.editingIndex = index; openForm(false); }
 // naming rules for the same act is how a list ends up with `Stage_1` twice.
 export function freshCopy(original, siblings) {
     const copiedItem = JSON.parse(JSON.stringify(original));
+    // A copy is another probe: an analysis that named the original keeps it.
+    if (copiedItem.id) copiedItem.id = newProbeId();
     if (copiedItem.tag) {
         let baseTag = copiedItem.tag.replace(/_\d+$/, '');
         let counter = 1;
@@ -763,6 +766,7 @@ export function saveItem() {
             if (newObj.tag) {
                 newObj.tag = newObj.tag + "_" + (i + 1);
             }
+            if (state.currentTab === 'probes') newObj.id = newProbeId();
             if (state.currentTab === 'materials' && newObj.name !== undefined) {
                 newObj.name = rossMaterialName(newObj.name);
             }
@@ -786,6 +790,12 @@ export function saveItem() {
                 renameMaterial(activeData, activeData.materials[state.editingIndex].name, newObject.name);
             }
         }
+
+        // A probe keeps its id through an edit: the analyses name it by it
+        // (core/probes.js). A new one gets its own.
+        const before = state.editingIndex >= 0 ? activeData[state.currentTab][state.editingIndex] : null;
+        if (before && before.id) newObject.id = before.id;
+        else if (state.currentTab === 'probes') newObject.id = newProbeId();
 
         if (state.editingIndex >= 0) {
             activeData[state.currentTab][state.editingIndex] = newObject;

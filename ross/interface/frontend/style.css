@@ -1560,6 +1560,30 @@ button {
 .probe-row input.unb-phase {
     width: 65px !important;
 }
+/* A row of a probe table that can name a probe of the model
+   (features/analysis.js): the choice on its own line, the typed node and
+   angle under it, put away while a probe of the model is chosen. */
+.probe-row.has-model-probes {
+    flex-wrap: wrap;
+}
+.probe-row select.probe-ref {
+    flex: 1 1 calc(100% - 40px);
+    width: auto !important;
+}
+/* The choice and its remove button on the first line, the typed node and
+   angle under them. */
+.probe-row.has-model-probes .btn-remove-probe {
+    order: 1;
+}
+.probe-row.has-model-probes .probe-typed > * {
+    order: 2;
+}
+.probe-typed {
+    display: contents;
+}
+.probe-typed[hidden] {
+    display: none;
+}
 .probe-row input.force-func {
     width: 100% !important;
     flex: 1;

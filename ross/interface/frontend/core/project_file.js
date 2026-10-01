@@ -31,6 +31,8 @@
 //
 // `tests/test_frontend_structure.py` compares this list against
 // `domain/element_registry.categories()`, so the two cannot drift.
+import { withProbeIds } from './probes.js';
+
 export const CATEGORIES = [
     'materials',
     'shafts',
@@ -88,6 +90,8 @@ function freshUid() {
 // has no key for it, and the screen pushes a new row onto that list.
 export function withEveryCategory(project) {
     if (!project || typeof project !== 'object') return project;
+    // And every probe with the id the analyses name it by (core/probes.js).
+    withProbeIds(project);
     const lines = project.isMultiRotor ? [project.driving_rotor, project.driven_rotor] : [project];
     [project, ...lines].forEach(line => {
         if (!line || typeof line !== 'object') return;
