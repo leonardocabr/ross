@@ -2,7 +2,7 @@
 // itself on every change, and the node hub over the figure.
 import { buildFormHTML, capturedFormValues, restoreFormValues, toggleAdvanced } from '../components/form.js';
 import { syncShapePicker } from '../components/shape_picker.js';
-import { categoryName, getEffectiveNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
+import { categoryName, getEffectiveNodes, getTabNodes, markEditedRow, renderList, tabButton } from '../components/list.js';
 import { placeFormWindow } from '../components/floating_form.js';
 import { setThreeDShown, threeDShown } from '../core/visibility.js';
 import { shownIndexes } from '../core/list_filter.js';
@@ -671,7 +671,7 @@ export function toggleSelected(index) {
 // (core/list_filter.js). A row out of sight is never ticked by the header.
 export function toggleSelectAll() {
     const items = getActiveData()[state.currentTab] || [];
-    pickAll(listContext(), shownIndexes(state.currentTab, items, getEffectiveNodes(items)));
+    pickAll(listContext(), shownIndexes(state.currentTab, items, getTabNodes(state.currentTab, items)));
     renderList();
 }
 
@@ -800,7 +800,7 @@ export function saveItem() {
             if (targetN !== null) {
                 let insertIdx = activeData[state.currentTab].length;
                 
-                const effNodes = getEffectiveNodes(activeData[state.currentTab]);
+                const effNodes = getTabNodes(state.currentTab, activeData[state.currentTab]);
                 for (let i = 0; i < effNodes.length; i++) {
                     if (effNodes[i] >= targetN) {
                         insertIdx = i;

@@ -39,7 +39,7 @@ import warnings
 from ross.units import Q_
 
 from .conversion import to_unit
-from .node_resolver import effective_nodes
+from .node_resolver import effective_nodes, listed_nodes
 from .splitting import _number, _renumber, _unique_tag
 from .units import UNITS_MAPPING
 
@@ -107,16 +107,9 @@ def _ratio(raw, message, *values):
 
 
 def _coupling_spans(project):
-    """The node each coupling starts at (`rotor_builder.py`: its `n`, or its
-    place in the list)."""
-    spans = set()
-    for place, row in enumerate(project.get("couplings", []) or []):
-        raw = str(row.get("n", "")).strip()
-        try:
-            spans.add(int(float(raw)) if raw else place)
-        except ValueError:
-            continue
-    return spans
+    """The node each coupling starts at, by the builder's rule for them
+    (`node_resolver.listed_nodes`: its `n`, or its place in the list)."""
+    return set(listed_nodes(project.get("couplings", []) or []))
 
 
 def _count(raw, message):

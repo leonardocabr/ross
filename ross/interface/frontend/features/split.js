@@ -21,10 +21,10 @@ import { t } from '../core/i18n.js';
 // teaching the whole translation layer about placeholders for them would be a
 // feature with two users.
 function fill(template, ...values) {
-    return values.reduce(
-        (text, value, position) => text.split('%' + (position + 1)).join(String(value)),
-        template,
-    );
+    // One pass over the template: a value that itself holds "%2" is shown as
+    // typed, rather than filled in by the next placeholder.
+    return template.replace(/%(\d)/g, (marker, digit) =>
+        (digit >= 1 && digit <= values.length ? String(values[digit - 1]) : marker));
 }
 
 // The default the dialog opens with: halfway, which is the answer often enough

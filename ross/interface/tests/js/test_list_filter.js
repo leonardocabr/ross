@@ -55,7 +55,7 @@ const F = await import('../../frontend/core/list_filter.js');
 const { schemaReady } = await import('../../frontend/core/schema.js');
 const { state, listContext } = await import('../../frontend/core/state.js');
 const { pick, isPicked, pickAll, picked } = await import('../../frontend/core/selection.js');
-const { renderList } = await import('../../frontend/components/list.js');
+const { getTabNodes, renderList } = await import('../../frontend/components/list.js');
 const { MODELING_ACTIONS } = await import('../../frontend/features/modeling_actions.js');
 const { readNumbers } = await import('../../frontend/features/list_filter.js');
 await schemaReady();
@@ -195,6 +195,26 @@ F.setCriterion('disks', 'model', 'Geometry');
 check('each category keeps its own filter', F.activeCount(F.criteriaFor('shafts')) === 0 && F.activeCount(F.criteriaFor('disks')) === 1);
 F.forgetFilters();
 check('and another rotor starts with none', F.activeCount(F.criteriaFor('disks')) === 0);
+
+// --- couplings, numbered as the builder numbers them ------------------------------
+console.log('\nCouplings');
+
+// A blank coupling sits on its place in the list (`node_resolver.listed_nodes`),
+// not on the lowest free node: after one pinned on 2, the blank one is on 1,
+// where the lowest-free rule would have put it on 0.
+const couplings = [{ n: '2' }, {}];
+check('a blank coupling is on its place in the list', getTabNodes('couplings', couplings).join() === '2,1');
+check('every other tab keeps the lowest free node', getTabNodes('disks', couplings).join() === '2,0');
+state.projectData.couplings = couplings;
+state.currentTab = 'couplings';
+F.setCriterion('couplings', 'nodeFrom', '1');
+F.setCriterion('couplings', 'nodeTo', '1');
+renderList();
+const couplingRows = node('element-list').children.slice(-2);
+check('the filter by node finds it on the node it is built on',
+    couplingRows.map(r => r.className.includes('is-filtered-out')).join() === 'true,false');
+F.clearCriteria('couplings');
+state.currentTab = 'shafts';
 
 let refused = null;
 try { F.setCriterion('shafts', 'colour', 'red'); } catch (error) { refused = error; }

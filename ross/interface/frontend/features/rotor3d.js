@@ -665,7 +665,10 @@ function editPart(part) {
 // empty view, which offers what concerns the whole rotor.
 
 function fill(template, ...values) {
-    return values.reduce((text, value, position) => text.split('%' + (position + 1)).join(String(value)), template);
+    // One pass over the template: a value that itself holds "%2" is shown as
+    // typed, rather than filled in by the next placeholder.
+    return template.replace(/%(\d)/g, (marker, digit) =>
+        (digit >= 1 && digit <= values.length ? String(values[digit - 1]) : marker));
 }
 
 // Metres in the units a length can be typed in; anything else is not offered
@@ -882,7 +885,7 @@ function showWhatIsUnderThePointer() {
     const tipKey = `${part.key}@${node}`;
     if (stage.hovered !== tipKey) {
         tip.innerHTML = describePart(part)
-            + `<div class="rotor3d-tip-hint">${escapeHtml(t('rotor3dHint').replace('%1', node))}</div>`;
+            + `<div class="rotor3d-tip-hint">${escapeHtml(t('rotor3dHint').replace('%1', () => node))}</div>`;
         stage.hovered = tipKey;
     }
     placeTip();

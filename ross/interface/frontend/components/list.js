@@ -50,6 +50,13 @@ export const getListedNodes = (arr) => arr.map((item, index) => {
     return node === null ? index : node;
 });
 
+// The node each row of a tab sits on, by the rule the builder uses for that
+// category: couplings by `getListedNodes`, every other one by `getEffectiveNodes`.
+// The list, its filter and its "select all" read nodes through here, so a
+// coupling with a blank `n` is labelled with the node it is built on.
+export const getTabNodes = (tab, arr) =>
+    (tab === 'couplings' ? getListedNodes(arr) : getEffectiveNodes(arr));
+
 export const getEffectiveNodes = (arr) => {
     const fixed = new Set();
     for (const item of arr) {
@@ -92,8 +99,8 @@ export function markEditedRow() {
 function formTitle(editing) {
     const items = getActiveData()[state.currentTab] || [];
     let title = editing >= 0 && items[editing]
-        ? rowTitle(items[editing], editing, getEffectiveNodes(items)[editing])
-        : t('formWindowNew').replace('%1', categoryName(state.currentTab));
+        ? rowTitle(items[editing], editing, getTabNodes(state.currentTab, items)[editing])
+        : t('formWindowNew').replace('%1', () => categoryName(state.currentTab));
     // On a MultiRotor the list says which line it is showing; with the list
     // hidden, only the window can.
     if (state.projectData.isMultiRotor) {
@@ -144,7 +151,7 @@ function renderSelectionBar(count, shown, filtering) {
     const chosen = pickedCount(listContext());
     const dead = chosen ? '' : 'disabled';
     const counted = chosen ? escapeHtml(t('selectedCount')).replace('%1', () => chosen)
-        : filtering ? escapeHtml(t('filterShowing')).replace('%1', shown.length).replace('%2', count) : '';
+        : filtering ? escapeHtml(t('filterShowing')).replace('%1', () => shown.length).replace('%2', () => count) : '';
     const badge = filtering ? `<span class="filter-badge">${filtering}</span>` : '';
     bar.style.display = 'flex';
     bar.innerHTML = `
@@ -255,7 +262,7 @@ export function renderList() {
     // places that cause it.
     nowShowing(listContext());
 
-    const effNodes = getEffectiveNodes(currentArray);
+    const effNodes = getTabNodes(state.currentTab, currentArray);
     const criteria = criteriaFor(state.currentTab);
     const filtering = activeCount(criteria);
     const passes = currentArray.map((item, index) =>

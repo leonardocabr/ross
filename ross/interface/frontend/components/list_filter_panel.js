@@ -94,7 +94,7 @@ export function renderFilterPanel(category, shown, total) {
     panel.style.display = 'block';
     panel.innerHTML = `<div class="filter-grid">${rows.join('')}</div>
         <div class="filter-foot">
-            <span class="filter-count">${escapeHtml(t('filterShowing')).replace('%1', shown).replace('%2', total)}</span>
+            <span class="filter-count">${escapeHtml(t('filterShowing')).replace('%1', () => shown).replace('%2', () => total)}</span>
             <button type="button" class="btn-cancel filter-clear" data-action="clear-list-filter">${escapeHtml(t('filterClear'))}</button>
         </div>`;
 }
