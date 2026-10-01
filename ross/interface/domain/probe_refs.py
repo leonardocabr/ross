@@ -28,8 +28,10 @@ NO_SUCH_PROBE = (
     "one in its row, or type its node and angle."
 )
 
-# The analysis fields that are probe tables a row of which can name a probe.
-PROBE_TABLES = ("probes",)
+# The analysis fields that are probe tables a row of which can name a probe:
+# the probes of the response plots, and the outputs of the frequency response
+# (services/analysis/freq_response.py reads a probe there).
+PROBE_TABLES = ("probes", "outs")
 
 
 def references(params):

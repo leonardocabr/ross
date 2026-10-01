@@ -96,9 +96,36 @@ export async function restoreAnalysesFromMemory(savedArray) {
 
 // Global probe builders
 
-const generateProbeRowHTML = function(uniqueId, id, type, node=0, dof=0) {
+// The tables whose rows can name a probe of the model instead of being typed
+// (domain/probe_refs.py `PROBE_TABLES`): the probes of the response plots,
+// and the outputs of the frequency response -- where the machine has its
+// probes. Not the inputs: an input is a force on a degree of freedom, not a
+// measurement.
+const MODEL_PROBE_FIELDS = new Set(['probes', 'outs']);
+
+// The choice of a probe of the model, for a row that can name one: '' when
+// the model has none and the row names none, which leaves the row as it
+// always was. `probe` is the id the row names; one the model no longer has is
+// shown as missing, still chosen, rather than dropped in silence.
+function modelProbePicker(probe) {
+    const choices = state.projectData ? probeChoices(state.projectData) : [];
+    const named = String(probe || '');
+    if (!choices.length && !named) return { picker: '', named };
+    const options = choices.map(choice => `<option value="${escapeHtml(choice.id)}"${choice.id === named ? ' selected' : ''}>`
+        + `${escapeHtml(choice.label)}</option>`).join('');
+    const missing = named && !choices.some(choice => choice.id === named)
+        ? `<option value="${escapeHtml(named)}" selected>${escapeHtml(t('probeMissing'))}</option>` : '';
+    const picker = `<select class="probe-ref" data-action="pick-model-probe" title="${escapeHtml(t('probeFromModelHint'))}">`
+        + `<option value="">${escapeHtml(t('probeTyped'))}</option>${options}${missing}</select>`;
+    return { picker, named };
+}
+
+const generateProbeRowHTML = function(uniqueId, id, type, node=0, dof=0, probe='') {
+    const { picker, named } = MODEL_PROBE_FIELDS.has(id) ? modelProbePicker(probe) : { picker: '', named: '' };
     return `
-    <div class="probe-row" style="align-items:center;">
+    <div class="probe-row${picker ? ' has-model-probes' : ''}" style="align-items:center;">
+        ${picker}
+        <span class="probe-typed"${named ? ' hidden' : ''}>
         <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(t('probeNode'))}</span> 
         <input type="number" class="probe-node" value="${node}" min="0">
         <span style="font-size:11px; color:var(--text-muted); margin-left:8px;">${escapeHtml(t('probeDof'))}</span> 
@@ -110,6 +137,7 @@ const generateProbeRowHTML = function(uniqueId, id, type, node=0, dof=0) {
             <option value="4" ${dof==4?'selected':''}>β</option>
             <option value="5" ${dof==5?'selected':''}>γ</option>
         </select>
+        </span>
         <button type="button" class="btn-remove-probe" style="margin-left:auto;" data-action="remove-row"><i class="fas fa-times"></i></button>
     </div>`;
 }
@@ -188,17 +216,7 @@ export const addUnbalanceRow = function(uniqueId, id, type) {
 // '' for a typed row; a probe the model no longer has is shown as missing,
 // rather than dropped in silence, and the run says so.
 const generateAngleProbeRowHTML = function(uniqueId, id, type, node=0, angle=0, probe='') {
-    const choices = state.projectData ? probeChoices(state.projectData) : [];
-    const named = String(probe || '');
-    let picker = '';
-    if (choices.length || named) {
-        const options = choices.map(choice => `<option value="${escapeHtml(choice.id)}"${choice.id === named ? ' selected' : ''}>`
-            + `${escapeHtml(choice.label)}</option>`).join('');
-        const missing = named && !choices.some(choice => choice.id === named)
-            ? `<option value="${escapeHtml(named)}" selected>${escapeHtml(t('probeMissing'))}</option>` : '';
-        picker = `<select class="probe-ref" data-action="pick-model-probe" title="${escapeHtml(t('probeFromModelHint'))}">`
-            + `<option value="">${escapeHtml(t('probeTyped'))}</option>${options}${missing}</select>`;
-    }
+    const { picker, named } = modelProbePicker(probe);
     return `
     <div class="probe-row${picker ? ' has-model-probes' : ''}" style="align-items:center;">
         ${picker}
@@ -229,6 +247,13 @@ export function refreshProbeChoices() {
         const angle = row.querySelector('.probe-angle');
         row.outerHTML = generateAngleProbeRowHTML('', '', '',
             node ? node.value : 0, angle ? angle.value : 0, ref ? ref.value : '');
+    });
+    document.querySelectorAll('[id^="probe-container-outs-"] .probe-row').forEach(row => {
+        const ref = row.querySelector('.probe-ref');
+        const node = row.querySelector('.probe-node');
+        const dof = row.querySelector('.probe-dof');
+        row.outerHTML = generateProbeRowHTML('', 'outs', '',
+            node ? node.value : 0, dof ? dof.value : 0, ref ? ref.value : '');
     });
 }
 
@@ -308,7 +333,7 @@ export function buildDashboardHTML(uniqueId, type, configOverride) {
                 </div>
                 <div class="probe-list-container" id="${contId}-container-${item.id}-${uniqueId}">`;
             
-            if (item.type === 'probe_list') item.val.forEach(v => { html += generateProbeRowHTML(uniqueId, item.id, type, v.node, v.dof); });
+            if (item.type === 'probe_list') item.val.forEach(v => { html += generateProbeRowHTML(uniqueId, item.id, type, v.node, v.dof, v.probe); });
             else if (item.type === 'force_list') item.val.forEach(v => { html += generateForceRowHTML(uniqueId, item.id, type, v.node, v.dof, v.func); });
             else if (item.type === 'angle_probe_list') item.val.forEach(v => { html += generateAngleProbeRowHTML(uniqueId, item.id, type, v.node, v.angle, v.probe); });
             else item.val.forEach(v => { html += generateUnbalanceRowHTML(uniqueId, item.id, type, v.node, v.mag, v.phase); });
@@ -457,10 +482,15 @@ export function cardParameters(uniqueId, type) {
             const container = document.getElementById(`probe-container-${item.id}-${uniqueId}`);
             const probes = [];
             container.querySelectorAll('.probe-row').forEach(row => {
-                probes.push({
+                const typed = {
                     node: parseInt(row.querySelector('.probe-node').value) || 0,
                     dof: parseInt(row.querySelector('.probe-dof').value) || 0
-                });
+                };
+                // An output of the frequency response can be a probe of the
+                // model, read from it by the server (domain/probe_refs.py).
+                const ref = row.querySelector('.probe-ref');
+                if (ref && ref.value) typed.probe = ref.value;
+                probes.push(typed);
             });
             p[item.id] = probes;
         } else if (item.type === 'force_list') {

@@ -436,6 +436,35 @@ def _py_val(params, key, target_unit=None):
     return _js_str(literal)
 
 
+# The frequency response at a radial probe of the model, written into the
+# script where an output names one: the same function as
+# services/analysis/freq_response.py `probe_output` (the packaged executable
+# has no sources to copy it from), and tests/test_freq_response_probes.py
+# holds the two to the same numbers.
+PROBE_OUTPUT = """
+def probe_output(result, node, angle, dofs_per_node):
+    \"\"\"The response a radial probe reads: x cos(angle) + y sin(angle) of its
+    node, as output 0 of results ROSS can plot (ROSS plots one degree of
+    freedom as the output).\"\"\"
+    from ross.results import FrequencyResponseResults
+
+    x = node * dofs_per_node
+    c, s = np.cos(angle), np.sin(angle)
+
+    def along(response):
+        return (c * response[:, x, :] + s * response[:, x + 1, :])[:, None, :]
+
+    return FrequencyResponseResults(
+        along(result.freq_resp),
+        along(result.velc_resp),
+        along(result.accl_resp),
+        result.speed_range,
+        result.number_dof,
+    )
+
+"""
+
+
 def _probe_expression(row):
     """One row of a probe table as `rs.Probe(...)`.
 
@@ -631,6 +660,11 @@ def _analysis_block(position, analysis):
 
         entries = p.get("inps") or [{"node": 0, "dof": 0}]
         outputs = p.get("outs") or [{"node": 0, "dof": 0}]
+        if any(
+            output.get("probe") and output.get("direction") != "axial"
+            for output in outputs
+        ):
+            py += PROBE_OUTPUT
         py += "fig_freq_%d = None\n" % position
         py += "colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']\n"
         for j in range(max(len(entries), len(outputs))):
@@ -640,21 +674,48 @@ def _analysis_block(position, analysis):
                 _js_str(entry.get("node")),
                 _js_str(entry.get("dof")),
             )
-            py += "g_out = %s * dofs_per_node + %s\n" % (
-                _js_str(output.get("node")),
-                _js_str(output.get("dof")),
-            )
-            py += "fig_temp = freq_%d.%s(inp=g_inp, out=g_out, %s)\n" % (
-                position,
+            # An output that named a probe of the model has been filled in
+            # from it (api/export.py): an axial one reads z of its node, a
+            # radial one its direction, through `probe_output`.
+            source = "freq_%d" % position
+            if not output.get("probe"):
+                py += "g_out = %s * dofs_per_node + %s\n" % (
+                    _js_str(output.get("node")),
+                    _js_str(output.get("dof")),
+                )
+                read_at = "N%s D%s" % (
+                    _js_str(output.get("node")),
+                    _js_str(output.get("dof")),
+                )
+            elif output.get("direction") == "axial":
+                py += "g_out = %d * dofs_per_node + 2\n" % int(output["node"])
+                read_at = output.get("tag") or "probe at node %d" % int(output["node"])
+            else:
+                py += "g_out = 0\n"
+                source = "probe_output(freq_%d, %d, %r, dofs_per_node)" % (
+                    position,
+                    int(output["node"]),
+                    float(output.get("angle") or 0.0),
+                )
+                read_at = output.get("tag") or "probe at node %d" % int(output["node"])
+            py += "fig_temp = %s.%s(inp=g_inp, out=g_out, %s)\n" % (
+                source,
                 method,
                 ", ".join(args),
             )
             py += "for k, trace in enumerate(fig_temp.data):\n"
-            py += '    trace.name = f"In(N%s D%s) | Out(N%s D%s)"\n' % (
+            label = "In(N%s D%s) | Out(%s)" % (
                 _js_str(entry.get("node")),
                 _js_str(entry.get("dof")),
-                _js_str(output.get("node")),
-                _js_str(output.get("dof")),
+                read_at,
+            )
+            # A typed row keeps the f-string it always had; a probe's name is
+            # whatever was typed, braces and quotes included, so it goes in as
+            # a plain literal.
+            py += (
+                '    trace.name = f"%s"\n' % label
+                if not output.get("probe")
+                else "    trace.name = %s\n" % _py_string(label)
             )
             py += '    trace.legendgroup = f"group_%d"\n' % j
             py += "    trace.showlegend = (k == 0)\n"

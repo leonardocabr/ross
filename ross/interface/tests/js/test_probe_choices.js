@@ -99,4 +99,25 @@ check('a probe the model no longer has is shown as missing, still chosen',
 state.projectData = { probes: [] };
 check('even with no probe left in the model at all', /value="gone" selected/.test(card([{ node: 0, angle: 0, probe: 'gone' }])));
 
+// --- the outputs of the frequency response -----------------------------------------
+console.log('\nThe outputs of the frequency response');
+
+// An output is where the machine has its probes; an input is a force on a
+// degree of freedom, not a measurement, and stays typed.
+state.projectData = rotor;
+const frf = fields_ => buildDashboardHTML('frf', 'freq_response', fields_);
+const frfConfig = JSON.parse(JSON.stringify(analysisFieldsFor('freq_response')));
+frfConfig.forEach(item => {
+    if (item.id === 'inps') item.val = [{ node: 1, dof: 0 }];
+    if (item.id === 'outs') item.val = [{ node: 3, dof: 1 }, { node: 0, dof: 0, probe: first }];
+});
+const frfHtml = frf(frfConfig);
+const inputsBlock = (frfHtml.match(/id="probe-container-inps-frf"[\s\S]*?id="probe-container-outs-frf"/) || [''])[0];
+const outputsBlock = frfHtml.slice(frfHtml.indexOf('id="probe-container-outs-frf"'));
+check('the outputs offer the probes of the model', (outputsBlock.match(/class="probe-ref"/g) || []).length === 2);
+check('an output that named one shows it chosen, its node and dof put away',
+    outputsBlock.includes(`value="${first}" selected`) && /class="probe-typed" hidden/.test(outputsBlock));
+check('a typed output keeps its node and its degree of freedom', /value="3"/.test(outputsBlock) && /value="1" selected>y/.test(outputsBlock));
+check('the inputs do not: a force is not a probe', inputsBlock.length > 0 && !/probe-ref/.test(inputsBlock));
+
 shutDown();
