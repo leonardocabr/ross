@@ -24,6 +24,10 @@ import {
     annotationLayout, benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection,
 } from '../core/rotor3d_layout.js';
 import { arrangeLabels, buildAnnotations, fillLabels } from '../components/rotor3d_annotations.js';
+import {
+    alongAxis, grabbedEnd, keptEnds, measureLine, measureTop, measured, placeEnd, startingEnds,
+} from '../core/rotor3d_measure.js';
+import { buildMeasure } from '../components/rotor3d_measure.js';
 import { state } from '../core/state.js';
 import {
     LEGEND_CATEGORIES, categoryHidden, drawn, elementHidden, legendClick, toggleElementHidden,
@@ -82,6 +86,15 @@ function rememberedDimensions() {
         return false;
     }
 }
+
+// The measuring tape (core/rotor3d_measure.js): on or off, the line it runs
+// on, its two ends, and the end being dragged (-1 for none). Not remembered:
+// a measurement is taken and put away, it is not a way of looking at rotors.
+let measuring = false;
+let measure = null;
+let tapeLine = null;
+let tapeEnds = null;
+let dragging = -1;
 
 let pointer = null;
 
@@ -145,6 +158,7 @@ export function restyleRotor3d() {
     stage.triad.restyle(axisColours());
     if (model) model.restyle(rotorLook());
     if (annotations) annotations.restyle(themeColor('--text-muted', 'gray'));
+    if (measure) measure.restyle(accent);
     requestFrame();
 }
 
@@ -300,12 +314,50 @@ function makeStage(container) {
     labels.className = 'rotor3d-labels';
     labels.setAttribute('aria-hidden', 'true');
 
+    // What the tape measures, over its middle.
+    const measureLabel = document.createElement('div');
+    measureLabel.className = 'rotor3d-measure';
+    measureLabel.hidden = true;
+
     container.appendChild(renderer.domElement);
     container.appendChild(labels);
+    container.appendChild(measureLabel);
     container.appendChild(tip);
     container.appendChild(legend);
 
+    // The tape's ends are grabbed before OrbitControls sees the press: these
+    // listen in the capture phase, which on the canvas itself runs ahead of
+    // the controls' own listeners, and a press on a handle goes no further --
+    // not to the controls, which would turn the view, nor to the click that
+    // would open a part's form.
+    renderer.domElement.addEventListener('pointerdown', event => {
+        if (!measuring || event.button !== 0) return;
+        const end = endUnder(event);
+        if (end < 0) return;
+        dragging = end;
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        try { renderer.domElement.setPointerCapture(event.pointerId); } catch (e) { /* not a live pointer */ }
+        showGrab();
+    }, { capture: true });
     renderer.domElement.addEventListener('pointermove', event => {
+        if (dragging < 0) return;
+        event.stopImmediatePropagation();
+        dragEnd(event);
+    }, { capture: true });
+    const letGo = event => {
+        if (dragging < 0) return;
+        event.stopImmediatePropagation();
+        dragging = -1;
+        try { renderer.domElement.releasePointerCapture(event.pointerId); } catch (e) { /* already released */ }
+        showGrab(event);
+        requestFrame();
+    };
+    renderer.domElement.addEventListener('pointerup', letGo, { capture: true });
+    renderer.domElement.addEventListener('pointercancel', letGo, { capture: true });
+
+    renderer.domElement.addEventListener('pointermove', event => {
+        showGrab(event);
         const box = renderer.domElement.getBoundingClientRect();
         pointer = { x: event.clientX - box.left, y: event.clientY - box.top, width: box.width, height: box.height };
         requestFrame();
@@ -361,6 +413,11 @@ function makeStage(container) {
             openMenu(part ? { part, point } : null, box.left + box.width / 2, box.top + box.height / 2);
             return;
         }
+        if (event.key === 'Escape' && measuring) {
+            event.preventDefault();
+            toggleMeasure();
+            return;
+        }
         if (event.key !== 'Delete') return;
         const part = chosenPart();
         if (!part) return;
@@ -384,7 +441,7 @@ function makeStage(container) {
     });
 
     const fresh = {
-        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor, legend, labels,
+        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor, legend, labels, measureLabel,
         triad: buildTriad(THREE, axisColours()),
         raycaster: new THREE.Raycaster(), hovered: null,
     };
@@ -411,10 +468,14 @@ function fitCanvas(current) {
 // What the camera and the floor have to take in: the rotor, and the bench
 // when it is shown.
 // And the dimensions over it, when they are shown.
+// And the tape, while measuring.
 function shownBounds() {
     const bounds = benchShown && benchPlan ? benchPlan.bounds : layout.bounds;
-    if (!dimensionsShown || !annotationPlan || !(annotationPlan.top > bounds.max[1])) return bounds;
-    return { min: bounds.min, max: [bounds.max[0], annotationPlan.top, bounds.max[2]] };
+    let top = bounds.max[1];
+    if (dimensionsShown && annotationPlan) top = Math.max(top, annotationPlan.top);
+    if (measuring && tapeLine) top = Math.max(top, measureTop(tapeLine));
+    if (!(top > bounds.max[1])) return bounds;
+    return { min: bounds.min, max: [bounds.max[0], top, bounds.max[2]] };
 }
 
 function needsFraming(bounds) {
@@ -456,6 +517,7 @@ export async function showRotor3d(container, scene) {
     direction = viewDirection(scene);
     buildModel();
     placeAnnotations();
+    placeMeasure();
     placeBench();
     stage.hovered = null;
     if (needsFraming(shownBounds()) || framedFrom !== String(direction)) frameRotor();
@@ -611,6 +673,7 @@ export function toggleBench() {
 // rotor, and only stops reacting to a pointer it can no longer see.
 export function hideRotor3d() {
     pointer = null;
+    dragging = -1;
     markRow(null);
     if (stage) {
         stage.tip.hidden = true;
@@ -694,6 +757,7 @@ export function menuEntries(hit) {
     if (!hit) {
         return [
             { label: t('ctxMeshAll'), icon: 'fa-ruler-horizontal', run: () => meshFrom3d(null, currentHalf()) },
+            { label: measuring ? t('ctxMeasureStop') : t('ctxMeasure'), icon: 'fa-ruler', run: () => toggleMeasure() },
             { label: t('rotor3dFrame'), icon: 'fa-expand', run: () => frameRotor() },
         ];
     }
@@ -716,6 +780,7 @@ export function menuEntries(hit) {
     entries.push({ label: t('rotor3dHideElement'), icon: 'fa-eye-slash', disabled: !element, run: () => toggleElement3d(element) });
     const node = hit.point && layout ? nodeUnder(hit) : null;
     if (node !== null) entries.push({ label: fill(t('ctxAddAtNode'), node), icon: 'fa-plus', run: () => addFrom3d(node, part.half) });
+    if (node !== null && !part.hanging) entries.push({ label: fill(t('ctxMeasureFrom'), node), icon: 'fa-ruler', run: () => measureFrom(node, part.half) });
     entries.push(null);
     entries.push({ label: t('ctxDelete'), icon: 'fa-trash', danger: true, run: () => deleteFrom3d(part.category, part.index, part.half) });
     return entries;
@@ -791,6 +856,7 @@ function drawFrame() {
     stage.renderer.render(stage.scene, stage.camera);
     drawTriad();
     placeLabels();
+    placeMeasureLabel();
 }
 
 // The numbers follow the view: projected every frame, those that would print
@@ -850,6 +916,147 @@ export function toggleDimensions() {
     frameRotor();
 }
 
+// --- the measuring tape ------------------------------------------------------------
+//
+// Where it goes is core/rotor3d_measure.js's; here it is drawn, dragged and
+// labelled. It measures the line being edited (the driving or the driven one
+// on a MultiRotor), or the one it was started on from the menu.
+
+let tapeHalf = null;
+
+// Built with the rotor, or taken away. The ends stay on their nodes through a
+// rebuild -- an element added or edited -- and start over on another line.
+function placeMeasure() {
+    if (measure) {
+        stage.scene.remove(measure.object);
+        measure.dispose();
+        measure = null;
+    }
+    dragging = -1;
+    tapeLine = measuring && layout ? measureLine(layout, annotationPlan, tapeHalf) : null;
+    if (measuring && !tapeLine) measuring = false;
+    if (tapeLine) {
+        const ends = tapeEnds && tapeEnds.half === tapeHalf ? keptEnds(tapeEnds.ends, tapeLine) : startingEnds(tapeLine);
+        tapeEnds = { half: tapeHalf, ends };
+        measure = buildMeasure(library.THREE, tapeLine, tapeEnds.ends, themeColor('--accent', 'steelblue'));
+        stage.scene.add(measure.object);
+    } else {
+        tapeEnds = null;
+    }
+    if (stage.measureLabel) stage.measureLabel.hidden = !tapeLine;
+    showMeasureButton();
+}
+
+function showMeasureButton() {
+    document.querySelectorAll('[data-action="toggle-measure"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(measuring));
+    });
+}
+
+// The button: the tape from end to end of the line being edited, or put away.
+export function toggleMeasure() {
+    measuring = !measuring;
+    tapeHalf = currentHalf();
+    tapeEnds = null;
+    showMeasureButton();
+    if (!stage || !layout) return;
+    placeMeasure();
+    requestFrame();
+}
+
+// The menu's "measure from node n": the tape from that node, on its line.
+export function measureFrom(node, half = null) {
+    measuring = true;
+    tapeHalf = half;
+    tapeEnds = null;
+    if (!stage || !layout) {
+        showMeasureButton();
+        return;
+    }
+    placeMeasure();
+    if (tapeLine) {
+        tapeEnds = { half, ends: startingEnds(tapeLine, node) };
+        measure.update(tapeLine, tapeEnds.ends);
+    }
+    requestFrame();
+}
+
+// The ray under a pointer event, in the scene.
+function rayAt(event) {
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    if (!box.width || !box.height) return null;
+    const ndc = {
+        x: ((event.clientX - box.left) / box.width) * 2 - 1,
+        y: -((event.clientY - box.top) / box.height) * 2 + 1,
+    };
+    stage.raycaster.setFromCamera(ndc, stage.camera);
+    const { origin, direction } = stage.raycaster.ray;
+    return { from: [origin.x, origin.y, origin.z], toward: [direction.x, direction.y, direction.z] };
+}
+
+// Each end on screen: [x, y, depth] in CSS pixels.
+function endsOnScreen() {
+    if (!tapeLine || !tapeEnds) return [];
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    const point = new library.THREE.Vector3();
+    return tapeEnds.ends.map(end => {
+        point.set(tapeLine.x, tapeLine.tape, end.z).project(stage.camera);
+        return [(point.x + 1) / 2 * box.width, (1 - point.y) / 2 * box.height, point.z];
+    });
+}
+
+function endUnder(event) {
+    if (!measuring || !tapeLine) return -1;
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    return grabbedEnd({ x: event.clientX - box.left, y: event.clientY - box.top }, endsOnScreen());
+}
+
+function overHandle() {
+    return measuring && !!tapeLine && !!pointer && (dragging >= 0 || grabbedEnd(pointer, endsOnScreen()) >= 0);
+}
+
+function dragEnd(event) {
+    const ray = rayAt(event);
+    const z = ray ? alongAxis(ray.from, ray.toward, tapeLine) : null;
+    if (z === null) return;
+    tapeEnds.ends[dragging] = placeEnd(z, tapeLine, event.shiftKey);
+    measure.update(tapeLine, tapeEnds.ends);
+    requestFrame();
+}
+
+// The cursor says an end can be grabbed, and that it is.
+function showGrab(event) {
+    const canvas = stage && stage.renderer.domElement;
+    if (!canvas) return;
+    const over = dragging < 0 && event ? endUnder(event) >= 0 : false;
+    canvas.classList.toggle('is-grab', over);
+    canvas.classList.toggle('is-grabbing', dragging >= 0);
+}
+
+// The distance over the middle of the tape, and the nodes when both ends are
+// on one. Text of the page, as the dimensions are.
+function placeMeasureLabel() {
+    const label = stage.measureLabel;
+    if (!label) return;
+    if (!tapeLine || !tapeEnds) {
+        label.hidden = true;
+        return;
+    }
+    const { text, nodes } = measured(tapeEnds.ends);
+    const content = nodes ? `${text} · ${fill(t('measureNodes'), nodes[0], nodes[1])}` : text;
+    if (label.textContent !== content) label.textContent = content;
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    const middle = (tapeEnds.ends[0].z + tapeEnds.ends[1].z) / 2;
+    const point = new library.THREE.Vector3(tapeLine.x, tapeLine.tape, middle).project(stage.camera);
+    const inView = point.z > -1 && point.z < 1;
+    label.hidden = !inView;
+    if (inView) {
+        const x = (point.x + 1) / 2 * box.width;
+        const y = (1 - point.y) / 2 * box.height;
+        label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    }
+}
+
 function showWhatIsUnderThePointer() {
     const { sleeve, tip, raycaster, camera } = stage;
     const overTriad = !!pointer && inTriad(pointer.x, pointer.y, pointer.height);
@@ -869,9 +1076,15 @@ function showWhatIsUnderThePointer() {
         return;
     }
     markRow(part);
-    if (!part) {
+    // A handle of the tape is over whatever part is behind it.
+    if (!part || overHandle()) {
         tip.hidden = true;
         stage.hovered = null;
+        if (part) {
+            sleeve.visible = false;
+            markRow(null);
+            return;
+        }
         // Nothing under the pointer here: the part of the list row under it,
         // if any, is the one lit.
         const fromList = find(listPointed);

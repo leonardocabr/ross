@@ -1220,6 +1220,33 @@ button {
 .rotor3d-label.is-below {
     translate: -50% 4px;
 }
+/* The measuring tape's reading, over the middle of the tape
+   (features/rotor3d.js `placeMeasureLabel`). */
+.rotor3d-measure {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    pointer-events: none;
+    color: var(--white);
+    background: var(--accent);
+    translate: -50% calc(-100% - 8px);
+}
+.rotor3d-measure[hidden] {
+    display: none;
+}
+.rotor3d-canvas.is-grab {
+    cursor: grab;
+}
+.rotor3d-canvas.is-grabbing {
+    cursor: grabbing;
+}
 .rotor3d-tip {
     position: absolute;
     z-index: 3;
