@@ -1187,6 +1187,39 @@ button {
     font-family: var(--font-mono);
     font-size: var(--fs-micro);
 }
+/* The node numbers and the dimensions (components/rotor3d_annotations.js):
+   text of the page over the canvas, placed by a transform each frame. */
+.rotor3d-labels {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+}
+.rotor3d-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0 4px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    line-height: 16px;
+    white-space: nowrap;
+    color: var(--text-muted);
+    background: var(--glass-bg);
+    translate: -50% calc(-100% - 4px);
+}
+.rotor3d-label[hidden] {
+    display: none;
+}
+.rotor3d-label.is-dimension {
+    font-weight: 600;
+    color: var(--text-main);
+}
+.rotor3d-label.is-below {
+    translate: -50% 4px;
+}
 .rotor3d-tip {
     position: absolute;
     z-index: 3;

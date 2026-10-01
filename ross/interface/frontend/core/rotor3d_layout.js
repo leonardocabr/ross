@@ -347,6 +347,15 @@ export function layoutScene(scene, shapeFor) {
     return { parts, rings, bounds: boundsOf(parts) };
 }
 
+// How far a part reaches above its own axis: a bearing's grease nipple, a
+// point mass's lug, a seal's flange, or else its radius.
+function heightAbove(p) {
+    if (p.kind === 'pointmass') return p.radius + 0.55 * p.shaftRadius;
+    if (p.kind === 'bearing') return SYMBOL.bearing.top * p.shaftRadius;
+    if (p.kind === 'seal') return SEAL_FLANGE * p.radius;
+    return p.radius;
+}
+
 function boundsOf(parts) {
     if (!parts.length) return { min: [-0.1, -0.1, 0], max: [0.1, 0.1, 0.1] };
     const min = [Infinity, Infinity, Infinity];
@@ -361,8 +370,7 @@ function boundsOf(parts) {
         const bearing = SYMBOL.bearing;
         const across = p.kind === 'bearing' ? bearing.feet * p.shaftRadius : flange;
         const below = p.kind === 'bearing' ? bearing.base * p.shaftRadius : flange;
-        const above = p.kind === 'pointmass' ? r + 0.55 * p.shaftRadius
-            : p.kind === 'bearing' ? bearing.top * p.shaftRadius : flange;
+        const above = heightAbove(p);
         min[0] = Math.min(min[0], o.x - across); max[0] = Math.max(max[0], o.x + across);
         min[1] = Math.min(min[1], o.y - below); max[1] = Math.max(max[1], o.y + above);
         min[2] = Math.min(min[2], o.z + Math.min(p.z0, p.z1)); max[2] = Math.max(max[2], o.z + Math.max(p.z0, p.z1));
@@ -404,6 +412,68 @@ export function motorLayout(layout) {
         top: first.offset.y + 1.3 * radius,
         across: radius,
     };
+}
+
+// The node numbers and the dimensions, shown with a button as ROSS's 2D figure
+// numbers its nodes (a suggestion Leonardo brought back from people using
+// it). Per shaft line -- a MultiRotor has two:
+//
+//   * a number over each node, at the top of the shaft there;
+//   * above the rotor, two tiers of dimension lines: the nearer one from end
+//     to bearing to bearing to end -- the overhangs and the spans, the lengths
+//     that move the critical speeds most -- and over it the total length;
+//   * extension lines down from the outer tier to the shaft at both ends, and
+//     from the inner tier to each bearing.
+//
+// Above and not below, where the bench is. The tiers clear everything drawn on
+// that line by `gap`, a fraction of its largest radius or of its length.
+// Bearings that hang under a link node are not on the shaft line and do not
+// cut it into spans.
+export function annotationLayout(layout) {
+    const halves = Array.from(new Set(layout.rings.map(ring => ring.half)));
+    const lines = [];
+    const nodes = [];
+    let top = -Infinity;
+    for (const half of halves) {
+        const rings = layout.rings.filter(ring => ring.half === half).sort((a, b) => a.z - b.z);
+        const parts = layout.parts.filter(part => part.half === half);
+        if (!rings.length) continue;
+        rings.forEach(ring => nodes.push({ half, n: ring.n, position: [ring.x, ring.y + ring.radius, ring.z] }));
+        const first = rings[0];
+        const last = rings[rings.length - 1];
+        const length = last.z - first.z;
+        if (!(length > 0)) continue;
+        const { x, y } = first;
+        const highest = Math.max(...parts.map(p => p.offset.y + heightAbove(p)), y + Math.max(...rings.map(r => r.radius)));
+        const largest = Math.max(...parts.map(p => p.radius), ...rings.map(r => r.radius));
+        const gap = Math.max(0.6 * largest, 0.04 * length);
+        const supports = Array.from(new Set(parts
+            .filter(p => p.kind === 'bearing' && !p.hanging)
+            .map(p => p.offset.z + (p.z0 + p.z1) / 2)))
+            .filter(z => z > first.z + 1e-9 * length && z < last.z - 1e-9 * length)
+            .sort((a, b) => a - b);
+        const bearingsAt = parts.filter(p => p.kind === 'bearing' && !p.hanging)
+            .map(p => ({ z: p.offset.z + (p.z0 + p.z1) / 2, y: p.offset.y + heightAbove(p) }));
+        const inner = highest + gap;
+        const outer = highest + 2 * gap;
+        const stops = [first.z, ...supports, last.z];
+        // With no bearing inside the ends, the one span would be the total.
+        const spans = stops.length > 2
+            ? stops.slice(1).map((z, k) => ({ z0: stops[k], z1: z, y: inner, length: z - stops[k] }))
+            : [];
+        const extensions = [
+            { z: first.z, from: first.y + first.radius, to: outer },
+            { z: last.z, from: last.y + last.radius, to: outer },
+            ...bearingsAt.map(b => ({ z: b.z, from: b.y, to: inner })),
+        ];
+        lines.push({
+            half, x, gap, length,
+            total: { z0: first.z, z1: last.z, y: outer, length },
+            spans, extensions,
+        });
+        top = Math.max(top, outer + 0.5 * gap);
+    }
+    return { lines, nodes, top };
 }
 
 // The test bench the rotor can be shown on, as in Leonardo's prototype: a

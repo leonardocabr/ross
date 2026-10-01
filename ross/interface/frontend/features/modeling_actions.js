@@ -18,7 +18,7 @@ import {
 } from './modeling.js';
 import { switchMultiRotorTarget } from './multirotor.js';
 import { clearListFilter, filterBy, toggleListFilter } from './list_filter.js';
-import { frameRotor, toggleBench, toggleCategory3d, toggleElement3d, togglePan } from './rotor3d.js';
+import { frameRotor, toggleBench, toggleCategory3d, toggleDimensions, toggleElement3d, togglePan } from './rotor3d.js';
 import { getActiveData, state } from '../core/state.js';
 
 function position(element) {
@@ -66,6 +66,7 @@ export const MODELING_ACTIONS = {
     'set-rotor-view': element => setRotorView(element.dataset.view),
     'frame-rotor': () => frameRotor(),
     'toggle-bench': () => toggleBench(),
+    'toggle-dimensions': () => toggleDimensions(),
     'toggle-pan': () => togglePan(),
     'hide-category': (element, event) => toggleCategory3d(element.dataset.category, event),
     'hide-element': element => toggleElement3d(getActiveData()[state.currentTab][position(element)]),

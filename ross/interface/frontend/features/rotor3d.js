@@ -20,7 +20,10 @@
 //   lifetime, where browsers allow only a handful before they drop the oldest.
 import { escapeHtml } from '../core/dom.js';
 import { t } from '../core/i18n.js';
-import { benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection } from '../core/rotor3d_layout.js';
+import {
+    annotationLayout, benchLayout, framing, hitPoint, layoutScene, nearestNode, pickPart, viewDirection,
+} from '../core/rotor3d_layout.js';
+import { arrangeLabels, buildAnnotations, fillLabels } from '../components/rotor3d_annotations.js';
 import { state } from '../core/state.js';
 import {
     LEGEND_CATEGORIES, categoryHidden, drawn, elementHidden, legendClick, toggleElementHidden,
@@ -61,6 +64,22 @@ function rememberedBench() {
         return localStorage.getItem(BENCH_KEY) === 'on';
     } catch (e) {
         return false;   // storage blocked: no bench until asked for
+    }
+}
+
+// The node numbers and the dimensions (`annotationLayout`), shown or not as
+// the person left them, like the bench.
+const DIMENSIONS_KEY = 'ross-rotor-dimensions';
+let dimensionsShown = rememberedDimensions();
+let annotations = null;
+let annotationPlan = null;
+let labelSpans = [];
+
+function rememberedDimensions() {
+    try {
+        return localStorage.getItem(DIMENSIONS_KEY) === 'on';
+    } catch (e) {
+        return false;
     }
 }
 
@@ -125,6 +144,7 @@ export function restyleRotor3d() {
     stage.mark.material.color.set(accent);
     stage.triad.restyle(axisColours());
     if (model) model.restyle(rotorLook());
+    if (annotations) annotations.restyle(themeColor('--text-muted', 'gray'));
     requestFrame();
 }
 
@@ -274,7 +294,14 @@ function makeStage(container) {
     legend.className = 'rotor3d-legend';
     legend.setAttribute('role', 'group');
 
+    // The node numbers and dimensions, as text over the canvas
+    // (components/rotor3d_annotations.js).
+    const labels = document.createElement('div');
+    labels.className = 'rotor3d-labels';
+    labels.setAttribute('aria-hidden', 'true');
+
     container.appendChild(renderer.domElement);
+    container.appendChild(labels);
     container.appendChild(tip);
     container.appendChild(legend);
 
@@ -357,7 +384,7 @@ function makeStage(container) {
     });
 
     const fresh = {
-        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor, legend,
+        container, renderer, scene, camera, controls, sleeve, mark, tip, sun, floor, legend, labels,
         triad: buildTriad(THREE, axisColours()),
         raycaster: new THREE.Raycaster(), hovered: null,
     };
@@ -383,8 +410,11 @@ function fitCanvas(current) {
 // one disk should not undo the angle the person was looking from.
 // What the camera and the floor have to take in: the rotor, and the bench
 // when it is shown.
+// And the dimensions over it, when they are shown.
 function shownBounds() {
-    return benchShown && benchPlan ? benchPlan.bounds : layout.bounds;
+    const bounds = benchShown && benchPlan ? benchPlan.bounds : layout.bounds;
+    if (!dimensionsShown || !annotationPlan || !(annotationPlan.top > bounds.max[1])) return bounds;
+    return { min: bounds.min, max: [bounds.max[0], annotationPlan.top, bounds.max[2]] };
 }
 
 function needsFraming(bounds) {
@@ -425,6 +455,7 @@ export async function showRotor3d(container, scene) {
     layout = layoutScene(scene, shapeForElement);
     direction = viewDirection(scene);
     buildModel();
+    placeAnnotations();
     placeBench();
     stage.hovered = null;
     if (needsFraming(shownBounds()) || framedFrom !== String(direction)) frameRotor();
@@ -756,6 +787,64 @@ function drawFrame() {
     showWhatIsUnderThePointer();
     stage.renderer.render(stage.scene, stage.camera);
     drawTriad();
+    placeLabels();
+}
+
+// The numbers follow the view: projected every frame, those that would print
+// over each other left out (`arrangeLabels`).
+function placeLabels() {
+    if (!annotations || !labelSpans.length) return;
+    const { THREE } = library;
+    const box = stage.renderer.domElement.getBoundingClientRect();
+    const width = box.width;
+    const height = box.height;
+    const point = new THREE.Vector3();
+    const project = ([x, y, z]) => {
+        point.set(x, y, z).project(stage.camera);
+        return [(point.x + 1) / 2 * width, (1 - point.y) / 2 * height, point.z];
+    };
+    arrangeLabels(annotations.labels, project, width, height).forEach((place, k) => {
+        const span = labelSpans[k];
+        span.hidden = !place.shown;
+        if (place.shown) span.style.transform = `translate(${place.x.toFixed(1)}px, ${place.y.toFixed(1)}px)`;
+    });
+}
+
+// Built with the rotor, or taken away.
+function placeAnnotations() {
+    if (annotations) {
+        stage.scene.remove(annotations.object);
+        annotations.dispose();
+        annotations = null;
+    }
+    annotationPlan = annotationLayout(layout);
+    labelSpans = [];
+    stage.labels.innerHTML = '';
+    if (dimensionsShown) {
+        annotations = buildAnnotations(library.THREE, annotationPlan, themeColor('--text-muted', 'gray'));
+        stage.scene.add(annotations.object);
+        labelSpans = fillLabels(stage.labels, annotations.labels);
+    }
+    showDimensionsButton();
+}
+
+function showDimensionsButton() {
+    document.querySelectorAll('[data-action="toggle-dimensions"]').forEach(button => {
+        button.setAttribute('aria-pressed', String(dimensionsShown));
+    });
+}
+
+// The button: on or off, remembered, and the view takes in the dimensions
+// over the rotor.
+export function toggleDimensions() {
+    dimensionsShown = !dimensionsShown;
+    try {
+        localStorage.setItem(DIMENSIONS_KEY, dimensionsShown ? 'on' : 'off');
+    } catch (e) { /* a preference: without storage it lasts until the page closes */ }
+    showDimensionsButton();
+    if (!stage || !layout) return;
+    placeAnnotations();
+    frameRotor();
 }
 
 function showWhatIsUnderThePointer() {
