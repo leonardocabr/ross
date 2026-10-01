@@ -2551,6 +2551,7 @@
     }
    ],
    "pointmasses": [],
+   "probes": [],
    "seals": [
     {
      "color": "#77ACA2",
@@ -3901,6 +3902,7 @@
     }
    ],
    "pointmasses": [],
+   "probes": [],
    "seals": [],
    "shafts": [
     {
@@ -4008,6 +4010,20 @@
      "element_type": "BASIC",
      "m": "20",
      "n": "5"
+    }
+   ],
+   "probes": [
+    {
+     "angle": "45",
+     "direction": "radial",
+     "n": "1",
+     "tag": "DE X"
+    },
+    {
+     "angle": "",
+     "direction": "axial",
+     "n": "3",
+     "tag": "Thrust"
     }
    ],
    "seals": [
@@ -4178,6 +4194,24 @@
      "z": 0.0
     }
    ],
+   "probes": [
+    {
+     "angle": 0.7853981633974483,
+     "direction": "radial",
+     "index": 0,
+     "n": 1,
+     "tag": "DE X",
+     "z": 0.25
+    },
+    {
+     "angle": null,
+     "direction": "axial",
+     "index": 1,
+     "n": 3,
+     "tag": "Thrust",
+     "z": 0.75
+    }
+   ],
    "seals": [
     {
      "color": "#77ACA2",
@@ -4343,6 +4377,13 @@
      }
     ],
     "pointmasses": [],
+    "probes": [
+     {
+      "angle": "90",
+      "direction": "radial",
+      "n": "2"
+     }
+    ],
     "seals": [],
     "shafts": [
      {
@@ -4446,6 +4487,7 @@
      }
     ],
     "pointmasses": [],
+    "probes": [],
     "seals": [],
     "shafts": [
      {
@@ -4552,6 +4594,16 @@
      }
     ],
     "pointmasses": [],
+    "probes": [
+     {
+      "angle": 1.5707963267948966,
+      "direction": "radial",
+      "index": 0,
+      "n": 2,
+      "tag": null,
+      "z": 0.5
+     }
+    ],
     "seals": [],
     "shafts": [
      {
@@ -4850,6 +4902,7 @@
      }
     ],
     "pointmasses": [],
+    "probes": [],
     "seals": [],
     "shafts": [
      {
@@ -4997,6 +5050,7 @@
      }
     ],
     "pointmasses": [],
+    "probes": [],
     "seals": [],
     "shafts": [
      {

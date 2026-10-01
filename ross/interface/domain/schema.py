@@ -27,6 +27,17 @@ LANGUAGES = ("en", "pt")
 # The UI uses lowercase 'poisson'; ROSS expects 'Poisson'.
 PARAMETER_ALIASES = {"poisson": "Poisson"}
 
+# The same, for one class only. A probe's node is `n` on the screen, as every
+# other element's, and `node` in `rs.Probe`.
+CLASS_ALIASES = {"Probe": {"n": "node"}}
+
+
+def _parameter_name(ross_class, field_name):
+    """The ROSS parameter a form field stands for."""
+    own = CLASS_ALIASES.get(ross_class, {})
+    return own.get(field_name, PARAMETER_ALIASES.get(field_name, field_name))
+
+
 # Parameters the interface handles itself; they must not become pending.
 _NOT_FORM_FIELDS = {"self", "n"}
 
@@ -201,7 +212,7 @@ def _unit_for(cls, ross_class, parameter):
 
 
 def _build_field(field, cls, ross_class, parameters, documentation, language):
-    target = PARAMETER_ALIASES.get(field["name"], field["name"])
+    target = _parameter_name(ross_class, field["name"])
     parameter = parameters.get(target)
     default = _jsonable(parameter.default) if parameter is not None else None
 
@@ -258,7 +269,7 @@ def build_schema(language="en"):
                 )
                 for field in fields
             ]
-            covered = {PARAMETER_ALIASES.get(f["name"], f["name"]) for f in fields}
+            covered = {_parameter_name(ross_class, f["name"]) for f in fields}
 
             schema["categories"][category][subtype] = {
                 # What ROSS is called with: a class, or "Class.method" for an

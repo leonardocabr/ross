@@ -130,6 +130,7 @@ const DefaultExamples = {
     gears_TVMS: { material: "Default (Steel)", width: "20", bore_diameter: "70", module: "2", n_teeth: "62", pr_angle: "20" },
     couplings_BASIC: { m_l: "37.8875", m_r: "37.8875", Ip_l: "1.0985", Ip_r: "1.0985", kr_z: "3.04256e6" },
     pointmasses_BASIC: { m: "2" },
+    probes_BASIC: { direction: "radial", angle: "45" },
     bearings_BASIC: { kxx: "1e6", kyy: "0.8e6", cxx: "2e2", cyy: "1.5e2" },
     bearings_BallBearing: { n_balls: "8", d_balls: "0.03", fs: "500", alpha: "0.523598" },
     bearings_RollerBearing: { n_rollers: "8", l_rollers: "0.03", fs: "500", alpha: "0.523598" },

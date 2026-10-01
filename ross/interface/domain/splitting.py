@@ -57,6 +57,7 @@ NUMBERED_ALONE = {
     "bearings": effective_nodes,
     "seals": effective_nodes,
     "pointmasses": effective_nodes,
+    "probes": effective_nodes,
 }
 
 NO_SUCH_SHAFT = "Shaft #%d does not exist: the model has %d."

@@ -21,7 +21,7 @@
 
 // The categories the legend offers, in the order it shows them. `nodes` is the
 // rings on the shaft line, which ROSS's 2D figure also labels.
-export const LEGEND_CATEGORIES = ['shafts', 'disks', 'gears', 'couplings', 'bearings', 'seals', 'pointmasses', 'nodes'];
+export const LEGEND_CATEGORIES = ['shafts', 'disks', 'gears', 'couplings', 'bearings', 'seals', 'pointmasses', 'probes', 'nodes'];
 
 const hiddenElements = new WeakSet();
 const hiddenCategories = new Set();

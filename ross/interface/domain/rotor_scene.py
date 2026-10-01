@@ -166,6 +166,7 @@ def _describe(rotor, placed, geometry=None):
         "bearings": [],
         "seals": [],
         "pointmasses": [],
+        "probes": [],
     }
 
     for index, s in enumerate(shafts):
@@ -275,6 +276,22 @@ def _describe(rotor, placed, geometry=None):
                 "m": _f(p.m),
                 "tag": p.tag,
                 "color": _color(p),
+            }
+        )
+
+    # A probe is not in the rotor (domain/rotor_builder.py `build_probes`): it
+    # is placed by its node, and drawn by its direction and angle -- radians
+    # from x toward y, ROSS's convention, or None for an axial one.
+    for index, probe in enumerate(placed.get("probes", [])):
+        node = int(probe.node)
+        scene["probes"].append(
+            {
+                "index": index,
+                "n": node,
+                "z": z.get(node),
+                "direction": probe.direction,
+                "angle": _f(probe.angle),
+                "tag": probe.tag,
             }
         )
 

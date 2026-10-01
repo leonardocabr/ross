@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import { check, shutDown } from './fake_dom.js';
 
 const THREE = await import('../../frontend/vendor/three/three.module.js');
-const { SYMBOL, benchLayout, drivenPlacement, framing, layoutScene, pickPart, shaftRadiusAt, viewDirection } =
+const { PROBE_COLOR, SYMBOL, benchLayout, drivenPlacement, framing, layoutScene, pickPart, shaftRadiusAt, viewDirection } =
     await import('../../frontend/core/rotor3d_layout.js');
 const { MAX_DRAWN_TEETH, buildBench, buildRotorModel, mergeColoured } =
     await import('../../frontend/components/rotor3d_parts.js');
@@ -26,7 +26,7 @@ const copy = value => JSON.parse(JSON.stringify(value));
 // --- every element becomes exactly one part -------------------------------------
 console.log('\nOne part per element, at the element\'s place');
 
-const CATEGORIES = ['shafts', 'couplings', 'disks', 'gears', 'bearings', 'seals', 'pointmasses'];
+const CATEGORIES = ['shafts', 'couplings', 'disks', 'gears', 'bearings', 'seals', 'pointmasses', 'probes'];
 for (const [name, { scene }] of Object.entries(CASES)) {
     const lines = scene.kind === 'multirotor' ? [['driving', scene.driving], ['driven', scene.driven]] : [[null, scene]];
     const { parts } = layoutScene(scene);
@@ -442,5 +442,69 @@ check('merging frees the pieces it copied, indexed or not', pieces.every(p => fr
 check('and keeps all their vertices',
     merged.attributes.position.count === 4 * new THREE.CylinderGeometry(1, 1, 1, 8).toNonIndexed().attributes.position.count);
 merged.dispose();
+
+
+// --- probes ---------------------------------------------------------------------------
+console.log('\nProbes: where the analyses read the response');
+
+// The probes are not in ROSS's rotor (domain/rotor_builder.py); the scene
+// places them by their node, with their direction and angle.
+const probeParts = everyParts.filter(p => p.kind === 'probe');
+const radialProbe = probeParts.find(p => !p.axial);
+const axialProbe = probeParts.find(p => p.axial);
+check('a part per probe', probeParts.length === every.probes.length && !!radialProbe && !!axialProbe);
+// A disk sits on node 1, where the radial probe reads: the probe is drawn
+// just beside it, on the outer side, and says so. On a bare node it is drawn
+// on the node.
+const diskOnOne = everyParts.find(p => p.kind === 'disk' && p.z0 <= radialProbe.entry.z && p.z1 >= radialProbe.entry.z);
+check('a probe on a node a disk sits on is drawn beside the disk, on the outer side',
+    radialProbe.beside === true && radialProbe.outward === -1 && radialProbe.z1 <= diskOnOne.z0 + 1e-12);
+const bare = layoutScene({ ...every, disks: [], seals: [] }).parts.find(p => p.kind === 'probe' && !p.axial);
+check('on a bare node, on the node itself', !bare.beside && near((bare.z0 + bare.z1) / 2, bare.entry.z));
+check('reaching from the axis past the shaft, by the tip, body and cable',
+    near(radialProbe.radius, (1 + SYMBOL.probe.gap + SYMBOL.probe.length) * radialProbe.shaftRadius));
+check('in the probe colour, which the legend shows', radialProbe.color === PROBE_COLOR);
+
+// Drawn alone, its solid lies where its angle says: from x toward y, as ROSS
+// reads x cos(angle) + y sin(angle).
+const vertexMean = model => {
+    const mesh = model.object.children.filter(c => c.isMesh);
+    let sx = 0; let sy = 0; let count = 0;
+    mesh.forEach(m => {
+        const a = m.geometry.attributes.position;
+        for (let i = 0; i < a.count; i++) { sx += a.getX(i); sy += a.getY(i); count++; }
+    });
+    return [sx / count, sy / count];
+};
+const radialModel = buildRotorModel(THREE, { parts: [radialProbe], rings: [] });
+const [mx, my] = vertexMean(radialModel);
+check(`the radial probe points from its angle (${(Math.atan2(my, mx) * 180 / Math.PI).toFixed(1)}° for 45°)`,
+    Math.abs(Math.atan2(my, mx) - radialProbe.entry.angle) < 1e-6);
+check('and stays outside the shaft', Math.hypot(mx, my) > radialProbe.shaftRadius);
+radialModel.dispose();
+const turned = layoutScene({ ...every, probes: [{ ...every.probes[0], angle: -2.5 }] }).parts.find(p => p.kind === 'probe');
+const turnedModel = buildRotorModel(THREE, { parts: [turned], rings: [] });
+const [tx, ty] = vertexMean(turnedModel);
+check('at any angle, below the axis too', Math.abs(Math.atan2(ty, tx) - -2.5) < 1e-6);
+turnedModel.dispose();
+
+// An axial probe lies along the shaft, on the outer side of its node: the
+// one in the scene is on node 3 of 5, past the middle, so it points to +z.
+check('an axial probe lies along the shaft, outward of its node',
+    axialProbe.outward === 1 && axialProbe.z0 > axialProbe.entry.z && axialProbe.z1 > axialProbe.z0);
+const diskOnThree = everyParts.find(p => p.kind === 'disk' && p.z0 <= axialProbe.entry.z && p.z1 >= axialProbe.entry.z);
+check('facing the face of the disk on its node, a gap off it', axialProbe.beside === true
+    && near(axialProbe.z0, diskOnThree.z1 + SYMBOL.probe.gap * axialProbe.shaftRadius));
+check('over the shaft, on a node in the middle of the line', axialProbe.lift > axialProbe.shaftRadius);
+const atTheEnd = layoutScene({ ...every, probes: [{ ...every.probes[1], n: 0, z: every.nodes[0].z }] }).parts.find(p => p.kind === 'probe');
+check('on the axis, facing the end face, at an end of the line', atTheEnd.lift === 0 && atTheEnd.outward === -1
+    && atTheEnd.z1 < every.nodes[0].z);
+const axialModel = buildRotorModel(THREE, { parts: [axialProbe], rings: [] });
+const box = new THREE.Box3().setFromObject(axialModel.object);
+check('and its solid is where its part says it is',
+    box.min.z >= axialProbe.z0 - 1e-6 && box.max.z <= axialProbe.z1 + 1e-6 && box.min.y > axialProbe.shaftRadius);
+axialModel.dispose();
+check('a MultiRotor line keeps its own probes', layoutScene(CASES.multirotor.scene).parts
+    .filter(p => p.kind === 'probe').every(p => p.half === 'driving'));
 
 shutDown();

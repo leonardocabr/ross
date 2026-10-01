@@ -47,7 +47,7 @@ def test_schema_has_no_unknown_fields():
 
 def test_every_form_field_is_accepted_by_its_class():
     """Belt and braces: checks straight against the signature, without the schema."""
-    from ross.interface.domain.schema import PARAMETER_ALIASES, _class_signature
+    from ross.interface.domain.schema import _class_signature, _parameter_name
 
     problems = []
     for category, subtypes in FIELDS.items():
@@ -55,7 +55,7 @@ def test_every_form_field_is_accepted_by_its_class():
             klass = element_registry.ross_constructor(category, subtype)
             _, parameters, _, _ = _class_signature(klass)
             for field in fields:
-                target = PARAMETER_ALIASES.get(field["name"], field["name"])
+                target = _parameter_name(klass, field["name"])
                 if target not in parameters:
                     problems.append(
                         f"{category}/{subtype}.{field['name']} -> rs.{klass}"

@@ -13,7 +13,7 @@ export const state = {
     rotorLibrary: [],
     activeRotorIndex: -1,
     projectData: { materials: [], shafts: [], disks: [], gears: [], couplings: [],
-                   seals: [], bearings: [], pointmasses: [] },
+                   seals: [], bearings: [], pointmasses: [], probes: [] },
     currentTab: null,
     editingIndex: -1,
     currentSubType: 'BASIC',

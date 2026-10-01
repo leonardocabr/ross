@@ -55,6 +55,12 @@ ELEMENTS = {
         "Hybrid": "HybridSeal",
     },
     "pointmasses": {"BASIC": "PointMass"},
+    # A probe is not part of the rotor: ROSS's `Rotor` takes no probes, and
+    # its response plots take them as an argument (`probe=[rs.Probe(...)]`).
+    # It is a category of the screen so a probe is placed on the model -- and
+    # renumbered with it -- and drawn in the 3D view; the builder checks it
+    # with `rs.Probe` and hands it to nobody (domain/rotor_builder.py).
+    "probes": {"BASIC": "Probe"},
 }
 
 # The class used when the given type does not exist in the category.

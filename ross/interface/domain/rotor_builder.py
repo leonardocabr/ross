@@ -208,6 +208,59 @@ def _in_si_when_unchecked(constructor, kwargs):
     }
 
 
+# A probe is checked here, where its row can be named, because ROSS checks
+# little of it and only later: `rs.Probe` refuses a radial probe with no angle,
+# but a probe on a node the rotor does not have is taken, and the response
+# plots then read nothing there.
+PROBE_NO_NODE = (
+    "Probe #%d is on node %d, which this rotor does not have: its nodes go from "
+    "%d to %d."
+)
+PROBE_DIRECTION = "Probe #%d: the direction is 'radial' or 'axial', not '%s'."
+PROBE_NEEDS_ANGLE = "Probe #%d is radial and needs the angle it reads at."
+PROBE_ANGLE_UNREADABLE = "Probe #%d: '%s' is not an angle."
+
+
+def build_probes(rows, rotor):
+    """The `rs.Probe` of each row of the project's probes, in the list's order.
+
+    Built to be checked and described (domain/rotor_scene.py), not to be built
+    into anything: ROSS's `Rotor` takes no probes. The angle goes in radians,
+    and an axial probe has none, as `rs.Probe` itself sets it.
+    """
+    nodes = [int(n) for n in rotor.nodes]
+    resolved = effective_nodes(rows)
+    probes = []
+    for i, row in enumerate(rows):
+        node = resolved[i]
+        if node not in nodes:
+            raise ValueError(PROBE_NO_NODE % (i + 1, node, min(nodes), max(nodes)))
+        direction = str(row.get("direction", "") or "radial").strip().lower()
+        if direction not in ("radial", "axial"):
+            raise ValueError(PROBE_DIRECTION % (i + 1, row.get("direction")))
+        angle = None
+        if direction == "radial":
+            raw = str(row.get("angle", "")).strip()
+            if raw == "":
+                raise ValueError(PROBE_NEEDS_ANGLE % (i + 1))
+            # Its own unit when the row names one, else the form's degrees.
+            typed = {"angle": raw}
+            if str(row.get("angle_unit", "") or "").strip():
+                typed["angle_unit"] = str(row["angle_unit"]).strip()
+            value = extract_kwargs(typed, {}, "Probe", []).get("angle")
+            if isinstance(value, Q_):
+                angle = float(value.to("rad").m)
+            elif isinstance(value, (int, float)):
+                angle = float(value)
+            else:
+                raise ValueError(PROBE_ANGLE_UNREADABLE % (i + 1, raw))
+        # The tag is the probe's name, read as typed: through `extract_kwargs`
+        # a probe called "1" would come back as the number 1.0.
+        tag = str(row.get("tag", "") or "").strip() or None
+        probes.append(rs.Probe(node, angle, direction=direction, tag=tag))
+    return probes
+
+
 def build_rotor_from_ui(data):
     """The ROSS rotor the project describes."""
     return assemble_rotor(data).rotor
@@ -532,4 +585,5 @@ def assemble_rotor(data):
         bearing_elements=ross_bearings + ross_seals,
         point_mass_elements=ross_pointmasses,
     )
+    placed["probes"] = build_probes(data.get("probes", []) or [], rotor)
     return Assembled(rotor, placed, geometry={"disks": disk_geometry})

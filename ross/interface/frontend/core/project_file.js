@@ -40,6 +40,7 @@ export const CATEGORIES = [
     'bearings',
     'seals',
     'pointmasses',
+    'probes',
 ];
 
 // Keys a project written before the interface was translated still carries.
@@ -82,6 +83,21 @@ function freshUid() {
     return 'rotor_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
+// Every category as a list, on the project and on each half of a MultiRotor.
+// A project saved before a category existed -- the probes are the latest --
+// has no key for it, and the screen pushes a new row onto that list.
+export function withEveryCategory(project) {
+    if (!project || typeof project !== 'object') return project;
+    const lines = project.isMultiRotor ? [project.driving_rotor, project.driven_rotor] : [project];
+    [project, ...lines].forEach(line => {
+        if (!line || typeof line !== 'object') return;
+        CATEGORIES.forEach(category => {
+            if (!Array.isArray(line[category])) line[category] = [];
+        });
+    });
+    return project;
+}
+
 // The project as the library should hold it, or null when the file is not ours.
 //
 // `name` comes from the file name, as it always has: the person renamed the
@@ -99,9 +115,7 @@ export function projectFromFile(loaded, fileName) {
     });
     Object.keys(LEGACY_NAMES).forEach(old => { delete project[old]; });
 
-    CATEGORIES.forEach(category => {
-        if (!Array.isArray(project[category])) project[category] = [];
-    });
+    withEveryCategory(project);
 
     project.name = fileName;
     project.savedAnalyses = project.savedAnalyses || [];

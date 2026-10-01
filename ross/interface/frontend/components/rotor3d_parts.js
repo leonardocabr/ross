@@ -392,6 +392,46 @@ function pointMassPieces(THREE, part, edges) {
     ];
 }
 
+// A proximity probe, built pointing up (+y) from its tip and then turned to
+// where it reads: its tip, the threaded body with two lock nuts, and the cable,
+// in the probe's colour. Sizes in shaft radii (`SYMBOL.probe`).
+const PROBE_TIP = 0x2b2b2b;
+
+function probePieces(THREE, part, edges) {
+    const r = part.shaftRadius;
+    const { gap } = SYMBOL.probe;
+    const tip = 0.3 * r;
+    const body = 1.5 * r;
+    const cable = 0.5 * r;
+    const along = (radius, height, centre, sides = SEGMENTS.small) => {
+        const geometry = new THREE.CylinderGeometry(radius, radius, height, sides);
+        geometry.translate(0, centre, 0);
+        return geometry;
+    };
+    const start = part.axial ? gap * r : (1 + gap) * r;
+    const pieces = [
+        { geometry: along(0.2 * r, tip, start + tip / 2), color: PROBE_TIP, finish: 'paint' },
+        steel(along(0.13 * r, body, start + tip + body / 2)),
+        steel(faceted(THREE, along(0.27 * r, 0.14 * r, start + tip + 0.35 * body, 6), edges)),
+        steel(faceted(THREE, along(0.27 * r, 0.14 * r, start + tip + 0.75 * body, 6), edges)),
+        own(along(0.07 * r, cable, start + tip + body + cable / 2), 'paint'),
+    ];
+    const z = (part.z0 + part.z1) / 2;
+    for (const piece of pieces) {
+        if (part.axial) {
+            // +y turned to the probe's side of the node along the axis, lifted
+            // over the shaft, and moved to the node's plane.
+            piece.geometry.rotateX(part.outward * Math.PI / 2);
+            piece.geometry.translate(0, part.lift, z - part.outward * ((part.z1 - part.z0) / 2 + gap * r));
+        } else {
+            // +y is 90 degrees: turned to the probe's angle from x.
+            piece.geometry.rotateZ(part.angle - Math.PI / 2);
+            piece.geometry.translate(0, 0, z);
+        }
+    }
+    return pieces;
+}
+
 const BUILDERS = {
     shaft: shaftPieces,
     disk: diskPieces,
@@ -400,6 +440,7 @@ const BUILDERS = {
     bearing: bearingPieces,
     seal: sealPieces,
     pointmass: pointMassPieces,
+    probe: probePieces,
 };
 
 // A colour ROSS names ('Firebrick', or a hex code) as three.js linear RGB. An

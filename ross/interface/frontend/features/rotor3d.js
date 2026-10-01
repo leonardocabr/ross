@@ -1137,6 +1137,7 @@ const CATEGORY_NAMES = {
     bearings: () => t('catBearing'),
     seals: () => t('catSeal'),
     pointmasses: () => t('catPointMassLong'),
+    probes: () => t('catProbe'),
 };
 
 const mm = metres => `${(metres * 1000).toFixed(1)} mm`;
@@ -1196,6 +1197,11 @@ function describePart(part) {
         if (e.m_r != null) rows.push(line(t('rotor3dMassRight'), `${number(e.m_r)} kg`));
         rows.push(note(t('rotor3dCouplingHubs')));
         if (part.overlapsShaft) rows.push(note(t('rotor3dCouplingOverShaft')));
+    } else if (part.kind === 'probe') {
+        rows.push(line(t('rotor3dDirection'), e.direction === 'axial' ? t('rotor3dProbeAxial')
+            : fill(t('rotor3dProbeRadial'), ((e.angle || 0) * 180 / Math.PI).toFixed(0))));
+        if (part.beside) rows.push(note(t('rotor3dProbeBeside')));
+        rows.push(note(t('rotor3dProbeNote')));
     } else if (part.kind === 'pointmass') {
         rows.push(line(t('rotor3dMass'), `${number(e.m)} kg`));
         rows.push(`<div class="rotor3d-tip-note">${escapeHtml(t('rotor3dNoSize'))}</div>`);

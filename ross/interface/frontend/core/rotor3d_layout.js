@@ -28,7 +28,14 @@ export const SYMBOL = {
     disk: { radius: 1.3, width: 0.4 },
     // How far below its parent a part on a link node hangs.
     link: 3.4,
+    // A proximity probe: its tip `gap` off the shaft, `length` long from tip
+    // to cable, and `across` either side of its node along the axis.
+    probe: { gap: 0.15, length: 2.3, across: 0.3 },
 };
+
+// A probe has no colour in ROSS, which does not draw probes; this one is the
+// cable's, and the legend's.
+export const PROBE_COLOR = 'darkorange';
 
 // How far a gear's hub reaches along the axis, each way, in face widths; and
 // how much wider than its gland a seal's flange is.
@@ -261,6 +268,58 @@ function partsOfLine(line, half, offset, shapeFor) {
                 offset: { x: offset.x, y: offset.y - levels * SYMBOL.link * r, z: offset.z },
                 hanging: levels,
                 shape: shapeKey(category, e.index, e),
+            });
+        }
+    }
+
+    // The probes, which ROSS's rotor does not have (domain/rotor_builder.py
+    // `build_probes`) and the analyses read the response at. A radial probe
+    // points at the shaft from its angle -- from x toward y, ROSS's own
+    // convention -- its tip a gap off the surface. An axial one lies along
+    // the shaft and faces its node's plane, from the outer side of the rotor's
+    // middle: on the axis at either end of the shaft line, where it reads the
+    // end face, and over the shaft anywhere else.
+    //
+    // A probe reads at its node, and on its node there is often a disk or a
+    // bearing that would swallow it. So it is drawn just beside what sits
+    // there, on the outer side, as a probe is mounted beside a bearing on the
+    // machine -- and the tooltip says so (`beside`).
+    const zs = (line.nodes || []).map(node => node.z);
+    const middle = zs.length ? (Math.min(...zs) + Math.max(...zs)) / 2 : 0;
+    const ends = zs.length ? [Math.min(...zs), Math.max(...zs)] : [];
+    const onNode = parts.filter(p => !p.hanging && ['disk', 'gear', 'bearing', 'seal', 'pointmass'].includes(p.kind));
+    const occupied = (z, outward) => {
+        const there = onNode.filter(p => Math.min(p.z0, p.z1) <= z + 1e-12 && Math.max(p.z0, p.z1) >= z - 1e-12);
+        if (!there.length) return null;
+        return Math.max(...there.map(p => (outward > 0 ? Math.max(p.z0, p.z1) - z : z - Math.min(p.z0, p.z1))));
+    };
+    for (const p of line.probes || []) {
+        if (p.z == null) continue;
+        const r = radiusAt(p.z);
+        const { gap, length, across } = SYMBOL.probe;
+        const outward = p.z < middle ? -1 : 1;
+        const width = occupied(p.z, outward);
+        const common = {
+            ...base, key: key('probes', p.index), category: 'probes', index: p.index, kind: 'probe',
+            entry: p, color: PROBE_COLOR, shaftRadius: r, outward, beside: width !== null,
+        };
+        if (p.direction === 'axial') {
+            const atEnd = ends.some(z => Math.abs(z - p.z) < 1e-9);
+            const lift = atEnd ? 0 : (1 + gap + across) * r;
+            const face = p.z + outward * (width || 0);
+            const from = face + outward * gap * r;
+            const to = face + outward * (gap + length) * r;
+            parts.push({
+                ...common, axial: true, lift,
+                z0: Math.min(from, to), z1: Math.max(from, to),
+                radius: lift + across * r,
+            });
+        } else {
+            const z = width === null ? p.z : p.z + outward * (width + 1.3 * across * r);
+            parts.push({
+                ...common, axial: false, angle: p.angle || 0,
+                z0: z - across * r, z1: z + across * r,
+                radius: (1 + gap + length) * r,
             });
         }
     }

@@ -180,6 +180,16 @@ const HelpContent = {
             pt: `<p>Uma massa concentrada num único nó, útil para representar pesos de desbalanceamento ou componentes pequenos.</p><h4>Parâmetros principais:</h4><ul><li><b>Massa (m):</b> massa total [kg].</li><li><b>mx, my, mz:</b> opções avançadas para massa assimétrica.</li></ul>`,
         },
     },
+    probes: {
+        title: {
+            en: `<i class='fas fa-crosshairs'></i> Probes Help`,
+            pt: `<i class='fas fa-crosshairs'></i> Ajuda: Sondas`,
+        },
+        body: {
+            en: `<p>Where the response is measured, as a proximity probe on the machine would read it. ROSS's rotor has no probes: they take no part in building it, and the analyses read the response at them. Placed here, a probe moves with its node when a shaft is split or discretized.</p><h4>Key Parameters:</h4><ul><li><b>Node:</b> where the probe reads.</li><li><b>Name:</b> the name the charts' legend gives it.</li><li><b>Direction:</b> radial (across the shaft) or axial (along it).</li><li><b>Angle:</b> for a radial probe, about the shaft from x toward y [deg].</li></ul>`,
+            pt: `<p>Onde a resposta é medida, como uma sonda de proximidade na máquina a leria. O rotor do ROSS não tem sondas: elas não entram na montagem dele, e as análises leem a resposta nelas. Colocada aqui, uma sonda acompanha o seu nó quando um eixo é dividido ou discretizado.</p><h4>Parâmetros principais:</h4><ul><li><b>Nó:</b> onde a sonda lê.</li><li><b>Nome:</b> o nome que a legenda dos gráficos dá a ela.</li><li><b>Direção:</b> radial (através do eixo) ou axial (ao longo dele).</li><li><b>Ângulo:</b> para uma sonda radial, em torno do eixo, de x para y [graus].</li></ul>`,
+        },
+    },
     campbell: {
         title: {
             en: `<i class='fas fa-chart-line'></i> Campbell Diagram Help`,

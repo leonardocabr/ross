@@ -1008,7 +1008,8 @@ export async function loadRotor(event) {
                         couplings: data.projectData.couplings || [],
                         seals: data.projectData.seals || [],
                         bearings: data.projectData.bearings || [],
-                        pointmasses: data.projectData.pointmasses || []
+                        pointmasses: data.projectData.pointmasses || [],
+                        probes: data.projectData.probes || []
                     };
                     
                     state.rotorLibrary.push(newConvertedRotor);

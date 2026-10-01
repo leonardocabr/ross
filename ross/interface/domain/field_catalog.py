@@ -710,4 +710,24 @@ FIELDS = {
             F("color", "Hex Color", "Cor (hex)", group="advanced"),
         ],
     },
+    # ROSS's `Probe(node, angle, direction, tag)`. The node is `n` here, as in
+    # every other category -- the node rules, the split and the concatenation
+    # all read `n` -- and the schema maps it to ROSS's `node`
+    # (domain/schema.py `CLASS_ALIASES`). The tag is in the main group: it is
+    # the name the analyses list the probe by, and the name ROSS's charts put
+    # in their legend.
+    "probes": {
+        "BASIC": [
+            F("n", "Node #", "Nó"),
+            F("tag", "Name", "Nome", optional=True),
+            F(
+                "direction",
+                "Direction",
+                "Direção",
+                control="select",
+                options=["radial", "axial"],
+            ),
+            F("angle", "Angle (radial)", "Ângulo (radial)"),
+        ],
+    },
 }

@@ -99,7 +99,7 @@ export async function createNewRotorInHub() {
     let newRotor = {
         name: baseName,
         savedAnalyses: [],
-        materials: [], shafts: [], disks: [], gears: [], couplings: [], seals: [], bearings: [], pointmasses: []
+        materials: [], shafts: [], disks: [], gears: [], couplings: [], seals: [], bearings: [], pointmasses: [], probes: []
     };
     state.rotorLibrary.push(newRotor);
     renderRotorHub();
@@ -228,7 +228,8 @@ export function generatePythonFromHub(index) {
 // Every element of a rotor, whatever its kind. It used to add up shafts, disks
 // and bearings only, so a rotor with gears, couplings, seals or point masses
 // was announced with fewer elements than it had. Materials are not elements of
-// the rotor -- they are what the shafts are made of -- and stay out.
+// the rotor -- they are what the shafts are made of -- and stay out, as do the
+// probes: ROSS's rotor has none, they are where the analyses read it.
 // "1 element", not "1 elements".
 function elementsLabel(count) {
     return (count === 1 ? t('elementsCountOne') : t('elementsCount')).replace('%1', () => count);
@@ -236,7 +237,7 @@ function elementsLabel(count) {
 
 function elementCount(rotor) {
     return CATEGORIES
-        .filter(category => category !== 'materials')
+        .filter(category => category !== 'materials' && category !== 'probes')
         .reduce((total, category) => total + (Array.isArray(rotor[category]) ? rotor[category].length : 0), 0);
 }
 
