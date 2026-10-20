@@ -126,8 +126,12 @@ check('the modal stays open on the fields that caused it',
 state.rotorLibrary = [rotor('Motor', [{ n: '2' }]), rotor('Pump', [{ n: '1' }])];
 await openMultiRotorModal();
 serverAnswers({ status: 'success', plot_json: '{}' });
+node('mr-damping').value = '0.05';
 await saveMultiRotor();
 const made = state.rotorLibrary[2];
+// ROSS #1427: the mesh damping ratio goes with the other mesh parameters.
+check('with the mesh damping ratio typed in the modal',
+    made.multi_params.mesh_damping_ratio === '0.05');
 check('a MultiRotor ROSS builds joins the library', state.rotorLibrary.length === 3 && made.isMultiRotor === true);
 check('coupled through the gears the modal found', made.multi_params.coupled_nodes === '2, 1');
 check('and linked to its two parents', made.driving_uid === 'uid_Motor' && made.driven_uid === 'uid_Pump');
