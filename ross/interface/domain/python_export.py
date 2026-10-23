@@ -417,8 +417,6 @@ def _multi_rotor_block(multi_params):
         args += ", gear_mesh_stiffness=%s" % _js_str(p["gear_mesh_stiffness"])
     if p.get("update_mesh_stiffness") == "true":
         args += ", update_mesh_stiffness=True"
-    if str(p.get("mesh_damping_ratio") or "").strip():
-        args += ", mesh_damping_ratio=%s" % _js_str(p["mesh_damping_ratio"])
 
     svs = p.get("square_varying_stiffness")
     if _js_truthy(svs):
@@ -439,6 +437,10 @@ def _multi_rotor_block(multi_params):
             "True" if _js_truthy(backlash.get("smooth_operator")) else "False",
             _js_str(backlash.get("sigma")),
         )
+
+    damping_ratio = str(_or(p.get("mesh_damping_ratio"), "")).strip()
+    if damping_ratio:
+        args += ", mesh_damping_ratio=%s" % _js_number(float(damping_ratio))
 
     if _js_truthy(p.get("orientation_angle")):
         args += ", orientation_angle=%s" % _js_str(p["orientation_angle"])
@@ -473,7 +475,7 @@ def probe_output(result, node, angle, dofs_per_node):
     c, s = np.cos(angle), np.sin(angle)
 
     def along(response):
-        return (c * response[:, x, :] + s * response[:, x + 1, :])[:, None, :]
+        return (c * response[x, :, :] + s * response[x + 1, :, :])[None, :, :]
 
     return FrequencyResponseResults(
         along(result.freq_resp),
