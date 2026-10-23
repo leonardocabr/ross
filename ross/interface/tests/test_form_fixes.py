@@ -241,6 +241,18 @@ def test_a_bearing_typed_in_other_units_is_the_same_bearing(si, typed):
     assert np.allclose(one.C(0), other.C(0), rtol=1e-6)
 
 
+def test_a_point_mass_with_its_axial_mass_builds():
+    """`mz` is not in ROSS's unit table, so `@check_units` passes a Quantity
+    through, and PointMass then fails with "Cannot convert from 'kilogram' to
+    'dimensionless'". It reaches ROSS as its number in kg."""
+    project = _rotor({"n": "2", "kxx": "1e6", "cxx": "0"})
+    project["pointmasses"] = [
+        {"n": "1", "m": "2", "mx": "2", "my": "2", "mz": "2000", "mz_unit": "g"}
+    ]
+    point_mass = build_rotor_from_ui(project).point_mass_elements[0]
+    assert (point_mass.mx, point_mass.my, point_mass.mz) == (2.0, 2.0, 2.0)
+
+
 # --- lists without brackets -----------------------------------------------------------
 
 CYLINDRICAL = {

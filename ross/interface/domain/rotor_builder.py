@@ -41,7 +41,7 @@ from ross.interface.services.expressions import safe_math_eval
 # fails with "'float' object is not iterable" and
 # `SqueezeFilmDamper(frequency=18600)` with "tuple index out of range"; the
 # same classes take `[1500]` and `[18600]`. The other bearings and seals take a
-# single speed as it is (tests/test_rotor_builder_lists.py).
+# single speed as it is (tests/test_form_fixes.py).
 LIST_PARAMETERS = {
     "CylindricalBearing": frozenset({"speed", "frequency"}),
     "SqueezeFilmDamper": frozenset({"frequency"}),
