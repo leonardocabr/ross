@@ -140,33 +140,7 @@ class CouplingElement(ShaftElement):
         tag=None,
         scale_factor=1,
         color="#647e91",
-        **kwargs,
     ):
-        legacy_names = {"kt_x": "k_x", "kt_y": "k_y", "kt_z": "k_z"}
-        for legacy_name, canonical_name in legacy_names.items():
-            if legacy_name in kwargs:
-                if (
-                    (canonical_name == "k_x" and k_x != 0)
-                    or (canonical_name == "k_y" and k_y != 0)
-                    or (canonical_name == "k_z" and k_z != 0)
-                ):
-                    raise TypeError(
-                        f"Specify only {canonical_name} or {legacy_name}, not both."
-                    )
-                value = kwargs.pop(legacy_name)
-                if canonical_name == "k_x":
-                    k_x = value
-                elif canonical_name == "k_y":
-                    k_y = value
-                else:
-                    k_z = value
-        if kwargs:
-            unexpected = next(iter(kwargs))
-            raise TypeError(
-                "CouplingElement.__init__() got an unexpected keyword argument "
-                f"{unexpected!r}"
-            )
-
         self.n = n
         self.n_l = n
         self.n_r = None
@@ -214,32 +188,6 @@ class CouplingElement(ShaftElement):
         self.beam_cg = self.L / 2
         self.Im = 1 / 8 * self.m * self.o_d**2
         self.slenderness_ratio = self.L / self.o_d
-
-    # Backward-compatible attribute aliases.  The canonical API uses k_x,
-    # k_y, and k_z; old serialized models and scripts may still read kt_*.
-    @property
-    def kt_x(self):
-        return self.k_x
-
-    @kt_x.setter
-    def kt_x(self, value):
-        self.k_x = float(value)
-
-    @property
-    def kt_y(self):
-        return self.k_y
-
-    @kt_y.setter
-    def kt_y(self, value):
-        self.k_y = float(value)
-
-    @property
-    def kt_z(self):
-        return self.k_z
-
-    @kt_z.setter
-    def kt_z(self, value):
-        self.k_z = float(value)
 
     def __repr__(self):
         """Return a string representation of a coupling element.

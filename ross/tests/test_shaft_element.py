@@ -692,21 +692,25 @@ def test_parameters_coupling(coupling):
     assert coupling.cr_z == 0.0
 
 
-def test_legacy_coupling_translational_stiffness_aliases():
+def test_coupling_translational_stiffness_names():
     coupling = CouplingElement(
         m_l=1,
         m_r=1,
         Ip_l=0.1,
         Ip_r=0.1,
-        kt_x=Q_(1, "N/mm"),
-        kt_y=2,
-        kt_z=3,
+        k_x=Q_(1, "N/mm"),
+        k_y=2,
+        k_z=3,
     )
 
     assert coupling.k_x == 1000
     assert coupling.k_y == 2
     assert coupling.k_z == 3
-    assert coupling.kt_x == coupling.k_x
+
+
+def test_coupling_rejects_legacy_translational_stiffness_names():
+    with pytest.raises(TypeError, match="unexpected keyword argument 'kt_x'"):
+        CouplingElement(m_l=1, m_r=1, Ip_l=0.1, Ip_r=0.1, kt_x=1)
 
 
 def test_mass_matrix_coupling(coupling):

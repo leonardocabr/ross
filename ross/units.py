@@ -51,10 +51,6 @@ units = {
     "k_x": "N/m",
     "k_y": "N/m",
     "k_z": "N/m",
-    # Legacy CouplingElement names accepted during migration.
-    "kt_x": "N/m",
-    "kt_y": "N/m",
-    "kt_z": "N/m",
     "kr_x": "N*m/rad",
     "kr_y": "N*m/rad",
     "kr_z": "N*m/rad",

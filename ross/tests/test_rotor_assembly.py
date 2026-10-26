@@ -472,7 +472,7 @@ def test_add_elements_rejects_invalid(rotor3, invalid):
 def test_add_elements_valid(rotor3):
     seal = SealElement(n=3, kxx=1e6, kyy=0.8e6, cxx=2e2, cyy=1.5e2)
     disk = DiskElement(n=5, m=32, Id=0.2, Ip=0.3)
-    point_mass = PointMass(n=3, m=1.0)
+    point_mass = PointMass(n=3, m=1.0, Ixx=0.0, Iyy=0.0, Izz=0.0)
     motor = motor_example()
 
     new_rotor = rotor3.add_elements([seal, disk, point_mass, motor])
@@ -3566,7 +3566,7 @@ def test_refine_tapered_and_housing(rotor_tapered_housing):
 
 
 def test_refine_keeps_couplings():
-    coupling = CouplingElement(m_l=10, m_r=10, Ip_l=0.1, Ip_r=0.1, kt_x=1e6, kr_x=1e6)
+    coupling = CouplingElement(m_l=10, m_r=10, Ip_l=0.1, Ip_r=0.1, k_x=1e6, kr_x=1e6)
     shaft_elements = [
         ShaftElement(L=0.25, idl=0, odl=0.05, material=steel),
         coupling,
