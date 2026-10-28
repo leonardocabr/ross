@@ -198,8 +198,13 @@ class Element(ABC):
         >>> # Example using BearingElement
         >>> from ross.bearing_seal_element import bearing_example
         >>> bearing = bearing_example()
-        >>> bearing.C(0).shape
-        (6, 6)
+        >>> bearing.C(0)
+        array([[200.,   0.,   0.,   0.,   0.,   0.],
+               [  0., 150.,   0.,   0.,   0.,   0.],
+               [  0.,   0.,  50.,   0.,   0.,   0.],
+               [  0.,   0.,   0.,   0.,   0.,   0.],
+               [  0.,   0.,   0.,   0.,   0.,   0.],
+               [  0.,   0.,   0.,   0.,   0.,   0.]])
         """
         pass
 
@@ -224,8 +229,13 @@ class Element(ABC):
         >>> # Example using BearingElement
         >>> from ross.bearing_seal_element import bearing_example
         >>> bearing = bearing_example()
-        >>> bearing.K(0).shape
-        (6, 6)
+        >>> bearing.K(0)
+        array([[1000000.,       0.,       0.,       0.,       0.,       0.],
+               [      0.,  800000.,       0.,       0.,       0.,       0.],
+               [      0.,       0.,  100000.,       0.,       0.,       0.],
+               [      0.,       0.,       0.,       0.,       0.,       0.],
+               [      0.,       0.,       0.,       0.,       0.,       0.],
+               [      0.,       0.,       0.,       0.,       0.,       0.]])
         """
         pass
 
@@ -242,8 +252,13 @@ class Element(ABC):
         >>> # Example using BearingElement
         >>> from ross.bearing_seal_element import bearing_example
         >>> bearing = bearing_example()
-        >>> bearing.G().shape
-        (6, 6)
+        >>> bearing.G()
+        array([[ 0.,  0.,  0.,  0.,  0.,  0.],
+               [ 0.,  0.,  0.,  0.,  0.,  0.],
+               [ 0.,  0.,  0.,  0.,  0.,  0.],
+               [ 0.,  0.,  0.,  0.,  0.,  0.],
+               [ 0.,  0.,  0., -0.,  0.,  0.],
+               [ 0.,  0.,  0.,  0.,  0.,  0.]])
         """
         pass
 
