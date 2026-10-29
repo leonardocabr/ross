@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Projects saved before ROSS 3 renamed the table axis still open.
+"""Projects saved before ROSS renamed a keyword still open.
 
 ROSS 3.0 (petrobras/ross#1371) made `frequency=` mean the excitation frequency
 and moved the fluid-film bearings and seals to `speed=`. The forms followed,
@@ -156,3 +156,81 @@ def test_a_version_2_ross_file_lands_on_the_speed_field_in_the_form_unit():
     assert "frequency" not in bearing
     assert bearing["speed"] == "[900.0]"
     assert bearing["journal_diameter"] == "100.0"
+
+
+# --- the coupling's translational stiffnesses, renamed by ROSS #1431 ---------------
+#
+# `CouplingElement(kt_x=...)` became `k_x`, and ROSS refuses the old name. A
+# coupling saved by the interface before that still says `kt_x`.
+
+OLD_COUPLING = {
+    "element_type": "BASIC",
+    "n": "1",
+    "m_l": "1",
+    "m_r": "1",
+    "Ip_l": "0.01",
+    "Ip_r": "0.01",
+    "kt_x": "1e7",
+    "kt_y": "1e7",
+    "kt_y_unit": "N/mm",
+    "kr_x": "1e5",
+    "L": "100",
+}
+
+
+def test_a_coupling_saved_with_kt_reads_as_k_in_place_with_its_unit():
+    migrated = migrate_element(OLD_COUPLING, "CouplingElement")
+    keys = list(migrated)
+    assert "kt_x" not in migrated and "kt_y_unit" not in migrated
+    assert (migrated["k_x"], migrated["k_y"], migrated["k_y_unit"]) == (
+        "1e7",
+        "1e7",
+        "N/mm",
+    )
+    assert keys.index("k_x") == list(OLD_COUPLING).index("kt_x")
+
+
+def test_a_coupling_with_both_names_keeps_the_current_one():
+    both = dict(OLD_COUPLING, k_x="2e7")
+    migrated = migrate_element(both, "CouplingElement")
+    assert migrated["k_x"] == "2e7" and "kt_x" not in migrated
+
+
+def test_a_coupling_with_the_current_names_is_the_same_object():
+    current = {"n": "1", "m_l": "1", "m_r": "1", "k_x": "1e7"}
+    assert migrate_element(current, "CouplingElement") is current
+
+
+def _coupled(coupling):
+    shaft = {"L": "250", "idl": "0", "odl": "50", "material": "Steel"}
+    return {
+        "materials": [{"name": "Steel", "rho": "7810", "E": "211e9", "G_s": "81.2e9"}],
+        "shafts": [dict(shaft, n="0"), dict(shaft, n="2")],
+        "couplings": [coupling],
+        "bearings": [
+            {"n": "0", "kxx": "1e6", "cxx": "0"},
+            {"n": "3", "kxx": "1e6", "cxx": "0"},
+        ],
+    }
+
+
+@needs_ross
+def test_a_coupling_saved_with_kt_builds_the_rotor_the_current_names_build():
+    import numpy as np
+
+    from ross.interface.domain.rotor_builder import build_rotor_from_ui
+
+    current = dict(OLD_COUPLING, k_x="1e7", k_y="1e7", k_y_unit="N/mm")
+    for key in ("kt_x", "kt_y", "kt_y_unit"):
+        current.pop(key)
+    old = build_rotor_from_ui(_coupled(dict(OLD_COUPLING)))
+    new = build_rotor_from_ui(_coupled(current))
+    assert np.allclose(old.K(0), new.K(0))
+
+
+@needs_ross
+def test_the_exported_script_builds_a_coupling_saved_with_kt():
+    script = build_script(_coupled(dict(OLD_COUPLING)))
+    assert "kt_x" not in script and "k_x=" in script
+    namespace = {}
+    exec(script.replace(".show()", ""), namespace)

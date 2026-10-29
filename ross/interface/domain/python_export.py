@@ -356,6 +356,7 @@ def _build_rotor_block(r_data, suffix):
     py += "couplings_data%s = [\n" % suffix
     nodes = listed_nodes(r_data.get("couplings") or [])
     for position, coupling in enumerate(r_data.get("couplings") or []):
+        coupling = migrate_element(coupling, "CouplingElement")
         args = _format_kwargs(coupling, ["element_type"], "CouplingElement")
         py += "    dict(%s),\n" % _with_node_arg(coupling, args, nodes[position])
     py += (

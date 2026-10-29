@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Read element dictionaries written before ROSS 3 renamed the table axis.
+"""Read element dictionaries written before ROSS renamed one of their keywords.
+
+The table axis (ROSS 3.0, below) and the coupling's translational stiffnesses
+(`kt_*` became `k_*` in #1431, `RENAMED`).
 
 ROSS 3.0 (petrobras/ross#1371) made every coefficient table declare the physical
 axis it is tabulated on: ``speed=`` for the rotor speed and ``frequency=`` for
@@ -68,8 +71,34 @@ LEGACY_SPEED_CLASSES = SPEED_ONLY_CLASSES | frozenset(
 )
 
 
+# Keyword arguments ROSS renamed, by class: old name -> current name. A row
+# saved with the old name is read with the current one, with its `_unit`. The
+# coupling's translational stiffnesses were `kt_*` until ROSS #1431.
+RENAMED = {
+    "CouplingElement": {"kt_x": "k_x", "kt_y": "k_y", "kt_z": "k_z"},
+}
+
+
+def _renamed(element, ross_class):
+    names = RENAMED.get(ross_class)
+    if not names or not any(old in element for old in names):
+        return element
+    migrated = {}
+    for key, value in element.items():
+        base = key[: -len("_unit")] if key.endswith("_unit") else key
+        if base in names:
+            new = names[base] + key[len(base) :]
+            # A row that has both keeps the current one.
+            if str(element.get(new, "")).strip() != "":
+                continue
+            key = new
+        migrated[key] = value
+    return migrated
+
+
 def migrate_element(element, ross_class):
-    """Return the element with a version-2 ``frequency`` table read as ``speed``.
+    """Return the element with a version-2 ``frequency`` table read as ``speed``,
+    and with any keyword ROSS renamed since (``RENAMED``) read by its new name.
 
     The dictionary comes back unchanged (the same object) when there is nothing
     to translate. When ``frequency`` is present and ``speed`` is not, the key
@@ -81,6 +110,7 @@ def migrate_element(element, ross_class):
     second, excitation-frequency axis the user never asked for. On a class
     whose form offers ``frequency`` the pair is a 2-D table and is kept.
     """
+    element = _renamed(element, ross_class)
     if ross_class not in LEGACY_SPEED_CLASSES or LEGACY_AXIS not in element:
         return element
 

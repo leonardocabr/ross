@@ -531,7 +531,10 @@ def assemble_rotor(data):
 
         def build_coupling():
             kwargs = extract_kwargs(
-                c, created_materials, "CouplingElement", ["n", "element_type"]
+                migrate_element(c, "CouplingElement"),
+                created_materials,
+                "CouplingElement",
+                ["n", "element_type"],
             )
             if "tag" not in kwargs:
                 kwargs["tag"] = auto_tag
